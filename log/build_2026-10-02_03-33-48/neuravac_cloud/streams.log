@@ -1,0 +1,17 @@
+[1.767s] Invoking command in '/workspace/ros2_ws/build/neuravac_cloud': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cloud/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cloud/build --no-deps symlink_data
+[2.339s] running develop
+[2.483s] running egg_info
+[2.498s] writing neuravac_cloud.egg-info/PKG-INFO
+[2.500s] writing dependency_links to neuravac_cloud.egg-info/dependency_links.txt
+[2.503s] writing entry points to neuravac_cloud.egg-info/entry_points.txt
+[2.506s] writing requirements to neuravac_cloud.egg-info/requires.txt
+[2.509s] writing top-level names to neuravac_cloud.egg-info/top_level.txt
+[2.539s] reading manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+[2.546s] writing manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+[2.559s] running build_ext
+[2.561s] Creating /workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages/neuravac-cloud.egg-link (link to .)
+[2.578s] Installing cloud_node script to /workspace/ros2_ws/install/neuravac_cloud/lib/neuravac_cloud
+[2.581s] 
+[2.582s] Installed /workspace/ros2_ws/build/neuravac_cloud
+[2.583s] running symlink_data
+[2.667s] Invoked command in '/workspace/ros2_ws/build/neuravac_cloud' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cloud/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cloud/build --no-deps symlink_data

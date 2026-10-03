@@ -1,0 +1,26 @@
+[1.565s] Invoking command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/build --no-deps symlink_data
+[1.689s] /Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+[1.689s]   warnings.warn(msg)
+[1.769s] running develop
+[1.838s] running egg_info
+[1.852s] creating neuravac_cloud.egg-info
+[1.854s] writing neuravac_cloud.egg-info/PKG-INFO
+[1.855s] writing dependency_links to neuravac_cloud.egg-info/dependency_links.txt
+[1.855s] writing entry points to neuravac_cloud.egg-info/entry_points.txt
+[1.855s] writing requirements to neuravac_cloud.egg-info/requires.txt
+[1.856s] writing top-level names to neuravac_cloud.egg-info/top_level.txt
+[1.856s] writing manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+[1.873s] reading manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+[1.877s] writing manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+[1.892s] running build_ext
+[1.892s] Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages/neuravac-cloud.egg-link (link to .)
+[1.896s] Installing cloud_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/lib/neuravac_cloud
+[1.896s] 
+[1.896s] Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud
+[1.896s] running symlink_data
+[1.896s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/ament_index/resource_index/packages
+[1.896s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/resource/neuravac_cloud -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/ament_index/resource_index/packages
+[1.897s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/neuravac_cloud
+[1.897s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/launch
+[1.897s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/config
+[1.960s] Invoked command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud' returned '0': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/build --no-deps symlink_data

@@ -1,0 +1,26 @@
+[1.451s] Invoking command in '/workspace/ros2_ws/build/neuravac_cleaning': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cleaning/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cleaning/build --no-deps symlink_data
+[1.637s] running develop
+[1.731s] running egg_info
+[1.732s] creating neuravac_cleaning.egg-info
+[1.749s] writing neuravac_cleaning.egg-info/PKG-INFO
+[1.755s] writing dependency_links to neuravac_cleaning.egg-info/dependency_links.txt
+[1.758s] writing entry points to neuravac_cleaning.egg-info/entry_points.txt
+[1.764s] writing requirements to neuravac_cleaning.egg-info/requires.txt
+[1.765s] writing top-level names to neuravac_cleaning.egg-info/top_level.txt
+[1.771s] writing manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+[1.813s] reading manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+[1.817s] writing manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+[1.830s] running build_ext
+[1.831s] Creating /workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages/neuravac-cleaning.egg-link (link to .)
+[1.844s] Installing cleaning_node script to /workspace/ros2_ws/install/neuravac_cleaning/lib/neuravac_cleaning
+[1.847s] 
+[1.847s] Installed /workspace/ros2_ws/build/neuravac_cleaning
+[1.849s] running symlink_data
+[1.850s] creating /workspace/ros2_ws/install/neuravac_cleaning/share/ament_index
+[1.850s] creating /workspace/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index
+[1.850s] creating /workspace/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index/packages
+[1.851s] symbolically linking /workspace/ros2_ws/build/neuravac_cleaning/resource/neuravac_cleaning -> /workspace/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index/packages
+[1.851s] symbolically linking /workspace/ros2_ws/build/neuravac_cleaning/package.xml -> /workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning
+[1.851s] creating /workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/launch
+[1.851s] creating /workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/config
+[1.881s] Invoked command in '/workspace/ros2_ws/build/neuravac_cleaning' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cleaning/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cleaning/build --no-deps symlink_data

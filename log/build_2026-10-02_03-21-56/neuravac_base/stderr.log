@@ -1,0 +1,1 @@
+error: [Errno 17] File exists: '/workspace/ros2_ws/build/neuravac_base/resource/neuravac_base' -> '/workspace/ros2_ws/install/neuravac_base/share/ament_index/resource_index/packages/neuravac_base'

@@ -1,0 +1,26 @@
+[1.547s] Invoking command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/build --no-deps symlink_data
+[1.671s] /Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+[1.671s]   warnings.warn(msg)
+[1.748s] running develop
+[1.823s] running egg_info
+[1.830s] creating neuravac_semantic_map.egg-info
+[1.830s] writing neuravac_semantic_map.egg-info/PKG-INFO
+[1.830s] writing dependency_links to neuravac_semantic_map.egg-info/dependency_links.txt
+[1.830s] writing entry points to neuravac_semantic_map.egg-info/entry_points.txt
+[1.830s] writing requirements to neuravac_semantic_map.egg-info/requires.txt
+[1.831s] writing top-level names to neuravac_semantic_map.egg-info/top_level.txt
+[1.832s] writing manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+[1.845s] reading manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+[1.848s] writing manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+[1.856s] running build_ext
+[1.856s] Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages/neuravac-semantic-map.egg-link (link to .)
+[1.856s] Installing semantic_map_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/lib/neuravac_semantic_map
+[1.857s] 
+[1.857s] Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map
+[1.857s] running symlink_data
+[1.857s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/ament_index/resource_index/packages
+[1.857s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/resource/neuravac_semantic_map -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/ament_index/resource_index/packages
+[1.857s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map
+[1.857s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/launch
+[1.857s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/config
+[1.918s] Invoked command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map' returned '0': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/build --no-deps symlink_data

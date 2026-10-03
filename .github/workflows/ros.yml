@@ -1,0 +1,42 @@
+name: ROS 2 Jazzy integration
+on:
+  push:
+  pull_request:
+jobs:
+  jazzy:
+    runs-on: ubuntu-24.04
+    container: ros:jazzy-ros-base-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Jazzy navigation and tools
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y python3-venv python3-pip python3-colcon-common-extensions ros-jazzy-navigation2 ros-jazzy-nav2-bringup ros-jazzy-slam-toolbox ros-jazzy-usb-cam
+          python3 -m venv --system-site-packages /tmp/neuravac-ros
+          /tmp/neuravac-ros/bin/pip install -e '.[dev,hardware,vision]'
+      - name: Build ament packages
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source /tmp/neuravac-ros/bin/activate
+          python /usr/bin/colcon build --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install --symlink-install
+      - name: Run pure contracts and live ROS transport/Nav2 mission tests
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source /tmp/neuravac-ros/bin/activate
+          source ros2_ws/install/setup.bash
+          head -n 1 ros2_ws/install/neuravac_base/lib/neuravac_base/base_node | grep /tmp/neuravac-ros/bin/python
+          python -c "import neuravac_core, neuravac_base, rclpy"
+          python -m pytest tests/unit/test_ros_contracts.py -q
+          python /usr/bin/colcon test --build-base ros2_ws/build --install-base ros2_ws/install --executor sequential --event-handlers console_direct+
+          python /usr/bin/colcon test-result --test-result-base ros2_ws/build --verbose
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jazzy-results
+          path: |
+            ros2_ws/build/*/test_results
+            log

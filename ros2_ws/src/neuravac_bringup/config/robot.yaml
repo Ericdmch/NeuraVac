@@ -1,0 +1,32 @@
+backend: mock
+serial_port: /dev/ttyUSB0
+baud_rate: 115200
+wheel_base_m: 0.235
+wheel_radius_m: 0.036
+encoder_ticks_per_rev: 508.8
+encoder_supported: true
+robot_radius_m: 0.17
+control_hz: 20
+safety:
+  watchdog_s: 0.5
+  sensor_timeout_s: 0.5
+  camera_timeout_s: 2.0
+  critical_battery_percent: 8
+  return_battery_percent: 20
+  max_current_a: 5
+  require_camera: true
+  max_linear_mps: 0.25
+  max_angular_rps: 1.0
+cleaning:
+  max_retries: 2
+  minimum_improvement: 0.05
+  success_threshold: 0.08
+  vacuum_radius_m: 0.22
+  pass_duration_s: 1.0
+  cluster_radius_m: 0.4
+semantic:
+  association_radius_m: 0.3
+  stale_after_s: 30
+  min_confidence: 0.7
+  hazard_expansion_m: 0.15
+  unknown_cost: 100

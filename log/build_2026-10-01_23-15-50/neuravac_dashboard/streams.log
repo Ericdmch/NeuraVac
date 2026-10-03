@@ -1,0 +1,26 @@
+[1.535s] Invoking command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard/build --no-deps symlink_data
+[1.664s] /Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+[1.664s]   warnings.warn(msg)
+[1.729s] running develop
+[1.817s] running egg_info
+[1.825s] creating neuravac_dashboard.egg-info
+[1.825s] writing neuravac_dashboard.egg-info/PKG-INFO
+[1.832s] writing dependency_links to neuravac_dashboard.egg-info/dependency_links.txt
+[1.832s] writing entry points to neuravac_dashboard.egg-info/entry_points.txt
+[1.832s] writing requirements to neuravac_dashboard.egg-info/requires.txt
+[1.832s] writing top-level names to neuravac_dashboard.egg-info/top_level.txt
+[1.832s] writing manifest file 'neuravac_dashboard.egg-info/SOURCES.txt'
+[1.857s] reading manifest file 'neuravac_dashboard.egg-info/SOURCES.txt'
+[1.858s] writing manifest file 'neuravac_dashboard.egg-info/SOURCES.txt'
+[1.867s] running build_ext
+[1.867s] Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages/neuravac-dashboard.egg-link (link to .)
+[1.868s] Installing dashboard_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/lib/neuravac_dashboard
+[1.868s] 
+[1.868s] Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard
+[1.872s] running symlink_data
+[1.872s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/share/ament_index/resource_index/packages
+[1.872s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard/resource/neuravac_dashboard -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/share/ament_index/resource_index/packages
+[1.872s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard
+[1.872s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/launch
+[1.872s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/config
+[1.932s] Invoked command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard' returned '0': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_dashboard/build --no-deps symlink_data

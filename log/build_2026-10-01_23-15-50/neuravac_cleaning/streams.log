@@ -1,0 +1,26 @@
+[1.562s] Invoking command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/build --no-deps symlink_data
+[1.699s] /Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+[1.699s]   warnings.warn(msg)
+[1.782s] running develop
+[1.868s] running egg_info
+[1.870s] creating neuravac_cleaning.egg-info
+[1.873s] writing neuravac_cleaning.egg-info/PKG-INFO
+[1.875s] writing dependency_links to neuravac_cleaning.egg-info/dependency_links.txt
+[1.876s] writing entry points to neuravac_cleaning.egg-info/entry_points.txt
+[1.876s] writing requirements to neuravac_cleaning.egg-info/requires.txt
+[1.876s] writing top-level names to neuravac_cleaning.egg-info/top_level.txt
+[1.876s] writing manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+[1.895s] reading manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+[1.895s] writing manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+[1.908s] running build_ext
+[1.908s] Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages/neuravac-cleaning.egg-link (link to .)
+[1.910s] Installing cleaning_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/lib/neuravac_cleaning
+[1.910s] 
+[1.910s] Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning
+[1.910s] running symlink_data
+[1.910s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index/packages
+[1.910s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/resource/neuravac_cleaning -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index/packages
+[1.910s] symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning
+[1.911s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/launch
+[1.913s] creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/config
+[1.972s] Invoked command in '/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning' returned '0': AMENT_PREFIX_PATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base PYTHONPATH=/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/prefix_override:/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/colcon_core/task/python/colcon_distutils_commands:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_base:/Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_base/lib/python3.12/site-packages SHLVL=2 _=/usr/bin/env /Users/ericchen/Documents/GitHub/NeuraVac/.venv/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/build --no-deps symlink_data

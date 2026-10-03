@@ -1,0 +1,48 @@
+name: NeuraVac checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install -e '.[dev]'
+      - run: ruff check neuravac_core sim dashboard/backend datasets ml tools tests ros2_ws
+      - run: ruff format --check neuravac_core sim dashboard/backend datasets ml tools tests ros2_ws
+      - run: mypy
+      - run: python -m pytest --cov=neuravac_core --cov=sim --cov-report=xml
+      - run: python -m tools.audit_secrets
+      - run: python -m neuravac_core.cli demo --record artifacts/ci-session.jsonl
+      - run: python -m neuravac_core.cli replay artifacts/ci-session.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulation-${{ matrix.python-version }}
+          path: artifacts/
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dashboard/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-static
+          path: dashboard/frontend/dist

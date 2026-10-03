@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>neuravac_cleaning</name>
+  <version>0.1.0</version>
+  <description>Connected NeuraVac ROS 2 Jazzy adapter</description>
+  <maintainer email="maintainers@example.invalid">NeuraVac contributors</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>neuravac_base</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <test_depend>ament_pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

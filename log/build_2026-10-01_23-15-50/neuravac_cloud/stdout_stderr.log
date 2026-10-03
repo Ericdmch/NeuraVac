@@ -1,0 +1,24 @@
+/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)
+running develop
+running egg_info
+creating neuravac_cloud.egg-info
+writing neuravac_cloud.egg-info/PKG-INFO
+writing dependency_links to neuravac_cloud.egg-info/dependency_links.txt
+writing entry points to neuravac_cloud.egg-info/entry_points.txt
+writing requirements to neuravac_cloud.egg-info/requires.txt
+writing top-level names to neuravac_cloud.egg-info/top_level.txt
+writing manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+reading manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_cloud.egg-info/SOURCES.txt'
+running build_ext
+Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages/neuravac-cloud.egg-link (link to .)
+Installing cloud_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/lib/neuravac_cloud
+
+Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud
+running symlink_data
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/resource/neuravac_cloud -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cloud/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/neuravac_cloud
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/launch
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/config

@@ -1,0 +1,26 @@
+[1.447s] Invoking command in '/workspace/ros2_ws/build/neuravac_world_model': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_world_model/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_world_model/build --no-deps symlink_data
+[1.614s] running develop
+[1.708s] running egg_info
+[1.709s] creating neuravac_world_model.egg-info
+[1.724s] writing neuravac_world_model.egg-info/PKG-INFO
+[1.732s] writing dependency_links to neuravac_world_model.egg-info/dependency_links.txt
+[1.738s] writing entry points to neuravac_world_model.egg-info/entry_points.txt
+[1.744s] writing requirements to neuravac_world_model.egg-info/requires.txt
+[1.745s] writing top-level names to neuravac_world_model.egg-info/top_level.txt
+[1.746s] writing manifest file 'neuravac_world_model.egg-info/SOURCES.txt'
+[1.790s] reading manifest file 'neuravac_world_model.egg-info/SOURCES.txt'
+[1.798s] writing manifest file 'neuravac_world_model.egg-info/SOURCES.txt'
+[1.832s] running build_ext
+[1.832s] Creating /workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages/neuravac-world-model.egg-link (link to .)
+[1.833s] Installing world_model_node script to /workspace/ros2_ws/install/neuravac_world_model/lib/neuravac_world_model
+[1.833s] 
+[1.833s] Installed /workspace/ros2_ws/build/neuravac_world_model
+[1.833s] running symlink_data
+[1.834s] creating /workspace/ros2_ws/install/neuravac_world_model/share/ament_index
+[1.834s] creating /workspace/ros2_ws/install/neuravac_world_model/share/ament_index/resource_index
+[1.834s] creating /workspace/ros2_ws/install/neuravac_world_model/share/ament_index/resource_index/packages
+[1.835s] symbolically linking /workspace/ros2_ws/build/neuravac_world_model/resource/neuravac_world_model -> /workspace/ros2_ws/install/neuravac_world_model/share/ament_index/resource_index/packages
+[1.835s] symbolically linking /workspace/ros2_ws/build/neuravac_world_model/package.xml -> /workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model
+[1.835s] creating /workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/launch
+[1.835s] creating /workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/config
+[1.881s] Invoked command in '/workspace/ros2_ws/build/neuravac_world_model' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_world_model/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_world_model/build --no-deps symlink_data

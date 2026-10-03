@@ -1,0 +1,50 @@
+[0.000000] (-) TimerEvent: {}
+[0.000140] (neuravac_base) JobQueued: {'identifier': 'neuravac_base', 'dependencies': OrderedDict()}
+[0.000175] (neuravac_cleaning) JobQueued: {'identifier': 'neuravac_cleaning', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000202] (neuravac_cloud) JobQueued: {'identifier': 'neuravac_cloud', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000225] (neuravac_dashboard) JobQueued: {'identifier': 'neuravac_dashboard', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000326] (neuravac_perception) JobQueued: {'identifier': 'neuravac_perception', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000422] (neuravac_planner) JobQueued: {'identifier': 'neuravac_planner', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000449] (neuravac_safety) JobQueued: {'identifier': 'neuravac_safety', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000472] (neuravac_semantic_map) JobQueued: {'identifier': 'neuravac_semantic_map', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000493] (neuravac_world_model) JobQueued: {'identifier': 'neuravac_world_model', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base'})}
+[0.000513] (neuravac_bringup) JobQueued: {'identifier': 'neuravac_bringup', 'dependencies': OrderedDict({'neuravac_base': '/workspace/ros2_ws/install/neuravac_base', 'neuravac_cleaning': '/workspace/ros2_ws/install/neuravac_cleaning', 'neuravac_cloud': '/workspace/ros2_ws/install/neuravac_cloud', 'neuravac_dashboard': '/workspace/ros2_ws/install/neuravac_dashboard', 'neuravac_perception': '/workspace/ros2_ws/install/neuravac_perception', 'neuravac_planner': '/workspace/ros2_ws/install/neuravac_planner', 'neuravac_safety': '/workspace/ros2_ws/install/neuravac_safety', 'neuravac_semantic_map': '/workspace/ros2_ws/install/neuravac_semantic_map', 'neuravac_world_model': '/workspace/ros2_ws/install/neuravac_world_model'})}
+[0.000545] (neuravac_base) JobStarted: {'identifier': 'neuravac_base'}
+[0.099561] (-) TimerEvent: {}
+[0.199958] (-) TimerEvent: {}
+[0.300664] (-) TimerEvent: {}
+[0.401692] (-) TimerEvent: {}
+[0.482458] (neuravac_base) Command: {'cmd': ['/tmp/neuravac-ros/bin/python', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'develop', '--editable', '--build-directory', '/workspace/ros2_ws/build/neuravac_base/build', '--no-deps', 'symlink_data'], 'cwd': '/workspace/ros2_ws/build/neuravac_base', 'env': OrderedDict({'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'HOSTNAME': '4c5f266bb7cb', 'SHLVL': '0', 'LD_LIBRARY_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/aarch64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib', 'HOME': '/root', 'ROS_PYTHON_VERSION': '3', 'PS1': '(neuravac-ros)', 'ROS_DISTRO': 'jazzy', '_': '/tmp/neuravac-ros/bin/python', 'ROS_VERSION': '2', 'PATH': '/tmp/neuravac-ros/bin:/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'VIRTUAL_ENV_PROMPT': '(neuravac-ros)', 'AMENT_PREFIX_PATH': '/opt/ros/jazzy', 'VIRTUAL_ENV': '/tmp/neuravac-ros', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'PWD': '/workspace/ros2_ws/build/neuravac_base', 'LC_ALL': 'C.UTF-8', 'PYTHONPATH': '/workspace/ros2_ws/build/neuravac_base/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:/opt/ros/jazzy/opt/gz_sim_vendor/lib/python:/opt/ros/jazzy/opt/sdformat_vendor/lib/python:/opt/ros/jazzy/opt/gz_transport_vendor/lib/python:/opt/ros/jazzy/opt/gz_msgs_vendor/lib/python:/opt/ros/jazzy/opt/gz_math_vendor/lib/python:/opt/ros/jazzy/lib/python3.12/site-packages', 'COLCON': '1', 'CMAKE_PREFIX_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor'}), 'shell': False}
+[0.502635] (-) TimerEvent: {}
+[0.603731] (-) TimerEvent: {}
+[0.607034] (neuravac_base) StdoutLine: {'line': b'running develop\n'}
+[0.669615] (neuravac_base) StdoutLine: {'line': b'running egg_info\n'}
+[0.672315] (neuravac_base) StdoutLine: {'line': b'writing neuravac_base.egg-info/PKG-INFO\n'}
+[0.673193] (neuravac_base) StdoutLine: {'line': b'writing dependency_links to neuravac_base.egg-info/dependency_links.txt\n'}
+[0.673770] (neuravac_base) StdoutLine: {'line': b'writing entry points to neuravac_base.egg-info/entry_points.txt\n'}
+[0.674206] (neuravac_base) StdoutLine: {'line': b'writing requirements to neuravac_base.egg-info/requires.txt\n'}
+[0.674452] (neuravac_base) StdoutLine: {'line': b'writing top-level names to neuravac_base.egg-info/top_level.txt\n'}
+[0.687444] (neuravac_base) StdoutLine: {'line': b"reading manifest file 'neuravac_base.egg-info/SOURCES.txt'\n"}
+[0.688819] (neuravac_base) StdoutLine: {'line': b"writing manifest file 'neuravac_base.egg-info/SOURCES.txt'\n"}
+[0.695392] (neuravac_base) StdoutLine: {'line': b'running build_ext\n'}
+[0.695736] (neuravac_base) StdoutLine: {'line': b'Creating /workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages/neuravac-base.egg-link (link to .)\n'}
+[0.696646] (neuravac_base) StdoutLine: {'line': b'Installing base_node script to /workspace/ros2_ws/install/neuravac_base/lib/neuravac_base\n'}
+[0.697130] (neuravac_base) StdoutLine: {'line': b'Installing simulation_node script to /workspace/ros2_ws/install/neuravac_base/lib/neuravac_base\n'}
+[0.697709] (neuravac_base) StdoutLine: {'line': b'\n'}
+[0.697943] (neuravac_base) StdoutLine: {'line': b'Installed /workspace/ros2_ws/build/neuravac_base\n'}
+[0.698167] (neuravac_base) StdoutLine: {'line': b'running symlink_data\n'}
+[0.700389] (neuravac_base) StdoutLine: {'line': b'symbolically linking /workspace/ros2_ws/build/neuravac_base/resource/neuravac_base -> /workspace/ros2_ws/install/neuravac_base/share/ament_index/resource_index/packages\n'}
+[0.700494] (neuravac_base) StderrLine: {'line': b"error: [Errno 17] File exists: '/workspace/ros2_ws/build/neuravac_base/resource/neuravac_base' -> '/workspace/ros2_ws/install/neuravac_base/share/ament_index/resource_index/packages/neuravac_base'\n"}
+[0.703815] (-) TimerEvent: {}
+[0.714895] (neuravac_base) CommandEnded: {'returncode': 1}
+[0.715207] (neuravac_base) JobEnded: {'identifier': 'neuravac_base', 'rc': 1}
+[0.726835] (neuravac_cleaning) JobSkipped: {'identifier': 'neuravac_cleaning'}
+[0.726872] (neuravac_cloud) JobSkipped: {'identifier': 'neuravac_cloud'}
+[0.726909] (neuravac_dashboard) JobSkipped: {'identifier': 'neuravac_dashboard'}
+[0.726966] (neuravac_perception) JobSkipped: {'identifier': 'neuravac_perception'}
+[0.727072] (neuravac_planner) JobSkipped: {'identifier': 'neuravac_planner'}
+[0.727185] (neuravac_safety) JobSkipped: {'identifier': 'neuravac_safety'}
+[0.727245] (neuravac_semantic_map) JobSkipped: {'identifier': 'neuravac_semantic_map'}
+[0.727288] (neuravac_world_model) JobSkipped: {'identifier': 'neuravac_world_model'}
+[0.727318] (neuravac_bringup) JobSkipped: {'identifier': 'neuravac_bringup'}
+[0.727348] (-) EventReactorShutdown: {}

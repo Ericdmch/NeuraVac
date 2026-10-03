@@ -1,0 +1,31 @@
+running develop
+running egg_info
+creating neuravac_bringup.egg-info
+writing neuravac_bringup.egg-info/PKG-INFO
+writing dependency_links to neuravac_bringup.egg-info/dependency_links.txt
+writing requirements to neuravac_bringup.egg-info/requires.txt
+writing top-level names to neuravac_bringup.egg-info/top_level.txt
+writing manifest file 'neuravac_bringup.egg-info/SOURCES.txt'
+reading manifest file 'neuravac_bringup.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_bringup.egg-info/SOURCES.txt'
+running build_ext
+Creating /workspace/ros2_ws/install/neuravac_bringup/lib/python3.12/site-packages/neuravac-bringup.egg-link (link to .)
+
+Installed /workspace/ros2_ws/build/neuravac_bringup
+running symlink_data
+creating /workspace/ros2_ws/install/neuravac_bringup/share/ament_index
+creating /workspace/ros2_ws/install/neuravac_bringup/share/ament_index/resource_index
+creating /workspace/ros2_ws/install/neuravac_bringup/share/ament_index/resource_index/packages
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/resource/neuravac_bringup -> /workspace/ros2_ws/install/neuravac_bringup/share/ament_index/resource_index/packages
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/package.xml -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup
+creating /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/launch/mapping.launch.py -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/launch/saved_map.launch.py -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/launch/bringup.launch.py -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/launch/simulation.launch.py -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/launch/demo.launch.py -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/launch/hardware.launch.py -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/launch
+creating /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/config
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/config/navigation.yaml -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/config
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/config/robot.yaml -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/config
+symbolically linking /workspace/ros2_ws/build/neuravac_bringup/config/perception.yaml -> /workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/config

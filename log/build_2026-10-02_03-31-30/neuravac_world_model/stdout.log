@@ -1,0 +1,15 @@
+running develop
+running egg_info
+writing neuravac_world_model.egg-info/PKG-INFO
+writing dependency_links to neuravac_world_model.egg-info/dependency_links.txt
+writing entry points to neuravac_world_model.egg-info/entry_points.txt
+writing requirements to neuravac_world_model.egg-info/requires.txt
+writing top-level names to neuravac_world_model.egg-info/top_level.txt
+reading manifest file 'neuravac_world_model.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_world_model.egg-info/SOURCES.txt'
+running build_ext
+Creating /workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages/neuravac-world-model.egg-link (link to .)
+Installing world_model_node script to /workspace/ros2_ws/install/neuravac_world_model/lib/neuravac_world_model
+
+Installed /workspace/ros2_ws/build/neuravac_world_model
+running symlink_data

@@ -1,0 +1,26 @@
+[1.404s] Invoking command in '/workspace/ros2_ws/build/neuravac_dashboard': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_dashboard/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_dashboard/build --no-deps symlink_data
+[1.585s] running develop
+[1.691s] running egg_info
+[1.691s] creating neuravac_dashboard.egg-info
+[1.698s] writing neuravac_dashboard.egg-info/PKG-INFO
+[1.700s] writing dependency_links to neuravac_dashboard.egg-info/dependency_links.txt
+[1.702s] writing entry points to neuravac_dashboard.egg-info/entry_points.txt
+[1.703s] writing requirements to neuravac_dashboard.egg-info/requires.txt
+[1.704s] writing top-level names to neuravac_dashboard.egg-info/top_level.txt
+[1.706s] writing manifest file 'neuravac_dashboard.egg-info/SOURCES.txt'
+[1.737s] reading manifest file 'neuravac_dashboard.egg-info/SOURCES.txt'
+[1.745s] writing manifest file 'neuravac_dashboard.egg-info/SOURCES.txt'
+[1.766s] running build_ext
+[1.766s] Creating /workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages/neuravac-dashboard.egg-link (link to .)
+[1.773s] Installing dashboard_node script to /workspace/ros2_ws/install/neuravac_dashboard/lib/neuravac_dashboard
+[1.775s] 
+[1.777s] Installed /workspace/ros2_ws/build/neuravac_dashboard
+[1.779s] running symlink_data
+[1.782s] creating /workspace/ros2_ws/install/neuravac_dashboard/share/ament_index
+[1.785s] creating /workspace/ros2_ws/install/neuravac_dashboard/share/ament_index/resource_index
+[1.786s] creating /workspace/ros2_ws/install/neuravac_dashboard/share/ament_index/resource_index/packages
+[1.791s] symbolically linking /workspace/ros2_ws/build/neuravac_dashboard/resource/neuravac_dashboard -> /workspace/ros2_ws/install/neuravac_dashboard/share/ament_index/resource_index/packages
+[1.796s] symbolically linking /workspace/ros2_ws/build/neuravac_dashboard/package.xml -> /workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard
+[1.797s] creating /workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/launch
+[1.799s] creating /workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/config
+[1.827s] Invoked command in '/workspace/ros2_ws/build/neuravac_dashboard' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_dashboard/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_dashboard/build --no-deps symlink_data

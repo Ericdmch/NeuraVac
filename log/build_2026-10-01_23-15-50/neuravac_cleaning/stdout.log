@@ -1,0 +1,22 @@
+running develop
+running egg_info
+creating neuravac_cleaning.egg-info
+writing neuravac_cleaning.egg-info/PKG-INFO
+writing dependency_links to neuravac_cleaning.egg-info/dependency_links.txt
+writing entry points to neuravac_cleaning.egg-info/entry_points.txt
+writing requirements to neuravac_cleaning.egg-info/requires.txt
+writing top-level names to neuravac_cleaning.egg-info/top_level.txt
+writing manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+reading manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_cleaning.egg-info/SOURCES.txt'
+running build_ext
+Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages/neuravac-cleaning.egg-link (link to .)
+Installing cleaning_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/lib/neuravac_cleaning
+
+Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning
+running symlink_data
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/resource/neuravac_cleaning -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_cleaning/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/launch
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/config

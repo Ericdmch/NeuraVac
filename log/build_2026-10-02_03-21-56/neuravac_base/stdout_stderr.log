@@ -1,0 +1,18 @@
+running develop
+running egg_info
+writing neuravac_base.egg-info/PKG-INFO
+writing dependency_links to neuravac_base.egg-info/dependency_links.txt
+writing entry points to neuravac_base.egg-info/entry_points.txt
+writing requirements to neuravac_base.egg-info/requires.txt
+writing top-level names to neuravac_base.egg-info/top_level.txt
+reading manifest file 'neuravac_base.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_base.egg-info/SOURCES.txt'
+running build_ext
+Creating /workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages/neuravac-base.egg-link (link to .)
+Installing base_node script to /workspace/ros2_ws/install/neuravac_base/lib/neuravac_base
+Installing simulation_node script to /workspace/ros2_ws/install/neuravac_base/lib/neuravac_base
+
+Installed /workspace/ros2_ws/build/neuravac_base
+running symlink_data
+symbolically linking /workspace/ros2_ws/build/neuravac_base/resource/neuravac_base -> /workspace/ros2_ws/install/neuravac_base/share/ament_index/resource_index/packages
+error: [Errno 17] File exists: '/workspace/ros2_ws/build/neuravac_base/resource/neuravac_base' -> '/workspace/ros2_ws/install/neuravac_base/share/ament_index/resource_index/packages/neuravac_base'

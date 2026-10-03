@@ -1,0 +1,21 @@
+[Unit]
+Description=NeuraVac ROS robot services (explicit mission start)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=neuravac
+WorkingDirectory=/opt/neuravac
+Environment=NEURAVAC_MODE=hardware
+EnvironmentFile=-/opt/neuravac/.env
+ExecStart=/opt/neuravac/scripts/start_robot.sh
+KillSignal=SIGINT
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

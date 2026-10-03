@@ -1,0 +1,609 @@
+[0.063s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--base-paths', 'ros2_ws/src', '--build-base', 'ros2_ws/build', '--install-base', 'ros2_ws/install', '--symlink-install']
+[0.063s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='/workspace/ros2_ws/build', install_base='/workspace/ros2_ws/install', merge_install=False, symlink_install=True, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=11, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['ros2_ws/src'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=None, packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, mixin_files=None, mixin=None, verb_parser=<colcon_mixin.mixin.mixin_argument.MixinArgumentDecorator object at 0xffffaec18ce0>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0xffffaec19460>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0xffffaec19460>>, mixin_verb=('build',))
+[0.086s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.086s] INFO:colcon.colcon_metadata.package_discovery.colcon_meta:Using configuration from '/root/.colcon/metadata/default/Gazebo.meta'
+[0.086s] INFO:colcon.colcon_metadata.package_discovery.colcon_meta:Using configuration from '/root/.colcon/metadata/default/fastdds.meta'
+[0.086s] INFO:colcon.colcon_metadata.package_discovery.colcon_meta:Using configuration from '/root/.colcon/metadata/default/fastrtps.meta'
+[0.087s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.087s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.087s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.087s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.087s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/workspace/ros2_ws/src'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extensions ['ignore', 'ignore_ament_install']
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'ignore'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'ignore_ament_install'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extensions ['colcon_pkg']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'colcon_pkg'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extensions ['colcon_meta']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'colcon_meta'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extensions ['ros']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'ros'
+[0.101s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extensions ['cmake', 'python']
+[0.101s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'cmake'
+[0.101s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'python'
+[0.101s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extensions ['python_setup_py']
+[0.101s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src) by extension 'python_setup_py'
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extensions ['ignore', 'ignore_ament_install']
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extension 'ignore'
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extension 'ignore_ament_install'
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extensions ['colcon_pkg']
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extension 'colcon_pkg'
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extensions ['colcon_meta']
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extension 'colcon_meta'
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extensions ['ros']
+[0.102s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_base) by extension 'ros'
+[0.104s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_base' with type 'ros.ament_python' and name 'neuravac_base'
+[0.104s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extensions ['ignore', 'ignore_ament_install']
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extension 'ignore'
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extension 'ignore_ament_install'
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extensions ['colcon_pkg']
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extension 'colcon_pkg'
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extensions ['colcon_meta']
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extension 'colcon_meta'
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extensions ['ros']
+[0.105s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_bringup) by extension 'ros'
+[0.106s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_bringup' with type 'ros.ament_python' and name 'neuravac_bringup'
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extensions ['ignore', 'ignore_ament_install']
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extension 'ignore'
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extension 'ignore_ament_install'
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extensions ['colcon_pkg']
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extension 'colcon_pkg'
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extensions ['colcon_meta']
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extension 'colcon_meta'
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extensions ['ros']
+[0.106s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cleaning) by extension 'ros'
+[0.107s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_cleaning' with type 'ros.ament_python' and name 'neuravac_cleaning'
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extensions ['ignore', 'ignore_ament_install']
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extension 'ignore'
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extension 'ignore_ament_install'
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extensions ['colcon_pkg']
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extension 'colcon_pkg'
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extensions ['colcon_meta']
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extension 'colcon_meta'
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extensions ['ros']
+[0.107s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_cloud) by extension 'ros'
+[0.108s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_cloud' with type 'ros.ament_python' and name 'neuravac_cloud'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extensions ['ignore', 'ignore_ament_install']
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extension 'ignore'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extension 'ignore_ament_install'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extensions ['colcon_pkg']
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extension 'colcon_pkg'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extensions ['colcon_meta']
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extension 'colcon_meta'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extensions ['ros']
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_dashboard) by extension 'ros'
+[0.109s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_dashboard' with type 'ros.ament_python' and name 'neuravac_dashboard'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extensions ['ignore', 'ignore_ament_install']
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extension 'ignore'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extension 'ignore_ament_install'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extensions ['colcon_pkg']
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extension 'colcon_pkg'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extensions ['colcon_meta']
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extension 'colcon_meta'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extensions ['ros']
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_perception) by extension 'ros'
+[0.110s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_perception' with type 'ros.ament_python' and name 'neuravac_perception'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extensions ['ignore', 'ignore_ament_install']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extension 'ignore'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extension 'ignore_ament_install'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extensions ['colcon_pkg']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extension 'colcon_pkg'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extensions ['colcon_meta']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extension 'colcon_meta'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extensions ['ros']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_planner) by extension 'ros'
+[0.111s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_planner' with type 'ros.ament_python' and name 'neuravac_planner'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extensions ['ignore', 'ignore_ament_install']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extension 'ignore'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extension 'ignore_ament_install'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extensions ['colcon_pkg']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extension 'colcon_pkg'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extensions ['colcon_meta']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extension 'colcon_meta'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extensions ['ros']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_safety) by extension 'ros'
+[0.112s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_safety' with type 'ros.ament_python' and name 'neuravac_safety'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extensions ['ignore', 'ignore_ament_install']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extension 'ignore'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extension 'ignore_ament_install'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extensions ['colcon_pkg']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extension 'colcon_pkg'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extensions ['colcon_meta']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extension 'colcon_meta'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extensions ['ros']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_semantic_map) by extension 'ros'
+[0.113s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_semantic_map' with type 'ros.ament_python' and name 'neuravac_semantic_map'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extensions ['ignore', 'ignore_ament_install']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extension 'ignore'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extension 'ignore_ament_install'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extensions ['colcon_pkg']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extension 'colcon_pkg'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extensions ['colcon_meta']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extension 'colcon_meta'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extensions ['ros']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(ros2_ws/src/neuravac_world_model) by extension 'ros'
+[0.115s] DEBUG:colcon.colcon_core.package_identification:Package 'ros2_ws/src/neuravac_world_model' with type 'ros.ament_python' and name 'neuravac_world_model'
+[0.115s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'cmake_args' from command line to 'None'
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'cmake_target' from command line to 'None'
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'cmake_clean_cache' from command line to 'False'
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'cmake_clean_first' from command line to 'False'
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'cmake_force_configure' from command line to 'False'
+[0.129s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'ament_cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'catkin_cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_base' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.130s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_base' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_base', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_base', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_base', 'symlink_install': True, 'test_result_base': None}
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'cmake_target' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'cmake_clean_cache' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'cmake_clean_first' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'cmake_force_configure' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'ament_cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'catkin_cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cleaning' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.130s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_cleaning' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_cleaning', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_cleaning', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_cleaning', 'symlink_install': True, 'test_result_base': None}
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'cmake_target' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'cmake_clean_cache' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'cmake_clean_first' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'cmake_force_configure' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'ament_cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'catkin_cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_cloud' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.130s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_cloud' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_cloud', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_cloud', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_cloud', 'symlink_install': True, 'test_result_base': None}
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'cmake_args' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'cmake_target' from command line to 'None'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.130s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'cmake_clean_cache' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'cmake_clean_first' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'cmake_force_configure' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'ament_cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'catkin_cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_dashboard' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.131s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_dashboard' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_dashboard', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_dashboard', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_dashboard', 'symlink_install': True, 'test_result_base': None}
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'cmake_target' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'cmake_clean_cache' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'cmake_clean_first' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'cmake_force_configure' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'ament_cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'catkin_cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_perception' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.131s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_perception' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_perception', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_perception', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_perception', 'symlink_install': True, 'test_result_base': None}
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'cmake_target' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'cmake_clean_cache' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'cmake_clean_first' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'cmake_force_configure' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'ament_cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'catkin_cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_planner' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.131s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_planner' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_planner', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_planner', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_planner', 'symlink_install': True, 'test_result_base': None}
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'cmake_args' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'cmake_target' from command line to 'None'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'cmake_clean_cache' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'cmake_clean_first' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'cmake_force_configure' from command line to 'False'
+[0.131s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'ament_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'catkin_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_safety' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.132s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_safety' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_safety', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_safety', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_safety', 'symlink_install': True, 'test_result_base': None}
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'cmake_target' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'cmake_clean_cache' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'cmake_clean_first' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'cmake_force_configure' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'ament_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'catkin_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_semantic_map' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.132s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_semantic_map' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_semantic_map', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_semantic_map', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_semantic_map', 'symlink_install': True, 'test_result_base': None}
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'cmake_target' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'cmake_clean_cache' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'cmake_clean_first' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'cmake_force_configure' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'ament_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'catkin_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_world_model' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.132s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_world_model' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_world_model', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_world_model', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_world_model', 'symlink_install': True, 'test_result_base': None}
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'cmake_target' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'cmake_clean_cache' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'cmake_clean_first' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'cmake_force_configure' from command line to 'False'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'ament_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'catkin_cmake_args' from command line to 'None'
+[0.132s] Level 5:colcon.colcon_core.verb:set package 'neuravac_bringup' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.132s] DEBUG:colcon.colcon_core.verb:Building package 'neuravac_bringup' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/ros2_ws/build/neuravac_bringup', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/ros2_ws/install/neuravac_bringup', 'merge_install': False, 'path': '/workspace/ros2_ws/src/neuravac_bringup', 'symlink_install': True, 'test_result_base': None}
+[0.133s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.133s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.133s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_base' with build type 'ament_python'
+[0.133s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_base', 'ament_prefix_path')
+[0.134s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.134s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/hook/ament_prefix_path.ps1'
+[0.135s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/hook/ament_prefix_path.dsv'
+[0.136s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/hook/ament_prefix_path.sh'
+[0.136s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.136s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.261s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_base'
+[0.261s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.261s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.503s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[0.632s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[0.635s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_base': PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_base/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_base/build --no-deps symlink_data
+[0.876s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_base', 'pythonpath_develop')
+[0.876s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_base/share/neuravac_base/hook/pythonpath_develop.ps1'
+[0.876s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_base' returned '0': PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_base/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_base/build --no-deps symlink_data
+[0.877s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_base/share/neuravac_base/hook/pythonpath_develop.dsv'
+[0.877s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_base/share/neuravac_base/hook/pythonpath_develop.sh'
+[0.879s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base' for CMake module files
+[0.880s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base' for CMake config files
+[0.882s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base/lib'
+[0.882s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base/bin'
+[0.882s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base/lib/pkgconfig/neuravac_base.pc'
+[0.882s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages'
+[0.882s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_base', 'pythonpath')
+[0.883s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/hook/pythonpath.ps1'
+[0.883s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/hook/pythonpath.dsv'
+[0.883s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/hook/pythonpath.sh'
+[0.884s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_base/bin'
+[0.884s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_base)
+[0.884s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/package.ps1'
+[0.885s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/package.dsv'
+[0.885s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/package.sh'
+[0.885s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/package.bash'
+[0.886s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_base/share/neuravac_base/package.zsh'
+[0.886s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_base/share/colcon-core/packages/neuravac_base)
+[0.887s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_cleaning' with build type 'ament_python'
+[0.887s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_cleaning', 'ament_prefix_path')
+[0.887s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/hook/ament_prefix_path.ps1'
+[0.888s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/hook/ament_prefix_path.dsv'
+[0.888s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/hook/ament_prefix_path.sh'
+[0.889s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.889s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.891s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_cloud' with build type 'ament_python'
+[0.892s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_cloud', 'ament_prefix_path')
+[0.892s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/hook/ament_prefix_path.ps1'
+[0.893s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/hook/ament_prefix_path.dsv'
+[0.894s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/hook/ament_prefix_path.sh'
+[0.895s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.895s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.897s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_dashboard' with build type 'ament_python'
+[0.897s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_dashboard', 'ament_prefix_path')
+[0.897s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/hook/ament_prefix_path.ps1'
+[0.899s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/hook/ament_prefix_path.dsv'
+[0.899s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/hook/ament_prefix_path.sh'
+[0.900s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.900s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.902s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_perception' with build type 'ament_python'
+[0.902s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_perception', 'ament_prefix_path')
+[0.902s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/hook/ament_prefix_path.ps1'
+[0.903s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/hook/ament_prefix_path.dsv'
+[0.903s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/hook/ament_prefix_path.sh'
+[0.904s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.904s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.906s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_planner' with build type 'ament_python'
+[0.906s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_planner', 'ament_prefix_path')
+[0.906s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/hook/ament_prefix_path.ps1'
+[0.907s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/hook/ament_prefix_path.dsv'
+[0.908s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/hook/ament_prefix_path.sh'
+[0.909s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.909s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.911s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_safety' with build type 'ament_python'
+[0.912s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_safety', 'ament_prefix_path')
+[0.912s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/hook/ament_prefix_path.ps1'
+[0.913s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/hook/ament_prefix_path.dsv'
+[0.914s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/hook/ament_prefix_path.sh'
+[0.915s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.915s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.917s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_semantic_map' with build type 'ament_python'
+[0.917s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_semantic_map', 'ament_prefix_path')
+[0.917s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/hook/ament_prefix_path.ps1'
+[0.918s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/hook/ament_prefix_path.dsv'
+[0.918s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/hook/ament_prefix_path.sh'
+[0.919s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.919s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.921s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_world_model' with build type 'ament_python'
+[0.921s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_world_model', 'ament_prefix_path')
+[0.921s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/hook/ament_prefix_path.ps1'
+[0.923s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/hook/ament_prefix_path.dsv'
+[0.923s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/hook/ament_prefix_path.sh'
+[0.924s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.924s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.021s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_cleaning'
+[1.021s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.021s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.118s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_cloud'
+[1.119s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.119s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.227s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_dashboard'
+[1.227s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.227s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.337s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_perception'
+[1.337s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.337s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.438s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_planner'
+[1.438s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.438s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.530s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_safety'
+[1.530s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.530s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.620s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_semantic_map'
+[1.620s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.620s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.709s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_world_model'
+[1.710s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.710s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[2.140s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.154s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.193s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.207s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.225s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.228s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.230s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.249s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[2.397s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.407s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_cloud': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cloud/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cloud/build --no-deps symlink_data
+[2.413s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.420s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.427s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_planner': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_planner/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_planner/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_planner/build --no-deps symlink_data
+[2.431s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.436s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_dashboard': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_dashboard/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_dashboard/build --no-deps symlink_data
+[2.445s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_safety': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_safety/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_safety/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_safety/build --no-deps symlink_data
+[2.447s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.455s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.457s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_semantic_map': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_semantic_map/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_semantic_map/build --no-deps symlink_data
+[2.466s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.472s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_perception': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_perception/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_perception/build --no-deps symlink_data
+[2.479s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_world_model': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_world_model/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_world_model/build --no-deps symlink_data
+[2.486s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[2.495s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_cleaning': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cleaning/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cleaning/build --no-deps symlink_data
+[2.810s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_cloud', 'pythonpath_develop')
+[2.810s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_cloud/share/neuravac_cloud/hook/pythonpath_develop.ps1'
+[2.813s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_cloud/share/neuravac_cloud/hook/pythonpath_develop.dsv'
+[2.815s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_cloud' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cloud/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cloud/build --no-deps symlink_data
+[2.815s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_cloud/share/neuravac_cloud/hook/pythonpath_develop.sh'
+[2.817s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud' for CMake module files
+[2.821s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud' for CMake config files
+[2.835s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud/lib'
+[2.836s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud/bin'
+[2.837s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud/lib/pkgconfig/neuravac_cloud.pc'
+[2.837s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages'
+[2.838s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_cloud', 'pythonpath')
+[2.838s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/hook/pythonpath.ps1'
+[2.841s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/hook/pythonpath.dsv'
+[2.844s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/hook/pythonpath.sh'
+[2.846s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cloud/bin'
+[2.846s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_cloud)
+[2.846s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/package.ps1'
+[2.852s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/package.dsv'
+[2.854s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/package.sh'
+[2.855s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/package.bash'
+[2.857s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cloud/share/neuravac_cloud/package.zsh'
+[2.857s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_cloud/share/colcon-core/packages/neuravac_cloud)
+[2.861s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_planner', 'pythonpath_develop')
+[2.861s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_planner/share/neuravac_planner/hook/pythonpath_develop.ps1'
+[2.863s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_planner/share/neuravac_planner/hook/pythonpath_develop.dsv'
+[2.865s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_planner/share/neuravac_planner/hook/pythonpath_develop.sh'
+[2.867s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner' for CMake module files
+[2.872s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner' for CMake config files
+[2.877s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner/lib'
+[2.878s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner/bin'
+[2.880s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner/lib/pkgconfig/neuravac_planner.pc'
+[2.880s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner/lib/python3.12/site-packages'
+[2.880s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_planner', 'pythonpath')
+[2.880s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/hook/pythonpath.ps1'
+[2.881s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/hook/pythonpath.dsv'
+[2.881s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/hook/pythonpath.sh'
+[2.882s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_planner/bin'
+[2.882s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_planner)
+[2.882s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/package.ps1'
+[2.885s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_planner' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_planner/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_planner/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_planner/build --no-deps symlink_data
+[2.886s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/package.dsv'
+[2.886s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/package.sh'
+[2.888s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/package.bash'
+[2.889s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_planner/share/neuravac_planner/package.zsh'
+[2.889s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_planner/share/colcon-core/packages/neuravac_planner)
+[2.890s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_safety', 'pythonpath_develop')
+[2.890s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_safety/share/neuravac_safety/hook/pythonpath_develop.ps1'
+[2.893s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_safety/share/neuravac_safety/hook/pythonpath_develop.dsv'
+[2.894s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_safety' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_safety/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_safety/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_safety/build --no-deps symlink_data
+[2.894s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_safety/share/neuravac_safety/hook/pythonpath_develop.sh'
+[2.894s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety' for CMake module files
+[2.898s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety' for CMake config files
+[2.899s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety/lib'
+[2.900s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety/bin'
+[2.900s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety/lib/pkgconfig/neuravac_safety.pc'
+[2.900s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety/lib/python3.12/site-packages'
+[2.900s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_safety', 'pythonpath')
+[2.900s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/hook/pythonpath.ps1'
+[2.900s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/hook/pythonpath.dsv'
+[2.901s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/hook/pythonpath.sh'
+[2.901s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_safety/bin'
+[2.901s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_safety)
+[2.901s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/package.ps1'
+[2.902s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/package.dsv'
+[2.902s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/package.sh'
+[2.903s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/package.bash'
+[2.903s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_safety/share/neuravac_safety/package.zsh'
+[2.903s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_safety/share/colcon-core/packages/neuravac_safety)
+[2.903s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_dashboard', 'pythonpath_develop')
+[2.904s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_dashboard/share/neuravac_dashboard/hook/pythonpath_develop.ps1'
+[2.904s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_dashboard/share/neuravac_dashboard/hook/pythonpath_develop.dsv'
+[2.905s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_dashboard/share/neuravac_dashboard/hook/pythonpath_develop.sh'
+[2.905s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_dashboard' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_dashboard/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_dashboard/build --no-deps symlink_data
+[2.905s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard' for CMake module files
+[2.906s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard' for CMake config files
+[2.908s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard/lib'
+[2.908s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard/bin'
+[2.908s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard/lib/pkgconfig/neuravac_dashboard.pc'
+[2.909s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages'
+[2.909s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_dashboard', 'pythonpath')
+[2.909s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/hook/pythonpath.ps1'
+[2.909s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/hook/pythonpath.dsv'
+[2.909s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/hook/pythonpath.sh'
+[2.910s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_dashboard/bin'
+[2.910s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_dashboard)
+[2.910s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/package.ps1'
+[2.911s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/package.dsv'
+[2.912s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/package.sh'
+[2.912s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/package.bash'
+[2.912s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_dashboard/share/neuravac_dashboard/package.zsh'
+[2.912s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_dashboard/share/colcon-core/packages/neuravac_dashboard)
+[2.913s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_perception', 'pythonpath_develop')
+[2.913s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_perception/share/neuravac_perception/hook/pythonpath_develop.ps1'
+[2.914s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_perception/share/neuravac_perception/hook/pythonpath_develop.dsv'
+[2.914s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_perception/share/neuravac_perception/hook/pythonpath_develop.sh'
+[2.915s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception' for CMake module files
+[2.917s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_perception' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_perception/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_perception/build --no-deps symlink_data
+[2.917s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception' for CMake config files
+[2.919s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception/lib'
+[2.919s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception/bin'
+[2.919s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception/lib/pkgconfig/neuravac_perception.pc'
+[2.919s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception/lib/python3.12/site-packages'
+[2.919s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_perception', 'pythonpath')
+[2.919s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/hook/pythonpath.ps1'
+[2.919s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/hook/pythonpath.dsv'
+[2.920s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/hook/pythonpath.sh'
+[2.920s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_perception/bin'
+[2.920s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_perception)
+[2.920s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/package.ps1'
+[2.921s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/package.dsv'
+[2.921s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/package.sh'
+[2.921s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/package.bash'
+[2.922s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_perception/share/neuravac_perception/package.zsh'
+[2.922s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_perception/share/colcon-core/packages/neuravac_perception)
+[2.922s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_semantic_map', 'pythonpath_develop')
+[2.922s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_semantic_map/share/neuravac_semantic_map/hook/pythonpath_develop.ps1'
+[2.923s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_semantic_map/share/neuravac_semantic_map/hook/pythonpath_develop.dsv'
+[2.924s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_semantic_map/share/neuravac_semantic_map/hook/pythonpath_develop.sh'
+[2.924s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_semantic_map' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_semantic_map/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_semantic_map/build --no-deps symlink_data
+[2.924s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map' for CMake module files
+[2.925s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map' for CMake config files
+[2.927s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map/lib'
+[2.927s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map/bin'
+[2.927s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map/lib/pkgconfig/neuravac_semantic_map.pc'
+[2.927s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages'
+[2.927s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_semantic_map', 'pythonpath')
+[2.927s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/hook/pythonpath.ps1'
+[2.928s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/hook/pythonpath.dsv'
+[2.928s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/hook/pythonpath.sh'
+[2.929s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_semantic_map/bin'
+[2.929s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_semantic_map)
+[2.929s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/package.ps1'
+[2.929s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/package.dsv'
+[2.930s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/package.sh'
+[2.930s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/package.bash'
+[2.931s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/package.zsh'
+[2.932s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_semantic_map/share/colcon-core/packages/neuravac_semantic_map)
+[2.932s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_world_model', 'pythonpath_develop')
+[2.932s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_world_model/share/neuravac_world_model/hook/pythonpath_develop.ps1'
+[2.933s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_world_model/share/neuravac_world_model/hook/pythonpath_develop.dsv'
+[2.934s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_world_model/share/neuravac_world_model/hook/pythonpath_develop.sh'
+[2.934s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_world_model' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_world_model/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_world_model/build --no-deps symlink_data
+[2.934s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model' for CMake module files
+[2.935s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model' for CMake config files
+[2.937s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model/lib'
+[2.937s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model/bin'
+[2.937s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model/lib/pkgconfig/neuravac_world_model.pc'
+[2.937s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages'
+[2.937s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_world_model', 'pythonpath')
+[2.937s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/hook/pythonpath.ps1'
+[2.938s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/hook/pythonpath.dsv'
+[2.938s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/hook/pythonpath.sh'
+[2.938s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_world_model/bin'
+[2.939s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_world_model)
+[2.939s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/package.ps1'
+[2.939s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/package.dsv'
+[2.940s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/package.sh'
+[2.940s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/package.bash'
+[2.940s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_world_model/share/neuravac_world_model/package.zsh'
+[2.941s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_world_model/share/colcon-core/packages/neuravac_world_model)
+[2.941s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_cleaning', 'pythonpath_develop')
+[2.941s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_cleaning/share/neuravac_cleaning/hook/pythonpath_develop.ps1'
+[2.942s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_cleaning/share/neuravac_cleaning/hook/pythonpath_develop.dsv'
+[2.942s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_cleaning' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_cleaning/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_cleaning/build --no-deps symlink_data
+[2.942s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_cleaning/share/neuravac_cleaning/hook/pythonpath_develop.sh'
+[2.943s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning' for CMake module files
+[2.944s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning' for CMake config files
+[2.946s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning/lib'
+[2.946s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning/bin'
+[2.946s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning/lib/pkgconfig/neuravac_cleaning.pc'
+[2.946s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages'
+[2.947s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_cleaning', 'pythonpath')
+[2.947s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/hook/pythonpath.ps1'
+[2.947s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/hook/pythonpath.dsv'
+[2.947s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/hook/pythonpath.sh'
+[2.948s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_cleaning/bin'
+[2.948s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_cleaning)
+[2.948s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/package.ps1'
+[2.948s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/package.dsv'
+[2.949s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/package.sh'
+[2.949s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/package.bash'
+[2.949s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_cleaning/share/neuravac_cleaning/package.zsh'
+[2.950s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_cleaning/share/colcon-core/packages/neuravac_cleaning)
+[2.950s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/ros2_ws/src/neuravac_bringup' with build type 'ament_python'
+[2.950s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_bringup', 'ament_prefix_path')
+[2.950s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/hook/ament_prefix_path.ps1'
+[2.951s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/hook/ament_prefix_path.dsv'
+[2.952s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/hook/ament_prefix_path.sh'
+[2.952s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[2.952s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[3.084s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/ros2_ws/src/neuravac_bringup'
+[3.084s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[3.084s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[3.360s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: test, build, dist_info, develop, upload, install_lib, bdist_wheel, editable_wheel, build_ext, saveopts, bdist_dumb, install_scripts, install, install_headers, bdist_egg, build_py, check, install_data, clean, upload_docs, symlink_data, egg_info, setopt, rotate, build_scripts, install_egg_info, bdist, build_clib, bdist_rpm, register, easy_install, sdist, alias
+[3.516s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --always-copy, --install-dir, --record, --script-dir, --index-url, --force-installation-into-system-dir, --prefix, --quiet, --multi-version, --local-snapshots-ok, --upgrade, --exclude-scripts, --no-deps, --no-user-cfg, --install-layout, --version, --no-find-links, --uninstall, --dry-run, --build-directory, --egg-path, --verbose, --editable, --site-dirs, --allow-hosts, --always-unzip, --find-links, --help, --zip-ok, --optimize, --user
+[3.519s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/ros2_ws/build/neuravac_bringup': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_world_model:/workspace/ros2_ws/install/neuravac_semantic_map:/workspace/ros2_ws/install/neuravac_safety:/workspace/ros2_ws/install/neuravac_planner:/workspace/ros2_ws/install/neuravac_perception:/workspace/ros2_ws/install/neuravac_dashboard:/workspace/ros2_ws/install/neuravac_cloud:/workspace/ros2_ws/install/neuravac_cleaning:/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_bringup/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_world_model:/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_semantic_map:/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_safety:/workspace/ros2_ws/install/neuravac_safety/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_planner:/workspace/ros2_ws/install/neuravac_planner/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_perception:/workspace/ros2_ws/install/neuravac_perception/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_dashboard:/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_cloud:/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_cleaning:/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_bringup/build --no-deps symlink_data
+[3.818s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_bringup', 'pythonpath_develop')
+[3.819s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_bringup/share/neuravac_bringup/hook/pythonpath_develop.ps1'
+[3.819s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/ros2_ws/build/neuravac_bringup' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_world_model:/workspace/ros2_ws/install/neuravac_semantic_map:/workspace/ros2_ws/install/neuravac_safety:/workspace/ros2_ws/install/neuravac_planner:/workspace/ros2_ws/install/neuravac_perception:/workspace/ros2_ws/install/neuravac_dashboard:/workspace/ros2_ws/install/neuravac_cloud:/workspace/ros2_ws/install/neuravac_cleaning:/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_bringup/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_world_model:/workspace/ros2_ws/install/neuravac_world_model/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_semantic_map:/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_safety:/workspace/ros2_ws/install/neuravac_safety/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_planner:/workspace/ros2_ws/install/neuravac_planner/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_perception:/workspace/ros2_ws/install/neuravac_perception/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_dashboard:/workspace/ros2_ws/install/neuravac_dashboard/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_cloud:/workspace/ros2_ws/install/neuravac_cloud/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_cleaning:/workspace/ros2_ws/install/neuravac_cleaning/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_bringup/build --no-deps symlink_data
+[3.820s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/build/neuravac_bringup/share/neuravac_bringup/hook/pythonpath_develop.dsv'
+[3.820s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/build/neuravac_bringup/share/neuravac_bringup/hook/pythonpath_develop.sh'
+[3.821s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup' for CMake module files
+[3.821s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup' for CMake config files
+[3.824s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup/lib'
+[3.824s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup/bin'
+[3.824s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup/lib/pkgconfig/neuravac_bringup.pc'
+[3.824s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup/lib/python3.12/site-packages'
+[3.824s] Level 1:colcon.colcon_core.shell:create_environment_hook('neuravac_bringup', 'pythonpath')
+[3.824s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/hook/pythonpath.ps1'
+[3.825s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/hook/pythonpath.dsv'
+[3.825s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/hook/pythonpath.sh'
+[3.826s] Level 1:colcon.colcon_core.environment:checking '/workspace/ros2_ws/install/neuravac_bringup/bin'
+[3.826s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(neuravac_bringup)
+[3.826s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/package.ps1'
+[3.826s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/package.dsv'
+[3.827s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/package.sh'
+[3.827s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/package.bash'
+[3.827s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/ros2_ws/install/neuravac_bringup/share/neuravac_bringup/package.zsh'
+[3.827s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/ros2_ws/install/neuravac_bringup/share/colcon-core/packages/neuravac_bringup)
+[3.828s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[3.828s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[3.828s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[3.828s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[3.833s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.notify_send': Could not find 'notify-send'
+[3.834s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[3.834s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[3.834s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[3.834s] DEBUG:colcon.colcon_notification.desktop_notification.notify2:Failed to initialize notify2: org.freedesktop.DBus.Error.NotSupported: Unable to autolaunch a dbus-daemon without a $DISPLAY for X11
+[3.834s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[3.834s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/ros2_ws/install/local_setup.ps1'
+[3.835s] INFO:colcon.colcon_core.shell:Creating prefix util module '/workspace/ros2_ws/install/_local_setup_util_ps1.py'
+[3.836s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/ros2_ws/install/setup.ps1'
+[3.837s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/ros2_ws/install/local_setup.sh'
+[3.838s] INFO:colcon.colcon_core.shell:Creating prefix util module '/workspace/ros2_ws/install/_local_setup_util_sh.py'
+[3.838s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/ros2_ws/install/setup.sh'
+[3.839s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/ros2_ws/install/local_setup.bash'
+[3.839s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/ros2_ws/install/setup.bash'
+[3.840s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/ros2_ws/install/local_setup.zsh'
+[3.840s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/ros2_ws/install/setup.zsh'

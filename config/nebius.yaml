@@ -1,0 +1,12 @@
+# Reference settings for NebiusConfig. Runtime credentials come from NEBIUS_API_KEY.
+# The client uses NebiusConfig.from_env(); export settings below with the documented
+# environment names. No key, account entitlement, or genuine cloud evidence is bundled.
+base_url: https://api.tokenfactory.nebius.com/v1
+# Officially documented example only; select and verify an ID available to your key.
+model: nvidia/Nemotron-3_5-Lightning
+timeout_s: 8
+max_retries: 2
+backoff_s: 0.25
+max_backoff_s: 2
+max_tokens: 512
+max_response_bytes: 1048576

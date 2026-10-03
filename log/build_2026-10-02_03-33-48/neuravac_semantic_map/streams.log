@@ -1,0 +1,17 @@
+[1.777s] Invoking command in '/workspace/ros2_ws/build/neuravac_semantic_map': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_semantic_map/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_semantic_map/build --no-deps symlink_data
+[2.347s] running develop
+[2.485s] running egg_info
+[2.490s] writing neuravac_semantic_map.egg-info/PKG-INFO
+[2.494s] writing dependency_links to neuravac_semantic_map.egg-info/dependency_links.txt
+[2.498s] writing entry points to neuravac_semantic_map.egg-info/entry_points.txt
+[2.500s] writing requirements to neuravac_semantic_map.egg-info/requires.txt
+[2.502s] writing top-level names to neuravac_semantic_map.egg-info/top_level.txt
+[2.535s] reading manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+[2.557s] writing manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+[2.576s] running build_ext
+[2.578s] Creating /workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages/neuravac-semantic-map.egg-link (link to .)
+[2.580s] Installing semantic_map_node script to /workspace/ros2_ws/install/neuravac_semantic_map/lib/neuravac_semantic_map
+[2.618s] 
+[2.618s] Installed /workspace/ros2_ws/build/neuravac_semantic_map
+[2.618s] running symlink_data
+[2.695s] Invoked command in '/workspace/ros2_ws/build/neuravac_semantic_map' returned '0': AMENT_PREFIX_PATH=/workspace/ros2_ws/install/neuravac_base:${AMENT_PREFIX_PATH} PS1=(neuravac-ros) PYTHONPATH=/workspace/ros2_ws/build/neuravac_semantic_map/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages:/workspace/ros2_ws/build/neuravac_base:/workspace/ros2_ws/install/neuravac_base/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(neuravac-ros) /tmp/neuravac-ros/bin/python -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /workspace/ros2_ws/build/neuravac_semantic_map/build --no-deps symlink_data

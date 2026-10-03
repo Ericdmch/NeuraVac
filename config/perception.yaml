@@ -1,0 +1,22 @@
+# Reference configuration; deploy only after replacing calibration and checkpoint.
+provider: replay
+input_resolution: 320
+model_path: null  # No trained detector bundled.
+confidence: 0.5
+nms_iou: 0.45
+camera:
+  device: 0
+  width: 320
+  height: 320
+  latest_frame_capacity: 1
+projection:
+  calibrated: false
+  intrinsics: null
+  camera_to_robot: null
+  max_distance_m: 5.0
+remote:
+  endpoint: null
+  health_url: null
+  model: null
+  timeout_s: 5.0
+  token_env: NEURAVAC_VISION_TOKEN

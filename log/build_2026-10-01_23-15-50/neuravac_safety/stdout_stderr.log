@@ -1,0 +1,24 @@
+/Users/ericchen/Documents/GitHub/NeuraVac/.venv/lib/python3.12/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)
+running develop
+running egg_info
+creating neuravac_safety.egg-info
+writing neuravac_safety.egg-info/PKG-INFO
+writing dependency_links to neuravac_safety.egg-info/dependency_links.txt
+writing entry points to neuravac_safety.egg-info/entry_points.txt
+writing requirements to neuravac_safety.egg-info/requires.txt
+writing top-level names to neuravac_safety.egg-info/top_level.txt
+writing manifest file 'neuravac_safety.egg-info/SOURCES.txt'
+reading manifest file 'neuravac_safety.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_safety.egg-info/SOURCES.txt'
+running build_ext
+Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/lib/python3.12/site-packages/neuravac-safety.egg-link (link to .)
+Installing safety_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/lib/neuravac_safety
+
+Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_safety
+running symlink_data
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_safety/resource/neuravac_safety -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_safety/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/share/neuravac_safety
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/share/neuravac_safety/launch
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_safety/share/neuravac_safety/config

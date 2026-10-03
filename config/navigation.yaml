@@ -1,0 +1,248 @@
+# ROS 2 Jazzy overrides merged onto the installed nav2_bringup defaults at launch.
+# Every Nav2 actuator output is remapped to /nav/cmd_vel; arbiter owns /cmd_vel.
+bt_navigator:
+  ros__parameters:
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    navigators: [navigate_to_pose, navigate_through_poses]
+    navigate_to_pose:
+      plugin: nav2_bt_navigator::NavigateToPoseNavigator
+    navigate_through_poses:
+      plugin: nav2_bt_navigator::NavigateThroughPosesNavigator
+controller_server:
+  ros__parameters:
+    enable_stamped_cmd_vel: false
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugins: [progress_checker]
+    goal_checker_plugins: [general_goal_checker]
+    controller_plugins: [FollowPath]
+    progress_checker:
+      plugin: nav2_controller::SimpleProgressChecker
+      required_movement_radius: 0.08
+      movement_time_allowance: 30.0
+    general_goal_checker:
+      plugin: nav2_controller::SimpleGoalChecker
+      xy_goal_tolerance: 0.06
+      yaw_goal_tolerance: 0.2
+      stateful: true
+    FollowPath:
+      plugin: dwb_core::DWBLocalPlanner
+      min_vel_x: 0.0
+      max_vel_x: 0.22
+      min_vel_y: 0.0
+      max_vel_y: 0.0
+      max_vel_theta: 0.8
+      min_speed_xy: 0.0
+      max_speed_xy: 0.22
+      min_speed_theta: 0.0
+      acc_lim_x: 0.4
+      acc_lim_y: 0.0
+      acc_lim_theta: 1.2
+      decel_lim_x: -0.4
+      decel_lim_y: 0.0
+      decel_lim_theta: -1.2
+      vx_samples: 10
+      vy_samples: 1
+      vtheta_samples: 20
+      sim_time: 1.5
+      linear_granularity: 0.04
+      angular_granularity: 0.025
+      transform_tolerance: 0.3
+      xy_goal_tolerance: 0.06
+      trans_stopped_velocity: 0.03
+      short_circuit_trajectory_evaluation: true
+      stateful: true
+      critics: [RotateToGoal, Oscillation, BaseObstacle, GoalAlign, PathAlign, PathDist, GoalDist]
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 0.0
+      GoalAlign.scale: 0.0
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 3
+      height: 3
+      resolution: 0.05
+      robot_radius: 0.17
+      transform_tolerance: 0.3
+      plugins: [obstacle_layer, inflation_layer]
+      filters: [semantic_keepout]
+      semantic_keepout:
+        plugin: nav2_costmap_2d::KeepoutFilter
+        enabled: true
+        filter_info_topic: /semantic_filter_info
+      obstacle_layer:
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          data_type: LaserScan
+          marking: true
+          clearing: true
+          raytrace_max_range: 8.0
+          obstacle_max_range: 7.5
+          expected_update_rate: 0.3
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        inflation_radius: 0.35
+        cost_scaling_factor: 4.0
+      always_send_full_costmap: true
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 2.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      robot_radius: 0.17
+      resolution: 0.05
+      transform_tolerance: 0.3
+      track_unknown_space: true
+      plugins: [static_layer, obstacle_layer, inflation_layer]
+      filters: [semantic_keepout]
+      semantic_keepout:
+        plugin: nav2_costmap_2d::KeepoutFilter
+        enabled: true
+        filter_info_topic: /semantic_filter_info
+      static_layer:
+        plugin: nav2_costmap_2d::StaticLayer
+        map_subscribe_transient_local: true
+        subscribe_to_updates: true
+      obstacle_layer:
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          data_type: LaserScan
+          marking: true
+          clearing: true
+          raytrace_max_range: 8.0
+          obstacle_max_range: 7.5
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        inflation_radius: 0.35
+        cost_scaling_factor: 4.0
+      always_send_full_costmap: true
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 2.0
+    planner_plugins: [GridBased]
+    GridBased:
+      plugin: nav2_navfn_planner::NavfnPlanner
+      tolerance: 0.05
+      use_astar: false
+      allow_unknown: false
+smoother_server:
+  ros__parameters:
+    smoother_plugins: [simple_smoother]
+    simple_smoother:
+      plugin: nav2_smoother::SimpleSmoother
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: true
+behavior_server:
+  ros__parameters:
+    enable_stamped_cmd_vel: false
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_link
+    cycle_frequency: 10.0
+    max_rotational_vel: 0.8
+    min_rotational_vel: 0.2
+    rotational_acc_lim: 1.2
+velocity_smoother:
+  ros__parameters:
+    enable_stamped_cmd_vel: false
+    smoothing_frequency: 20.0
+    stamp_smoothed_velocity_with_smoothing_time: false
+    feedback: OPEN_LOOP
+    max_velocity: [0.22, 0.0, 0.8]
+    min_velocity: [-0.1, 0.0, -0.8]
+    max_accel: [0.4, 0.0, 1.2]
+    max_decel: [-0.4, 0.0, -1.2]
+    odom_topic: /odom
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 0.3
+collision_monitor:
+  ros__parameters:
+    enable_stamped_cmd_vel: false
+    base_frame_id: base_link
+    odom_frame_id: odom
+    cmd_vel_in_topic: cmd_vel_smoothed
+    cmd_vel_out_topic: /nav/cmd_vel
+    transform_tolerance: 0.3
+    source_timeout: 0.5
+    stop_pub_timeout: 0.3
+    polygons: [StopZone]
+    StopZone:
+      type: circle
+      radius: 0.22
+      action_type: stop
+      min_points: 3
+      visualize: true
+      polygon_pub_topic: stop_zone
+    observation_sources: [scan]
+    scan:
+      type: scan
+      topic: /scan
+      min_height: -0.5
+      max_height: 2.0
+      enabled: true
+amcl:
+  ros__parameters:
+    base_frame_id: base_link
+    global_frame_id: map
+    odom_frame_id: odom
+    robot_model_type: nav2_amcl::DifferentialMotionModel
+    scan_topic: /scan
+    set_initial_pose: false
+map_server:
+  ros__parameters:
+    yaml_filename: ''
+semantic_filter_info:
+  ros__parameters:
+    type: 0
+    filter_info_topic: /semantic_filter_info
+    mask_topic: /semantic_keepout
+    base: 0.0
+    multiplier: 1.0
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: mapping
+    resolution: 0.05
+    max_laser_range: 8.0
+    minimum_time_interval: 0.2
+    transform_publish_period: 0.02
+    map_update_interval: 1.0
+    enable_interactive_mode: false
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.1
+    minimum_travel_heading: 0.1

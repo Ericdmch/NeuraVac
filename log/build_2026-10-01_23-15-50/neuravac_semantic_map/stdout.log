@@ -1,0 +1,22 @@
+running develop
+running egg_info
+creating neuravac_semantic_map.egg-info
+writing neuravac_semantic_map.egg-info/PKG-INFO
+writing dependency_links to neuravac_semantic_map.egg-info/dependency_links.txt
+writing entry points to neuravac_semantic_map.egg-info/entry_points.txt
+writing requirements to neuravac_semantic_map.egg-info/requires.txt
+writing top-level names to neuravac_semantic_map.egg-info/top_level.txt
+writing manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+reading manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_semantic_map.egg-info/SOURCES.txt'
+running build_ext
+Creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/lib/python3.12/site-packages/neuravac-semantic-map.egg-link (link to .)
+Installing semantic_map_node script to /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/lib/neuravac_semantic_map
+
+Installed /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map
+running symlink_data
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/resource/neuravac_semantic_map -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/ament_index/resource_index/packages
+symbolically linking /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/build/neuravac_semantic_map/package.xml -> /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/launch
+creating /Users/ericchen/Documents/GitHub/NeuraVac/ros2_ws/install/neuravac_semantic_map/share/neuravac_semantic_map/config
