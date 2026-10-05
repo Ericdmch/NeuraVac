@@ -1,7 +1,11 @@
 import time
 import pygame
+from pathlib import Path
+import sys
 
-from vaccum import Roomba   # your Roomba file (vaccum.py)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from roomba import Roomba
 
 # ---- settings ----
 SAFE_MODE = False        # False = Full mode (no cliff/wheel-drop protection!)

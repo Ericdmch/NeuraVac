@@ -5,7 +5,7 @@ Run:   pip install flask
        python roomba_web.py
 Open:  http://127.0.0.1:5000
 
-Needs vaccum.py (your Roomba class), helpers.py and config.json in the same folder.
+Needs roomba.py (the Roomba class), helpers.py and config.json in the same folder.
 """
 import atexit
 import functools
@@ -15,7 +15,7 @@ import time
 
 from flask import Flask, jsonify, request
 
-from vaccum import Roomba
+from roomba import Roomba
 from sensors import decode_sensors, read_exact
 
 HOST = "127.0.0.1"        # localhost only: this app has no auth and moves a robot
@@ -67,7 +67,7 @@ def parse_song(text):
 
 
 # ----------------------------------------------------------------------------
-# Roomba subclass: adds what the web panel needs without touching vaccum.py
+# Roomba subclass: adds what the web panel needs without touching roomba.py
 # ----------------------------------------------------------------------------
 class RoombaDev(Roomba):
     MAX_SONG_SLOT = 3   # 500/600 series: slots 0-3
