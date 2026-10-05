@@ -63,7 +63,7 @@ class Roomba:
 
         self.ser.flush()
 
-    def _get_opcode(self, name:str):
+    def _get_opcode(self, name:str):    
         return self._commands.get(name)
 
     
