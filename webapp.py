@@ -16,6 +16,7 @@ import time
 from flask import Flask, jsonify, request
 
 from vaccum import Roomba
+from sensors import decode_sensors, read_exact
 
 HOST = "127.0.0.1"        # localhost only: this app has no auth and moves a robot
 PORT = 5000
@@ -215,6 +216,8 @@ def api_connect():
             return err(f"Could not open serial port {r.port}", 500)
         time.sleep(0.5)                 # opening the port can toggle DTR; let it settle
         r.start_roomba(safe_mode=safe)
+        r._send_opcode(code=[150, 0])  # Pause any previous sensor stream.
+        r.ser.reset_input_buffer()
         r.load_sounds()
         roomba = r
         state["mode"] = "safe" if safe else "full"
@@ -226,6 +229,27 @@ def api_connect():
 def api_disconnect():
     shutdown()
     return jsonify(ok=True, **status_dict())
+
+
+@app.get("/api/sensors")
+@api
+def api_sensors():
+    # Keep the read shorter than the drive watchdog deadline. All serial
+    # traffic uses the same lock so commands cannot interrupt a response.
+    with lock:
+        if not ready():
+            return err("Connect the Roomba to read sensors", 409)
+        try:
+            roomba.ser.reset_input_buffer()
+            roomba._send_opcode(code=[142, 100])
+            payload = read_exact(roomba.ser, 80, 0.12)
+            sample = decode_sensors(payload, "oi")
+        except (OSError, ValueError, TimeoutError) as error:
+            # Stop on an incomplete response; the next poll clears stale bytes.
+            roomba.drive(0)
+            drive_state["moving"] = False
+            return err(f"Sensor read failed: {error}. Wake the robot with CLEAN.", 503)
+        return jsonify(ok=True, timestamp=time.time(), sensors=sample)
 
 
 @app.post("/api/drive")
@@ -338,6 +362,9 @@ INDEX_HTML = r"""<!doctype html>
   #log { height:150px; overflow:auto; font:12px ui-monospace, Consolas, monospace; color:var(--mut); }
   #log .bad { color:var(--bad); }
   .hint { color:var(--mut); font-size:12px; line-height:1.5; }
+  #sensorValues { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; }
+  #sensorValues dt { color:var(--mut); overflow-wrap:anywhere; }
+  #sensorValues dd { margin:0; overflow-wrap:anywhere; }
   kbd { background:#272b33; border:1px solid var(--bd); border-radius:4px; padding:0 5px; }
 </style>
 </head>
@@ -417,6 +444,13 @@ INDEX_HTML = r"""<!doctype html>
 </div>
 
 <div class="card" style="margin-top:14px">
+  <h2>Sensors</h2>
+  <div id="sensorStatus" class="hint">Connect to read sensors.</div>
+  <dl id="sensorValues"></dl>
+  <div class="hint">Updates once per second. Distance and angle are changes since the previous sensor request.</div>
+</div>
+
+<div class="card" style="margin-top:14px">
   <h2>Log</h2>
   <div id="log"></div>
 </div>
@@ -453,6 +487,42 @@ function setStatus(s) {
   ready = !!s.mode;
   $('pill').textContent = ready ? ('connected (' + s.mode + ')') : 'disconnected';
   $('pill').className = 'pill' + (ready ? ' on' : '');
+  if (!ready) {
+    $('sensorValues').replaceChildren();
+    $('sensorStatus').textContent = 'Connect to read sensors.';
+  }
+}
+
+let sensorPolling = false;
+async function refreshSensors() {
+  if (!ready || sensorPolling) return;
+  sensorPolling = true;
+  try {
+    const response = await fetch('/api/sensors');
+    const data = await response.json();
+    if (!ready) return;
+    if (!data.ok) throw new Error(data.error);
+    const rows = document.createDocumentFragment();
+    function add(name, value) {
+      if (value !== null && typeof value === 'object') {
+        for (const [key, item] of Object.entries(value)) add(name + ' / ' + key, item);
+        return;
+      }
+      const label = document.createElement('dt');
+      const reading = document.createElement('dd');
+      label.textContent = name.replaceAll('_', ' ');
+      reading.textContent = value === null ? 'Unavailable' : String(value);
+      rows.append(label, reading);
+    }
+    for (const [name, value] of Object.entries(data.sensors)) add(name, value);
+    $('sensorValues').replaceChildren(rows);
+    $('sensorStatus').textContent = 'Updated ' + new Date(data.timestamp * 1000).toLocaleTimeString();
+  } catch (error) {
+    $('sensorValues').replaceChildren();
+    $('sensorStatus').textContent = error.message;
+  } finally {
+    sensorPolling = false;
+  }
 }
 
 async function refresh() {
@@ -566,6 +636,7 @@ $('playsong').addEventListener('click', () =>
 
 refresh();
 setInterval(refresh, 2000);
+setInterval(refreshSensors, 1000);
 tick();
 </script>
 </body>
