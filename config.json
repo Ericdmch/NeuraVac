@@ -1,4 +1,4 @@
 {
-    "PORT": "COM9",
+    "PORT": "/dev/ttyUSB0",
     "BAUD_RATE": 115200
 }
