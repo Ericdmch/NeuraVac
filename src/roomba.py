@@ -86,7 +86,7 @@ class Roomba:
         self._send_opcode(name="mode-safe" if safe_mode else "mode-full")
         time.sleep(0.2)
 
-        if self._debug:
+        if self._debug: 
             print("Starting Roomba")
 
     def stop_roomba(self):
