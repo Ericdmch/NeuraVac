@@ -1,8 +1,127 @@
+/* constants for colors, dark themed and oranges*/
+:root {
+  /* Surface & Backgrounds (Dark Charcoal & Slate) */
+  --bg-base:          #121316; /* Main app background */
+  --bg-surface:       #1a1c23; /* Cards, sidebar, elevated panels */
+  --bg-surface-hover: #232630; /* Interactive surface hover state */
+  --bg-elevated:      #2a2d3a; /* Modals, dropdowns, floating elements */
+
+  /* Primary Brand & Actions (Roomba Orange Spectrum) */
+  --orange-primary:   #ff6b00; /* Main CTA, high-energy highlights */
+  --orange-hover:     #ff8533; /* Primary hover state */
+  --orange-active:    #e05d00; /* Primary active/pressed state */
+  --orange-subtle:    rgba(255, 107, 0, 0.12); /* Background tint for active tabs/cards */
+  --orange-glow:      0 0 16px rgba(255, 107, 0, 0.35); /* Glow for status dots/active modes */
+
+  /* Secondary Accents (Amber & Warning States) */
+  --amber-accent:     #ffb703; /* Secondary metrics, charging status, warning alerts */
+  --amber-subtle:     rgba(255, 183, 3, 0.15);
+
+  /* Functional Status Colors */
+  --status-success:   #2ec4b6; /* Clean complete, online state */
+  --status-error:     #e63946; /* Error, stuck, bin full */
+  --status-charging:  #3a86ff; /* Charging state / battery pulse */
+
+  /* Text & Content Hierarchy */
+  --text-primary:     #f4f5f7; /* High contrast headers, primary text */
+  --text-secondary:   #9ca3af; /* Subtitles, labels, secondary icons */
+  --text-muted:       #6b7280; /* Disabled text, placeholder text */
+  --text-on-orange:   #000000; /* Max contrast text inside primary orange buttons */
+
+  /* Borders & Dividers */
+  --border-subtle:    rgba(255, 255, 255, 0.08);
+  --border-active:    rgba(255, 107, 0, 0.4);
+}
 body {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
+
+    background-color: var(--bg-base);
 
     margin: 0;
     font-family: "JetBrains Mono", monospace;
+
+    color: var(--text-primary);
+}
+
+.side-bar {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    width: clamp(120px, 18vw, 240px);
+    box-sizing: border-box;
+
+    gap: clamp(0.5rem, 2vw, 1rem);
+
+    border-right: 1px solid var(--border-subtle);
+    background-color: var(--bg-surface);
+}
+
+.side-bar-title {
+    margin-top: 5%;
+    margin-left: 5%;
+
+    color: var(--text-primary);
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 2.2rem;
+}
+
+.side-bar-title:hover {
+    cursor: default;
+}
+
+.side-bar-line {
+    width: 80%;
+    height: 2px;
+    margin-left: 5%;
+
+    background-color: var(--border-subtle);
+}
+
+.side-bar-item {
+    margin-left: 5%;
+
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: clamp(0.9rem, 2.5vw, 1.2rem);
+}
+
+.side-bar-item:hover {
+    color: var(--orange-hover);
+    cursor: pointer;
+}
+
+
+.main-content {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+
+    justify-content: center;
+    flex-wrap: wrap;
+
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+
+    background-color: var(--bg-base);
+}
+
+.content-card {
+    display: flex;
+    flex-direction: column;
+
+    background-color: var(--bg-surface);
+}
+.content-card-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
 }

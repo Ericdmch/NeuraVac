@@ -97,7 +97,7 @@ class Roomba:
 
         if self._debug:
             print("Stopping Roomba")
-
+    
     def set_led(self, color, intensity=255):
         """Set the power LED color and brightness using byte values (0–255)."""
         # A zero LED bitmask leaves the other indicator LEDs off.
