@@ -4,6 +4,7 @@ References and vendor tools for hardware integration, serial-protocol implementa
 
 ## Hardware integration
 
+- [Direct Raspberry Pi UART connection: wiring, power, serial setup, and Pi 4/5 differences](raspberry-pi-uart.md)
 - [Instruction manual: wiring, power, dimensions, mounting, and coordinate system](COIN-D6%20Instruction%20Manual.md)
 - [A1 hardware specification: original manufacturer specifications](1%20D6%20LiDAR%20Manual/COIN-D6%20Single-Line%20LiDAR%20Specification%20Sheet%20A1.md)
 - [Laser-safety test report: emission measurements, fault tests, and labeling](1%20D6%20LiDAR%20Manual/COIN-D6%20D6A%20LiDAR%20%28CSPC-EN%29%20Laser%20Safety%20Test%2025.07.22.md)
