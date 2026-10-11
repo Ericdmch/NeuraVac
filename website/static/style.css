@@ -265,6 +265,14 @@ body {
     margin-right: 1rem;
 }
 
+#serial-monitor-status.connected {
+    background-color: var(--status-success);
+}
+
+#serial-monitor-status.disconnected {
+    background-color: var(--orange-primary);
+}
+
 
 #remote-key-grid {
     display: grid;
