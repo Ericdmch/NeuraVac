@@ -3,6 +3,7 @@ const context = canvas.getContext("2d");
 
 /** Draw [x, y] points in metres, joining each point to the next. */
 function drawLidarPoints(points) {
+    
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -29,4 +30,5 @@ function drawLidarPoints(points) {
     context.strokeStyle = "#000000";
     context.lineWidth = 2;
     context.stroke();
+    return "plotted";
 }
