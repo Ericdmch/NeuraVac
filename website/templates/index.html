@@ -24,23 +24,52 @@
             About
         </div>
         
-
-
-
-
-
-
-        
-
     </div>
 
     <div class="main-content">
-        <div class="content-card" style="width: 80%; height: 20%;">
+        
+         <!-- LIDAR Canvas -->
+        <div id="lidar" class="content-card">
             <div class="content-card-title">
-                Serial Monitor
+                <span class="content-card-title-text">LIDAR View</span>
+                <span id="lidar-status"></span>
+            </div>
+            <div class="content-card-line"></div>
+            <div id="lidar-container">
+            <canvas id="lidar-canvas" width="800" height="640"></canvas>
             </div>
         </div>
 
+        <!-- Remote override controls -->
+        <div id="remote-override-card" class="content-card">
+            <div class="content-card-title">
+                <span class="content-card-title-text">Remote Override</span>
+                <span id="remote-override-status"></span>
+            </div>
+            <div class="content-card-line"></div>
+            <div id="remote-key-grid">
+                <button id="remote-key-q" type="button">Q</button>
+                <button id="remote-key-w" type="button">W</button>
+                <button id="remote-key-e" type="button">E</button>
+                <button id="remote-key-a" type="button">A</button>
+                <button id="remote-key-s" type="button">S</button>
+                <button id="remote-key-d" type="button">D</button>
+            </div>
+        </div>
+
+        <!-- Serial monitor -->
+        <div id="serial-monitor-card" class="content-card">
+            <div class="content-card-title">
+                <span class="content-card-title-text">Serial Monitor</span>
+                <span id="serial-monitor-status"></span>
+            </div>
+            <div class="content-card-line"></div>
+            <div id="serial-monitor-out"></div>
+            <div id="serial-monitor-in">
+                <span id="serial-monitor-prompt">&gt;</span>
+                <input type="text">
+            </div>
+        </div>
 
     </div>
 </body>
