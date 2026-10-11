@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='canvas.js') }}" defer></script>
 </head>
 <body>
     <div class="side-bar">
@@ -22,14 +23,35 @@
         <div class="side-bar-item">
             About
         </div>
+        
+
+
+
+
+
+
+        
+
     </div>
 
     <div class="main-content">
+        <!-- Title -->
         <div class="content-card" style="width: 80%; height: 20%;">
             <div class="content-card-title">
                 Serial Monitor
             </div>
+            
+
         </div>
+        <!-- LIDAR Canvas -->
+        <div class="content-card" style="width: 80%; height: 100%;">
+            <div class="content-card-title">
+                LIDAR View
+            </div>
+            <canvas id="lidar-canvas" class="lidar-canvas" width="800" height="640"></canvas>
+        </div>
+
+
     </div>
 </body>
 </html>
