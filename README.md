@@ -53,3 +53,13 @@ close the port. Passive mode can sleep after five minutes; wake the robot with
 CLEAN if reads time out. Close `wired.py`, `webapp.py`, or any other serial client
 before running this script. Responses have no checksum; after an incomplete
 response the script exits rather than interpreting misaligned bytes.
+
+
+## Minimum Viable Product
+
+### Artifical Intelligenc
+- Analyze images of floor and detect debris
+- Draw rectangles around  debris for roomba to navigat
+
+### Slam
+- Plot roomba location in birds eye

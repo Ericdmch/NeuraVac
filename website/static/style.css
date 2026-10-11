@@ -144,7 +144,8 @@ body {
 }
 
 #serial-monitor-card {
-    height: 20%;
+    height: 15rem;
+    flex: 0 0 80%;
 }
 
 .content-card-title {
