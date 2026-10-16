@@ -1,0 +1,14 @@
+# Parameters for the roomba node. The top-level key is the node's name.
+# Use 20.0, not 20, for decimal values: the type must match the code.
+roomba:
+  ros__parameters:
+    port: /dev/ttyUSB0   # check with: ls /dev/ttyUSB* /dev/ttyACM* /dev/serial/by-id/
+    baud: 115200         # 600-series default; use 19200 if the BRC pin is held low
+    rate_hz: 20.0        # sensor polls per second
+    safe_mode: true      # false = full mode, which turns OFF cliff/wheel-drop protection
+    cmd_timeout: 0.5     # seconds without /cmd_vel before the wheels are stopped
+    wheel_base: 0.235    # metres between the wheels (approximate; measure yours)
+    max_speed: 0.5       # m/s per wheel, the Open Interface maximum
+    publish_tf: true     # broadcast the odom -> base_link transform
+    odom_frame: odom
+    base_frame: base_link

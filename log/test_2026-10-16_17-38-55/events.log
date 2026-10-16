@@ -1,0 +1,5 @@
+[0.000000] (-) TimerEvent: {}
+[0.000693] (neuravac_robot) JobQueued: {'identifier': 'neuravac_robot', 'dependencies': OrderedDict({'neuravac_robot': '/home/neuravac/NeuraVac/install/neuravac_robot'})}
+[0.002129] (neuravac_robot) JobStarted: {'identifier': 'neuravac_robot'}
+[0.033047] (neuravac_robot) JobEnded: {'identifier': 'neuravac_robot', 'rc': 1}
+[0.044767] (-) EventReactorShutdown: {}
