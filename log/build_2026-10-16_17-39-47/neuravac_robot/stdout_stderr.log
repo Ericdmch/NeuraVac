@@ -1,0 +1,26 @@
+running develop
+running egg_info
+creating neuravac_robot.egg-info
+writing neuravac_robot.egg-info/PKG-INFO
+writing dependency_links to neuravac_robot.egg-info/dependency_links.txt
+writing entry points to neuravac_robot.egg-info/entry_points.txt
+writing requirements to neuravac_robot.egg-info/requires.txt
+writing top-level names to neuravac_robot.egg-info/top_level.txt
+writing manifest file 'neuravac_robot.egg-info/SOURCES.txt'
+reading manifest file 'neuravac_robot.egg-info/SOURCES.txt'
+writing manifest file 'neuravac_robot.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/neuravac/NeuraVac/install/neuravac_robot/lib/python3.12/site-packages/neuravac-robot.egg-link (link to .)
+Installing roomba_node script to /home/neuravac/NeuraVac/install/neuravac_robot/lib/neuravac_robot
+
+Installed /home/neuravac/NeuraVac/build/neuravac_robot
+running symlink_data
+creating /home/neuravac/NeuraVac/install/neuravac_robot/share/neuravac_robot/launch
+symbolically linking /home/neuravac/NeuraVac/build/neuravac_robot/launch/roomba.launch.py -> /home/neuravac/NeuraVac/install/neuravac_robot/share/neuravac_robot/launch
+creating /home/neuravac/NeuraVac/install/neuravac_robot/share/neuravac_robot/config
+symbolically linking /home/neuravac/NeuraVac/build/neuravac_robot/config/roomba.yaml -> /home/neuravac/NeuraVac/install/neuravac_robot/share/neuravac_robot/config
+creating /home/neuravac/NeuraVac/install/neuravac_robot/share/ament_index
+creating /home/neuravac/NeuraVac/install/neuravac_robot/share/ament_index/resource_index
+creating /home/neuravac/NeuraVac/install/neuravac_robot/share/ament_index/resource_index/packages
+symbolically linking /home/neuravac/NeuraVac/build/neuravac_robot/resource/neuravac_robot -> /home/neuravac/NeuraVac/install/neuravac_robot/share/ament_index/resource_index/packages
+symbolically linking /home/neuravac/NeuraVac/build/neuravac_robot/package.xml -> /home/neuravac/NeuraVac/install/neuravac_robot/share/neuravac_robot
