@@ -1,13 +1,8 @@
-import sys
-from pathlib import Path
-
 import serial
 from flask import Flask, jsonify, render_template, request
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from roomba import Roomba
-from helpers import parse_opcode
+from neuravac.hardware.roomba import Roomba
+from neuravac.protocol import parse_opcode
 
 app = Flask(__name__)
 roomba = None

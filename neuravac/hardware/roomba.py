@@ -1,15 +1,15 @@
 import serial
 import time
 
-import helpers
+from neuravac import protocol
 
 class Roomba:
     """Control a Roomba through its serial Open Interface commands."""
 
     def __init__(self):
         # Load the serial connection settings from config.json.
-        self.port = helpers.getConfig("PORT")
-        self.baud = helpers.getConfig("BAUD_RATE")
+        self.port = protocol.get_config("PORT")
+        self.baud = protocol.get_config("BAUD_RATE")
 
         self.ser = None
 
@@ -77,7 +77,6 @@ class Roomba:
         return self._commands.get(name)
 
     
-
     def start_roomba(self, safe_mode=True):
         """Start the interface and select safe or full control mode."""
         # Allow the robot time to process each mode change.
@@ -115,7 +114,7 @@ class Roomba:
             radius = max(-2000, min(2000, int(radius)))
 
         # The drive command expects velocity then radius, high byte first.
-        data = helpers.split16(velocity) + helpers.split16(radius)
+        data = protocol.split16(velocity) + protocol.split16(radius)
         self._send_opcode(name="drive", data=data)
 
         print(f"driving velocity: {velocity}   radius {radius}")

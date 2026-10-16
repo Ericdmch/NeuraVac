@@ -1,11 +1,7 @@
 import time
 import pygame
-from pathlib import Path
-import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from roomba import Roomba
+from neuravac.hardware.roomba import Roomba
 
 # ---- settings ----
 SAFE_MODE = False        # False = Full mode (no cliff/wheel-drop protection!)

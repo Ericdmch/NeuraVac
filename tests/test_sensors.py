@@ -3,15 +3,12 @@
 import contextlib
 import io
 import json
-from pathlib import Path
 import sys
 import types
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-import sensors
+import neuravac.hardware.sensors as sensors
 
 
 def sci_packet():
@@ -114,7 +111,7 @@ class SensorTests(unittest.TestCase):
         module = types.SimpleNamespace(Serial=lambda *a, **k: connection)
         output = io.StringIO()
         with patch.dict(sys.modules, {"serial": module}), \
-                patch("sensors.time.sleep"), contextlib.redirect_stdout(output):
+                patch("neuravac.hardware.sensors.time.sleep"), contextlib.redirect_stdout(output):
             status = sensors.main(["--port", "fake", "--once"])
         self.assertEqual(status, 0)
         self.assertEqual(connection.commands, [b"\x80", b"\x96\x00", b"\x8e\x64"])

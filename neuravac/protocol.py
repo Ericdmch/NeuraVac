@@ -1,6 +1,6 @@
 import json
 
-def getConfig(key:str):
+def get_config(key:str):
     """Read a setting from config.json in the working directory, or return None."""
     # Reload the file each time so callers see the current configuration.
     with open("config.json", "r") as f:
@@ -29,4 +29,3 @@ def parse_opcode(message):
         raise ValueError("each opcode byte must be between 0 and 255")
 
     return code
-

@@ -1,4 +1,4 @@
-from website.app import app
+from neuravac.web.app import app
 
 
 if __name__ == "__main__":
