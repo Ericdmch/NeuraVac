@@ -55,6 +55,45 @@ before running this script. Responses have no checksum; after an incomplete
 response the script exits rather than interpreting misaligned bytes.
 
 
+## ROS 2 serial bridge and website
+
+The ROS 2 bridge keeps the existing `src/roomba.py` `Roomba` class as the
+hardware interface and owns the serial port. It publishes bytes received from
+the Roomba serial monitor on `/roomba/serial_monitor/messages`
+(`std_msgs/msg/String`), publishes connection state on `/roomba/serial/status`,
+and accepts hexadecimal opcode strings on `/roomba/serial_monitor/commands`.
+The Flask website subscribes to those topics and forwards browser commands to
+the bridge, so it does not open the serial port itself.
+
+Make this repository available under the `src` directory of a ROS 2 workspace
+(for example, as a symlink named `neuravac_ros`), then build and source it:
+
+```sh
+cd ~/ros2_ws
+colcon build --packages-select neuravac_ros
+source install/setup.bash
+```
+
+Set `PORT` in `config.json` to the robot's serial device. Start the bridge,
+then run the website in another terminal with the same ROS environment sourced:
+
+```sh
+ros2 launch neuravac_ros neuravac.launch.py
+python3 website/app.py
+```
+
+The website process also needs the ROS 2 Python environment because it subscribes
+to the bridge topics. On Windows, run both commands in the same Ubuntu/WSL 2
+environment where ROS 2 is installed and the robot's USB serial device is
+available. Without ROS 2, Flask can still serve the dashboard, but the serial
+monitor will show disconnected and cannot send or receive data.
+
+The serial monitor is available on ROS topics for other nodes too. Do not run
+`sensors.py`, `tests/wired.py`, or another serial client at the same time; the
+bridge must be the only process using the Roomba serial port. The browser's raw
+opcode monitor is intended for diagnostics; normal motion behavior should use
+validated robot commands.
+
 ## Minimum Viable Product
 
 ### Artifical Intelligenc

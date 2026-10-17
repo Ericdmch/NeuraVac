@@ -1,9 +1,23 @@
 import json
+from pathlib import Path
+
+CONFIG_PATH = Path(__file__).resolve().parents[1] / "config.json"
+
+
+def _config_path():
+    """Use the repository config in source checkouts or the ROS share copy."""
+    if CONFIG_PATH.exists():
+        return CONFIG_PATH
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        return Path(get_package_share_directory("neuravac_ros")) / "config.json"
+    except (ImportError, LookupError):
+        return CONFIG_PATH
 
 def getConfig(key:str):
     """Read a setting from config.json in the working directory, or return None."""
     # Reload the file each time so callers see the current configuration.
-    with open("config.json", "r") as f:
+    with _config_path().open("r", encoding="utf-8") as f:
         config = json.load(f)
     return config.get(key)
 

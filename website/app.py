@@ -1,32 +1,16 @@
 import sys
 from pathlib import Path
 
-import serial
 from flask import Flask, jsonify, render_template, request
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from roomba import Roomba
-from helpers import parse_opcode
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from neuravac_ros.web_gateway import RosWebGateway
+from src.helpers import parse_opcode
 
 app = Flask(__name__)
-roomba = None
-
-
-def get_roomba():
-    """Create or reconnect the shared Roomba serial connection when needed."""
-    global roomba
-
-    if roomba is None:
-        roomba = Roomba()
-
-    if not roomba.ser or not roomba.ser.is_open:
-        roomba.connect_serial(attempts=0)
-
-    if not roomba.ser or not roomba.ser.is_open:
-        raise ConnectionError("Unable to open the Roomba serial port")
-
-    return roomba
+gateway = RosWebGateway()
 
 
 @app.route("/")
@@ -36,13 +20,9 @@ def home():
 
 @app.get("/api/serial-monitor/status")
 def serial_monitor_status():
-    """Report whether the Roomba serial connection is available."""
-    try:
-        get_roomba()
-    except ConnectionError as error:
-        return jsonify(connected=False, error=str(error)), 503
-
-    return jsonify(connected=True), 200
+    """Report the serial status last reported by the ROS 2 bridge."""
+    connected = gateway.connected
+    return jsonify(connected=connected, error=gateway.error), 200 if connected else 503
 
 
 @app.post("/api/serial-monitor")
@@ -59,10 +39,10 @@ def serial_monitor():
 
     try:
         code = parse_opcode(message)
-        get_roomba()._send_opcode(code=code)
+        gateway.send_command(code)
     except ValueError as error:
         return jsonify(error=str(error)), 400
-    except (ConnectionError, serial.SerialException) as error:
+    except RuntimeError as error:
         return jsonify(error=str(error)), 503
 
     print(f"[serial monitor] sent {message}", flush=True)
@@ -71,24 +51,9 @@ def serial_monitor():
 
 @app.get("/api/serial-monitor/messages")
 def serial_monitor_messages():
-    """Read any bytes waiting from the Roomba without blocking."""
-    try:
-        connection = get_roomba()
-        available = connection.ser.in_waiting
-        if not available:
-            return jsonify(messages=[]), 200
-
-        data = connection.ser.read(available)
-    except (ConnectionError, serial.SerialException) as error:
-        return jsonify(error=str(error)), 503
-
-    if not data:
-        return jsonify(messages=[]), 200
-
-    message = f"received: {data.hex(' ')}"
-    print(f"[serial monitor] {message}", flush=True)
-    return jsonify(messages=[message]), 200
+    """Return serial bytes received by the ROS 2 bridge since the last poll."""
+    return jsonify(messages=gateway.drain_messages()), 200
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", debug=True)
+    app.run(host="0.0.0.0", debug=False)
