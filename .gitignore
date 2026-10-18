@@ -6,3 +6,5 @@ log
 install
 
 __pycahche__
+
+*.env
