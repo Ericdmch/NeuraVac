@@ -45,6 +45,7 @@ class Lidar(Node):
             return
 
         data = self.serial.read(waiting)
+        self.lidar_data.publish(SerialData(data=data))
         # self.get_logger().info(f'Received {len(data)} bytes from Lidar: {data.hex()}')
 
 def main(args=None):
