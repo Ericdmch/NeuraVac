@@ -8,3 +8,5 @@ install
 __pycahche__
 
 *.env
+
+**/__pycache__/

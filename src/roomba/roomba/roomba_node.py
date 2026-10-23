@@ -65,7 +65,7 @@ class Roomba(Node):
         msg = SerialData()
         msg.data = list(data)
         self.serial_rx.publish(msg)
-        self.get_logger().info(f'Read {len(data)} bytes from serial: {data}')
+        # self.get_logger().info(f'Read {len(data)} bytes from serial: {data}')
 
     def write_serial(self, data : SerialData):
         if not self.serial.is_open:
