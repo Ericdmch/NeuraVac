@@ -9,11 +9,11 @@ import threading
 app = Flask(__name__)
 
 class WebBridge(Node):
-    def __init__(self):
+    def __init__(self, data_type, topic):
         super().__init__('web_bridge_node')
         self.serial_tx = self.create_publisher(
-            SerialData,
-            'serial_tx',
+            data_type,
+            topicro,
             10
         )
 
@@ -34,7 +34,7 @@ class WebBridge(Node):
 
 
 
-def create_app(bridge, template_dir):
+def create_app(serial_bridge, template_dir):
     app = Flask(__name__, template_folder=template_dir)
 
     @app.get('/')
@@ -49,7 +49,7 @@ def create_app(bridge, template_dir):
         if not serial_data:
             return jsonify(error='Serial data is required'), 400
 
-        bridge.send_serial_data(serial_data)
+        serial_bridge.send_serial_data(serial_data)
 
         return jsonify(message=serial_data)
 
@@ -59,14 +59,14 @@ def create_app(bridge, template_dir):
 
 def main(args=None):
     rclpy.init(args=args)
-    bridge = WebBridge()
-    threading.Thread(target=rclpy.spin, args=(bridge,), daemon=True).start()
+    serial_bridge = WebBridge(SerialData, 'serial_data')
+    threading.Thread(target=rclpy.spin, args=(serial_bridge,), daemon=True).start()
 
     template_dir = os.path.join(get_package_share_directory('web'), 'templates')
-    app = create_app(bridge, template_dir)   # your routes, built inside a function
+    app = create_app(serial_bridge, template_dir)   # your routes, built inside a function
     
     try:
         app.run(host='0.0.0.0', port=5000, debug=False)
     finally:
-        bridge.destroy_node()
+        serial_bridge.destroy_node()
         rclpy.shutdown()
