@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 import serial
 from serial import SerialException
-from roomba_interfaces.msg import Point, SerialData
+from roomba_interfaces.msg import LidarPoint, SerialData
 
 class Lidar(Node):
     def __init__(self):
@@ -35,19 +35,19 @@ class Lidar(Node):
         self.serial_timer = self.create_timer(0.01, self.read_serial)
         
         self.lidar_points = self.create_publisher(
-            Point,
+            LidarPoint,
             'lidar_points',
             10
         )
         
-        self.send_raw = False
+        # self.send_raw = False
 
-        if self.send_raw:
-            self.lidar_raw = self.create_publisher(
-                SerialData, 
-                'lidar_raw',
-                10
-            )
+        # if self.send_raw:
+        #     self.lidar_raw = self.create_publisher(
+        #         SerialData, 
+        #         'lidar_raw',
+        #         10
+        #     )
 
         # Parseing lidar data
         self._buffer = bytearray()
@@ -59,8 +59,8 @@ class Lidar(Node):
 
         data = self.serial.read(waiting)
 
-        if self.send_raw:
-            self.lidar_raw.publish(SerialData(data=data))
+        # if self.send_raw:
+        #     self.lidar_raw.publish(SerialData(data=data))
 
         self._buffer.extend(data)
 
@@ -81,7 +81,7 @@ class Lidar(Node):
         8-9	CS (checksum)	    2 bytes
         10 onward	            Samples	3 bytes per sample
 
-        Returns a list of Point objects, each containing angle, distance, and intensity.
+        Returns a list of LidarPoint objects, each containing angle, distance, and intensity.
         Clears up the buffer too
         """
 
@@ -178,7 +178,7 @@ class Lidar(Node):
             else:
                 angle = start_angle + (angle_diff / (lsn - 1)) * i
                         
-            points.append(Point(
+            points.append(LidarPoint(
                 angle_deg=angle,
                 distance_mm=distance,
                 intensity=intensity
