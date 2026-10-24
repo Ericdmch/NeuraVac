@@ -2,24 +2,7 @@ import rclpy
 from rclpy.node import Node
 import serial
 from serial import SerialException
-from roomba_interfaces.msg import SerialData
-from dataclasses import dataclass
-
-@dataclass
-class LidarPacket:
-    header: bytes
-    m_and_t: int
-    lsn: int
-    fsa: int
-    lsa: int
-    cs: int
-    samples: list
-
-@dataclass
-class Point:
-    angle_deg: float
-    distance_mm: float
-    intensity: int
+from roomba_interfaces.msg import Point, SerialData
 
 class Lidar(Node):
     def __init__(self):
@@ -50,11 +33,21 @@ class Lidar(Node):
 
         # ROS2 Serial topics
         self.serial_timer = self.create_timer(0.01, self.read_serial)
-        # self.lidar_raw = self.create_publisher(
-        #     SerialData, 
-        #     'lidar_raw',
-        #     10
-        #)
+        
+        self.lidar_points = self.create_publisher(
+            Point,
+            'lidar_points',
+            10
+        )
+        
+        self.send_raw = False
+
+        if self.send_raw:
+            self.lidar_raw = self.create_publisher(
+                SerialData, 
+                'lidar_raw',
+                10
+            )
 
         # Parseing lidar data
         self._buffer = bytearray()
@@ -66,14 +59,19 @@ class Lidar(Node):
 
         data = self.serial.read(waiting)
 
-        # self.lidar_raw.publish(SerialData(data=data))
-        # self.get_logger().info(f'Received {len(data)} bytes from Lidar: {data.hex()}')
+        if self.send_raw:
+            self.lidar_raw.publish(SerialData(data=data))
 
         self._buffer.extend(data)
 
-        self.extract_packets()
 
-    def extract_packets(self):
+        points = self.extract_packet()
+        if points:
+            for point in points:
+                self.lidar_points.publish(point)
+
+
+    def extract_packet(self):
         """
         0-1	Header (AA 55)	    2 bytes
         2	M&T	                1 byte
@@ -82,6 +80,9 @@ class Lidar(Node):
         6-7	LSA (end angle)	    2 bytes
         8-9	CS (checksum)	    2 bytes
         10 onward	            Samples	3 bytes per sample
+
+        Returns a list of Point objects, each containing angle, distance, and intensity.
+        Clears up the buffer too
         """
 
         while True:
@@ -110,22 +111,32 @@ class Lidar(Node):
             packet = self._buffer[:packet_length]
             del self._buffer[:packet_length]
 
-            self.decode_packet(packet)
+            return self.decode_packet(packet)
 
     
-    def checksum(recieved_cs, packet):
-        calculated_cs = 0
-        for i in range(0, 8, 2):
-            calculated_cs ^= int.from_bytes(packet[i:i + 2], byteorder='little')
+    def checksum(self, received_cs, packet):
+        lsn = packet[3]
 
-    return calculated_cs == received_cs
+        calculated_cs = 0x55AA
+        calculated_cs ^= (lsn << 8) | packet[2]
+        calculated_cs ^= int.from_bytes(packet[4:6], 'little')
+        calculated_cs ^= int.from_bytes(packet[6:8], 'little')
+
+        for i in range(lsn):
+            offset = 10 + i * 3
+
+            # First sample byte: intensity
+            calculated_cs ^= packet[offset]
+
+            # Next two bytes: distance data
+            calculated_cs ^= int.from_bytes(
+                packet[offset + 1:offset + 3], 'little'
+            )
+
+        return calculated_cs == received_cs
 
     def decode_packet(self,packet, polar = True):
-        expected_len = 10 + lsn * 3
-        if len(packet) != expected_len:
-            self.get_logger().warning("Invalid packet length")
-            return
-
+        
         header = packet[0:2]
         m_and_t = packet[2]
         lsn = packet[3]
@@ -133,6 +144,11 @@ class Lidar(Node):
         lsa = int.from_bytes(packet[6:8], byteorder='little', signed=False)
         cs = int.from_bytes(packet[8:10], byteorder='little', signed=False)
         samples = packet[10:]
+
+        expected_len = 10 + lsn * 3
+        if len(packet) != expected_len:
+            self.get_logger().warning("Invalid packet length")
+            return
 
         packet_type = m_and_t & 0b1
         scan_frequency = m_and_t >> 1
@@ -146,13 +162,30 @@ class Lidar(Node):
 
 
         if not self.checksum(cs, packet):
+            self.get_logger().warning("Invalid checksum")
             return
 
-        samples = [
-            packet[10 + i * 3: 10 + (i + 1) * 3] for i in range(lsn)
-        ]
-        
+        points = []
+
+        for i in range(lsn):
+            b0, b1, b2 = samples[i * 3: (i+1) * 3]
+
+            distance = (b2 << 6) | (b1 >> 2)
+            intensity = ((b1 & 0x03) << 6) | (b0 >> 2)
+
+            if lsn <= 1:
+                angle = start_angle
+            else:
+                angle = start_angle + (angle_diff / (lsn - 1)) * i
+                        
+            points.append(Point(
+                angle_deg=angle,
+                distance_mm=distance,
+                intensity=intensity
+            ))
             
+        return points
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -168,4 +201,3 @@ def main(args=None):
         if 'node' in locals():
             node.destroy_node()
         rclpy.shutdown()
-
