@@ -13,7 +13,7 @@ setup(
         ('share/' + package_name + '/templates',
             ['web/templates/index.html']),
         ('share/' + package_name + '/static',
-            ['web/static/style.css', 'web/static/serial.js']),
+            ['web/static/style.css', 'web/static/components.js']),
     ],
     install_requires=['setuptools', 'Flask', 'pyserial'],
     zip_safe=True,
