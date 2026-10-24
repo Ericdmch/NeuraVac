@@ -9,6 +9,8 @@ __pycahche__
 
 *.env
 
+**/__pycache__/
+
 test
 
 env
