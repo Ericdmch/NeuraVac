@@ -8,3 +8,7 @@ install
 __pycahche__
 
 *.env
+
+test
+
+env
