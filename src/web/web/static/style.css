@@ -16,10 +16,15 @@ body {
   min-width: 320px;
 }
 
-.console {
+.page {
   margin: 0 auto;
-  max-width: 760px;
-  padding: 12vh 2rem;
+  max-width: 900px;
+  padding: 3rem 2rem;
+}
+
+.site-header {
+  border-bottom: 1px solid #34434e;
+  padding-bottom: 1.5rem;
 }
 
 .eyebrow {
@@ -34,68 +39,4 @@ h1 {
   font-weight: 400;
   letter-spacing: -0.08em;
   margin: 0;
-}
-
-.description {
-  color: #8c9aa6;
-  line-height: 1.7;
-  margin: 1rem 0 3rem;
-}
-
-.serial-form label {
-  color: #8c9aa6;
-  display: block;
-  font-size: 0.8rem;
-  margin-bottom: 0.6rem;
-}
-
-.input-row {
-  display: flex;
-  gap: 0.75rem;
-}
-
-input,
-button {
-  border: 1px solid #34434e;
-  border-radius: 0.25rem;
-  font: inherit;
-  font-weight: 300;
-}
-
-input {
-  background: #171d22;
-  color: #d7e0e8;
-  min-width: 0;
-  padding: 0.9rem 1rem;
-  width: 100%;
-}
-
-input:focus {
-  border-color: #61dafb;
-  outline: 2px solid #61dafb33;
-}
-
-button {
-  background: #61dafb;
-  color: #101418;
-  cursor: pointer;
-  padding: 0.9rem 1.25rem;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.status {
-  font-size: 0.8rem;
-  margin-top: 1.25rem;
-}
-
-.success {
-  color: #8be28b;
-}
-
-.error {
-  color: #ff8c8c;
 }

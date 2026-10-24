@@ -5,6 +5,8 @@ import rclpy
 from rclpy.node import Node
 from roomba_interfaces.msg import SerialData, LidarPoint
 import threading
+from rclpy.executors import MultiThreadedExecutor
+
 
 app = Flask(__name__)
 
@@ -76,49 +78,49 @@ class LidarBridge:
         self.bridge.get_logger().info(f"Deg: {msg.angle_deg}, Dst: {msg.distance_mm}, Int: {msg.intensity}")
 
     
-# def create_app(serial_bridge, template_dir):
-#     app = Flask(__name__, template_folder=template_dir)
+def create_app(serial_bridge, lidar_bridge, template_dir):
+    app = Flask(__name__, template_folder=template_dir)
 
-#     @app.get('/')
-#     def index():
-#         return render_template('index.html')
+    @app.get('/')
+    def index():
+        return render_template('index.html')
 
-#     @app.post('/submit')
-#     def submit():
-#         payload = request.get_json(silent=True)
-#         serial_data = payload.get('data', '').strip() if payload else ''
+    @app.post('/submit')
+    def submit():
+        payload = request.get_json(silent=True)
+        serial_data = payload.get('data', '').strip() if payload else ''
 
-#         if not serial_data:
-#             return jsonify(error='Serial data is required'), 400
+        if not serial_data:
+            return jsonify(error='Serial data is required'), 400
 
-#         serial_bridge.send_serial_data(serial_data)
+        serial_bridge.send_serial_data(serial_data)
 
-#         return jsonify(message=serial_data)
+        return jsonify(message=serial_data)
 
-#     return app
-
+    return app
 
 
 def main(args=None):
     rclpy.init(args=args)
+
+    serial_bridge = SerialBridge('serial_data', SerialData)
     lidar_bridge = LidarBridge('lidar_points', LidarPoint)
+
+    executor = MultiThreadedExecutor()
+    executor.add_node(serial_bridge.bridge)
+    executor.add_node(lidar_bridge.bridge)
+    threading.Thread(target=executor.spin, daemon=True).start()
+
+    template_dir = os.path.join(get_package_share_directory('web'), 'templates')
+    app = create_app(serial_bridge, lidar_bridge, template_dir)
+
     try:
-        rclpy.spin(lidar_bridge.bridge)
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
     except KeyboardInterrupt:
-        if 'node' in locals():
-            node.destroy_node()
-        rclpy.shutdown()
-
-
-    # rclpy.init(args=args)
-    # serial_bridge = SerialBridge('serial_data', SerialData)
-    # threading.Thread(target=rclpy.spin, args=(serial_bridge.bridge,), daemon=True).start()
-
-    # template_dir = os.path.join(get_package_share_directory('web'), 'templates')
-    # app = create_app(serial_bridge, template_dir)
-
-    # try:
-    #     app.run(host='0.0.0.0', port=5000, debug=False)
-    # finally:
-    #     serial_bridge.bridge.destroy_node()
-    #     rclpy.shutdown()
+        pass
+    finally:
+        executor.shutdown()
+        serial_bridge.bridge.destroy_node()
+        lidar_bridge.bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
