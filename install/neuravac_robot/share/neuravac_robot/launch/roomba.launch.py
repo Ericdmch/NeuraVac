@@ -1,1 +1,0 @@
-/home/neuravac/NeuraVac/build/neuravac_robot/launch/roomba.launch.py
