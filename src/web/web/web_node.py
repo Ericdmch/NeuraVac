@@ -5,13 +5,15 @@ import threading
 import time
 
 from ament_index_python.packages import get_package_share_directory
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 
 from .override import roomba_drive
+from .camera import CameraCapture
+from .telemetry import SensorState
 
 
 app = Flask(__name__)
@@ -79,10 +81,36 @@ class WebBridge(Node):
 class SerialBridge:
     def __init__(self, topic, data_type = SerialData):
         self.bridge = WebBridge(name='web_serial_node')
-        self.bridge.add_publisher(data_type, topic)
+        self.publisher = self.bridge.add_publisher(data_type, topic)
 
         self.topic = topic
         self.data_type = data_type
+        self.sensors = SensorState()
+        self._rx_lock = threading.Lock()
+        self._rx_log = deque(maxlen=8)
+        self._rx_sequence = 0
+        self.bridge.add_subscriber(SerialData, 'serial_rx', self.receive_serial)
+        self._sensor_timer = self.bridge.create_timer(0.5, self.poll_sensors)
+
+    def poll_sensors(self):
+        if self.publisher.get_subscription_count() and self.sensors.request(time.monotonic()):
+            self.send_message(SerialData(data=[142, 0]))
+
+    def receive_serial(self, message):
+        self.sensors.receive(bytes(message.data), time.monotonic())
+        with self._rx_lock:
+            self._rx_sequence += 1
+            self._rx_log.append({
+                'id': self._rx_sequence,
+                'text': bytes(message.data).hex(' '),
+            })
+
+    def snapshot(self):
+        result = self.sensors.snapshot(time.monotonic())
+        result['bridge_connected'] = self.publisher.get_subscription_count() > 0
+        with self._rx_lock:
+            result['serial_rx'] = list(self._rx_log)
+        return result
 
     def send_serial_data(self, data):
         msg = self.data_type()
@@ -136,7 +164,7 @@ class LidarBridge:
         )
 
 
-def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None):
+def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camera=None):
     if static_dir is None:
         static_dir = os.path.join(os.path.dirname(template_dir), 'static')
     app = Flask(
@@ -151,6 +179,23 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None):
     @app.get('/')
     def index():
         return render_template('index.html')
+
+    @app.get('/telemetry')
+    def telemetry():
+        response = jsonify(serial_bridge.snapshot())
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.get('/camera/frame')
+    def camera_frame():
+        jpeg = camera.snapshot() if camera is not None else None
+        if jpeg is None:
+            response = jsonify(error='Camera unavailable. Reconnecting…')
+            response.status_code = 503
+        else:
+            response = Response(jpeg, mimetype='image/jpeg')
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @app.post('/submit')
     def submit():
@@ -223,15 +268,23 @@ def main(args=None):
     executor.add_node(lidar_bridge.bridge)
     threading.Thread(target=executor.spin, daemon=True).start()
 
-    template_dir = os.path.join(get_package_share_directory('web'), 'templates')
-    static_dir = os.path.join(get_package_share_directory('web'), 'static')
-    app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir)
+    web_root = os.environ.get('NEURAVAC_WEB_ROOT') or get_package_share_directory('web')
+    template_dir = os.path.join(web_root, 'templates')
+    static_dir = os.path.join(web_root, 'static')
+    camera = CameraCapture(
+        device=os.environ.get('NEURAVAC_CAMERA_DEVICE', '/dev/video0'),
+        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1920')),
+        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '1080')),
+    )
+    camera.start()
+    app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir, camera)
 
     try:
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
     except KeyboardInterrupt:
         pass
     finally:
+        camera.close()
         executor.shutdown()
         serial_bridge.bridge.destroy_node()
         lidar_bridge.bridge.destroy_node()
