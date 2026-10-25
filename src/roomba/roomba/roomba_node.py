@@ -102,7 +102,7 @@ class Roomba(Node):
             [139, 0, 0, 255],     # power LED green
             [139, 0, 128, 255],   # orange
             [139, 0, 255, 255],   # red
-            [139, 0, 0, 0],       # off
+            [139, 0, 0, 0],       # lights off
         ]
 
 
@@ -120,9 +120,6 @@ def main(args=None):
     try:
         node = Roomba()
         
-
-
-
         rclpy.spin(node)
 
     except (SerialException, KeyboardInterrupt):

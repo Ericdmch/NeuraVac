@@ -1,14 +1,38 @@
-from flask import Flask, jsonify, render_template, request
-from ament_index_python.packages import get_package_share_directory
+from collections import deque
+import math
 import os
-import rclpy
-from rclpy.node import Node
-from roomba_interfaces.msg import SerialData, LidarPoint
 import threading
+import time
+
+from ament_index_python.packages import get_package_share_directory
+from flask import Flask, jsonify, render_template, request
+import rclpy
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from roomba_interfaces.msg import LidarPoint, SerialData
+
+from .override import roomba_drive
 
 
 app = Flask(__name__)
+
+
+# OVERRIDE CONSTANTS
+STRAIGHT = 32768
+
+DEFAULT_SPEED = 200
+MIN_SPEED = 50
+MAX_SPEED = 500
+SPEED_STEP = 50
+
+OVERRIDE_MOTIONS = {
+    'W': (1, STRAIGHT),
+    'S': (-1, STRAIGHT),
+    'A': (1, 1),      # counter-clockwise (left)
+    'D': (1, -1),     # clockwise (right)
+}
+SPEED_KEYS = {'Q', 'E'}
+
 
 class WebBridge(Node):
     # Generic webbridge node that can be used to bridge any ROS2 topic to the web interface.
@@ -56,30 +80,73 @@ class SerialBridge:
     def __init__(self, topic, data_type = SerialData):
         self.bridge = WebBridge(name='web_serial_node')
         self.bridge.add_publisher(data_type, topic)
-        
+
         self.topic = topic
+        self.data_type = data_type
 
     def send_serial_data(self, data):
-        msg = SerialData()
+        msg = self.data_type()
 
         # throw out all non integers, processes the string into a list of integers
         msg.data = [int(t) for t in data.replace(',', ' ').split() if t.isdigit()]
 
         self.bridge.publish(self.topic, msg)
 
+    def send_message(self, message):
+        self.bridge.publish(self.topic, message)
+
 class LidarBridge:
+    RECENT_POINT_MAX_AGE_SECONDS = 0.5
+
     def __init__(self, topic, data_type = LidarPoint):
         self.bridge = WebBridge(name='web_lidar_node')
         self.bridge.add_subscriber(data_type, topic, self.lidar_callback)
 
         self.topic = topic
+        self._lock = threading.Lock()
+        self._points = deque(maxlen=720)
 
     def lidar_callback(self, msg):
-        self.bridge.get_logger().info(f"Deg: {msg.angle_deg}, Dst: {msg.distance_mm}, Int: {msg.intensity}")
+        point = {
+            'angle_deg': float(msg.angle_deg),
+            'distance_mm': int(msg.distance_mm),
+            'intensity': int(msg.intensity),
+        }
+        with self._lock:
+            self._points.append((time.monotonic(), point))
 
-    
-def create_app(serial_bridge, lidar_bridge, template_dir):
-    app = Flask(__name__, template_folder=template_dir)
+    def snapshot(self):
+        cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
+        with self._lock:
+            recent_points = [
+                (timestamp, point)
+                for timestamp, point in self._points
+                if timestamp >= cutoff
+            ]
+            self._points.clear()
+            self._points.extend(recent_points)
+            return [point for _, point in recent_points]
+
+    @staticmethod
+    def polar_to_cartesian(angle_deg, distance_mm):
+        angle_rad = math.radians(angle_deg)
+        return (
+            distance_mm * math.cos(angle_rad),
+            distance_mm * math.sin(angle_rad),
+        )
+
+
+def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None):
+    if static_dir is None:
+        static_dir = os.path.join(os.path.dirname(template_dir), 'static')
+    app = Flask(
+        __name__,
+        template_folder=template_dir,
+        static_folder=static_dir,
+        static_url_path='/static',
+    )
+    active_override = None
+    speed = DEFAULT_SPEED
 
     @app.get('/')
     def index():
@@ -97,13 +164,58 @@ def create_app(serial_bridge, lidar_bridge, template_dir):
 
         return jsonify(message=serial_data)
 
+    @app.post('/override')
+    def override():
+        nonlocal active_override, speed
+        payload = request.get_json(silent=True) or {}
+        key = str(payload.get('key', '')).upper()
+        pressed = payload.get('pressed')
+
+        known = key in OVERRIDE_MOTIONS or key in SPEED_KEYS
+        if not known or not isinstance(pressed, bool):
+            return jsonify(error='A valid override key and pressed state are required'), 400
+
+        app.logger.info('Key %s %s', key, 'pressed' if pressed else 'released')
+
+        if key in SPEED_KEYS:
+            if pressed:
+                speed = max(
+                    MIN_SPEED,
+                    min(MAX_SPEED, speed + (SPEED_STEP if key == 'E' else -SPEED_STEP)),
+                )
+                if active_override:
+                    direction, radius = OVERRIDE_MOTIONS[active_override]
+                    serial_bridge.send_message(roomba_drive(speed * direction, radius))
+            return jsonify(key=key, pressed=pressed, speed=speed)
+
+        if pressed:
+            direction, radius = OVERRIDE_MOTIONS[key]
+            serial_bridge.send_message(roomba_drive(speed * direction, radius))
+            active_override = key
+        elif active_override == key:
+            serial_bridge.send_message(roomba_drive(0, STRAIGHT))
+            active_override = None
+
+        return jsonify(key=key, pressed=pressed, speed=speed)
+
+    @app.get('/lidar')
+    def lidar():
+        points = lidar_bridge.snapshot()
+        scan = []
+        for point in points:
+            x, y = lidar_bridge.polar_to_cartesian(
+                point['angle_deg'], point['distance_mm']
+            )
+            scan.append({'x': x, 'y': y})
+        return jsonify(scan)
+
     return app
 
 
 def main(args=None):
     rclpy.init(args=args)
 
-    serial_bridge = SerialBridge('serial_data', SerialData)
+    serial_bridge = SerialBridge('serial_tx', SerialData)
     lidar_bridge = LidarBridge('lidar_points', LidarPoint)
 
     executor = MultiThreadedExecutor()
@@ -112,7 +224,8 @@ def main(args=None):
     threading.Thread(target=executor.spin, daemon=True).start()
 
     template_dir = os.path.join(get_package_share_directory('web'), 'templates')
-    app = create_app(serial_bridge, lidar_bridge, template_dir)
+    static_dir = os.path.join(get_package_share_directory('web'), 'static')
+    app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir)
 
     try:
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
