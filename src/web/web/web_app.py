@@ -1,9 +1,18 @@
+"""
+THIS FILE IS NOT A ROS2 NODE OR PACKAGE
+MEANT FOR WEB-ONLY TESTING OF THE REACT FRONTEND WITHOUT A ROS2 ENVIRONMENT
+"""
+
 import math
 import os
 
 from flask import Flask, jsonify, render_template, request
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_SPEED = 200
+MIN_SPEED = 50
+MAX_SPEED = 500
+SPEED_STEP = 50
 
 
 class FakeSerialBridge:
@@ -44,6 +53,7 @@ def find_web_dirs():
 def create_app(serial_bridge, lidar_bridge, template_dir, static_dir):
     app = Flask(__name__, template_folder=template_dir, static_folder=static_dir,
                 static_url_path='/static')
+    speed = DEFAULT_SPEED
 
     @app.get('/')
     def index():
@@ -60,13 +70,19 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir):
 
     @app.post('/override')
     def override():
+        nonlocal speed
         payload = request.get_json(silent=True) or {}
         key = str(payload.get('key', '')).upper()
         pressed = payload.get('pressed')
         if key not in {'Q', 'W', 'E', 'A', 'S', 'D'} or not isinstance(pressed, bool):
             return jsonify(error='A valid override key and pressed state are required'), 400
         print(f'[override] key {key} {"pressed" if pressed else "released"}')
-        return jsonify(key=key, pressed=pressed)
+        if pressed and key in {'Q', 'E'}:
+            speed = max(
+                MIN_SPEED,
+                min(MAX_SPEED, speed + (SPEED_STEP if key == 'E' else -SPEED_STEP)),
+            )
+        return jsonify(key=key, pressed=pressed, speed=speed)
 
     @app.get('/lidar')
     def lidar():

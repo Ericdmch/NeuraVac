@@ -89,6 +89,7 @@ function RemoteOverride() {
   const controls = ['Q', 'W', 'E', 'A', 'S', 'D'];
   const [isEnabled, setIsEnabled] = React.useState(false);
   const [activeKeys, setActiveKeys] = React.useState(new Set());
+  const [speed, setSpeed] = React.useState(200);
 
   async function sendOverride(key, pressed) {
     setActiveKeys((current) => {
@@ -109,6 +110,10 @@ function RemoteOverride() {
       });
       if (!response.ok) {
         throw new Error(`Override endpoint returned HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      if (typeof result.speed === 'number') {
+        setSpeed(result.speed);
       }
     } catch (error) {
       console.error(`Unable to send ${key} override event.`, error);
@@ -168,6 +173,9 @@ function RemoteOverride() {
           <h2 id="remote-override-title">Remote Override</h2>
         </div>
         <span className="override-hint">{isEnabled ? 'ENABLED' : 'DISABLED'}</span>
+        <span className="override-speed" aria-live="polite">
+          SPEED {speed} mm/s
+        </span>
       </div>
       <div className="override-controls">
         {controls.map((key) => (
@@ -205,7 +213,9 @@ function RemoteOverride() {
           </button>
         ))}
       </div>
-      <p className="override-help">Hold a key or button to send an override command.</p>
+      <p className="override-help">
+        Q / E adjust speed. Hold a key or button to send an override command.
+      </p>
     </section>
   );
 }
@@ -274,10 +284,16 @@ function LidarView() {
 
   React.useEffect(() => {
     let isMounted = true;
+    let requestInFlight = false;
 
     async function updateLidar() {
+      if (requestInFlight) {
+        return;
+      }
+      requestInFlight = true;
+
       try {
-        const response = await fetch('/lidar');
+        const response = await fetch('/lidar', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`Lidar endpoint returned HTTP ${response.status}`);
         }
@@ -296,11 +312,13 @@ function LidarView() {
           setIsOnline(false);
           console.error('Unable to read lidar data.', error);
         }
+      } finally {
+        requestInFlight = false;
       }
     }
 
     updateLidar();
-    const interval = window.setInterval(updateLidar, 1000);
+    const interval = window.setInterval(updateLidar, 50);
     return () => {
       isMounted = false;
       window.clearInterval(interval);

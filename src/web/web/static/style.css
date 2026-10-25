@@ -253,10 +253,15 @@ body {
 }
 
 .override-hint,
-.override-help {
+.override-help,
+.override-speed {
   color: var(--gray-500);
   font-size: 0.65rem;
   letter-spacing: 0.08em;
+}
+
+.override-speed {
+  color: var(--warm-orange);
 }
 
 .override-controls {
