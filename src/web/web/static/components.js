@@ -203,7 +203,8 @@ function LidarView() {
   const viewRef = React.useRef({ zoom: 1, panX: 0, panY: 0 });
   const dragRef = React.useRef(null);
   const [isOnline, setIsOnline] = React.useState(false);
-  const [rulerLength, setRulerLength] = React.useState(500);
+  const [rulerLength, setRulerLength] = React.useState(4000);
+  const maxRangeMm = 8000;
 
   function drawLidar(scan = scanRef.current) {
     const canvas = canvasRef.current;
@@ -222,13 +223,10 @@ function LidarView() {
     const context = canvas.getContext('2d');
     const { zoom, panX, panY } = viewRef.current;
     const radius = size * 0.46 * zoom;
-    const maxRange = Math.max(
-      ...scan.map((point) => Math.hypot(point.x, point.y)),
-      1
-    );
-
-    canvas.width = width * scale;
-    canvas.height = height * scale;
+    if (canvas.width !== Math.round(width * scale) || canvas.height !== Math.round(height * scale)) {
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+    }
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, width, height);
     context.save();
@@ -249,10 +247,9 @@ function LidarView() {
     context.stroke();
 
     scan.forEach((point) => {
-      const distance = Math.min(Math.hypot(point.x, point.y) / maxRange, 1) * radius;
-      const scale = Math.hypot(point.x, point.y) ? distance / Math.hypot(point.x, point.y) : 0;
-      const x = point.x * scale;
-      const y = point.y * scale;
+      const pointScale = radius / maxRangeMm;
+      const x = point.x * pointScale;
+      const y = point.y * pointScale;
       context.fillStyle = '#ff8a3d';
       context.fillRect(x - 1.5, y - 1.5, 3, 3);
     });
@@ -278,9 +275,6 @@ function LidarView() {
         const scan = await response.json();
         if (isMounted) {
           scanRef.current = scan;
-          setRulerLength(Math.round(
-            Math.max(...scan.map((point) => Math.hypot(point.x, point.y)), 1) / 2
-          ));
           drawLidar(scan);
           setIsOnline(scan.length > 0);
         }
@@ -295,7 +289,7 @@ function LidarView() {
     }
 
     updateLidar();
-    const interval = window.setInterval(updateLidar, 25);
+    const interval = window.setInterval(updateLidar, 20);
     return () => {
       isMounted = false;
       window.clearInterval(interval);
@@ -326,12 +320,7 @@ function LidarView() {
     event.stopPropagation();
     const direction = event.deltaY < 0 ? 1.1 : 0.9;
     viewRef.current.zoom = Math.min(5, Math.max(0.5, viewRef.current.zoom * direction));
-    if (Array.isArray(scanRef.current)) {
-      setRulerLength(Math.round(
-        Math.max(...scanRef.current.map((point) => Math.hypot(point.x, point.y)), 1)
-        / (2 * viewRef.current.zoom)
-      ));
-    }
+    setRulerLength(Math.round(maxRangeMm / (2 * viewRef.current.zoom)));
     drawLidar();
   }
 
