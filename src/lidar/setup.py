@@ -27,7 +27,6 @@ setup(
     entry_points={
         'console_scripts': [
             'lidar_node = lidar.lidar_node:main',
-            'lidar_slam_node = lidar.slam:main',
         ],
     },
 )

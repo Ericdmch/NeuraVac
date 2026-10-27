@@ -49,17 +49,20 @@ node does **not** drive the Roomba.
 | --- | --- | --- |
 | [`roomba`](src/roomba) | `ament_python` | Opens the Roomba serial port, sends Open Interface commands, and publishes/receives raw serial bytes. |
 | [`lidar`](src/lidar) | `ament_python` | Reads the LiDAR serial stream, validates packets, decodes angle/distance/intensity, and publishes points. |
+| [`neuravac_slam`](src/neuravac_slam) | `ament_python` | Fuses Roomba wheel odometry and LiDAR scan matching into a 2-D occupancy map. |
 | [`roomba_interfaces`](src/roomba_interfaces) | `ament_cmake` | Builds the custom ROS 2 messages shared by the nodes. |
 | [`vision`](src/vision) | `ament_python` | Captures camera frames, runs the deployed floor-vision model, and publishes detections. |
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
 | [`bringup`](src/bringup) | `ament_python` | Launches the robot nodes together and creates stable USB device names. |
 
-The LiDAR package also runs `lidar_slam_node` during bringup when LiDAR is
-enabled. It groups points into revolutions, performs local correlative
-scan-to-scan matching, and publishes a 20 m square occupancy grid on
-`/slam/map` at 5 cm resolution. The matcher estimates motion from LiDAR alone;
-camera detections are not visual odometry and are not fused into localization.
-The local matcher is intended for slow indoor mapping and can drift over time.
+Bringup starts `neuravac_slam_node` when LiDAR is enabled. It groups points
+into revolutions, uses Roomba group-0 distance and angle deltas as its motion
+prior, and blends local LiDAR scan matching to reduce wheel drift. It publishes
+a 20 m square occupancy grid on `/slam/map` at 5 cm resolution. Tentative wall
+returns appear amber in the dashboard; repeated returns become persistent green
+walls. Drive slowly through rooms for best results. This local mapper has no
+loop closure, so long runs can accumulate drift. Camera detections are not
+visual odometry and are not fused into localization.
 
 ### Interfaces and topics
 
@@ -79,6 +82,10 @@ robot in safe mode and uses 115200 baud by default.
 | --- | --- | --- |
 | `lidar_points` | `roomba_interfaces/msg/LidarPoint` | Decoded points containing `angle_deg`, `distance_mm`, and `intensity`. |
 | `slam/map` | `nav_msgs/msg/OccupancyGrid` | Accumulated 2-D occupancy map in the `map` frame. |
+
+The web dashboard requests Roomba group-0 sensors while connected. The SLAM
+node reads those same `serial_rx` replies for odometry, so the Roomba must be
+online for wheel fusion; mapping can still initialize from LiDAR scans alone.
 
 The LiDAR node expects the D6 packet format described in the source and uses
 230400 baud by default.
@@ -124,7 +131,7 @@ source install/setup.bash
 When only one package is being developed, a focused build is faster:
 
 ```bash
-colcon build --packages-select roomba_interfaces roomba lidar vision web bringup --symlink-install
+colcon build --packages-select roomba_interfaces roomba lidar neuravac_slam vision web bringup --symlink-install
 ```
 
 Build `vision` after its model bundle dependencies are installed:
@@ -264,6 +271,7 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 ├── src/
 │   ├── bringup/          Full-robot launch file and USB udev setup
 │   ├── lidar/            LiDAR ROS 2 node and configuration
+│   ├── neuravac_slam/    Fused odometry and LiDAR occupancy mapping
 │   ├── roomba/           Roomba serial ROS 2 node and configuration
 │   ├── roomba_interfaces/Custom ROS 2 messages
 │   ├── vision/           Camera and floor-object detection node

@@ -5,7 +5,7 @@ import math
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rclpy.node import Node
-from roomba_interfaces.msg import LidarPoint
+from roomba_interfaces.msg import LidarPoint, SerialData
 
 
 class LidarSlam(Node):
@@ -17,18 +17,46 @@ class LidarSlam(Node):
         self.declare_parameter('map_width', 400)
         self.declare_parameter('map_height', 400)
         self.declare_parameter('max_range_m', 8.0)
+        self.declare_parameter('lidar_correction_weight', 0.25)
         self.resolution = float(self.get_parameter('map_resolution').value)
         self.width = int(self.get_parameter('map_width').value)
         self.height = int(self.get_parameter('map_height').value)
         self.max_range = float(self.get_parameter('max_range_m').value)
+        self.lidar_weight = float(self.get_parameter('lidar_correction_weight').value)
         self.grid = [-1] * (self.width * self.height)
+        self.hits = [0] * (self.width * self.height)
         self.scan = []
         self.previous = []
         self.pose = [0.0, 0.0, 0.0]
+        self.odom_pose = [0.0, 0.0, 0.0]
+        self.odom_seen = False
+        self.scan_odom_pose = [0.0, 0.0, 0.0]
+        self.serial_buffer = bytearray()
         self.publisher = self.create_publisher(OccupancyGrid, 'slam/map', 1)
         self.subscription = self.create_subscription(
             LidarPoint, 'lidar_points', self.on_point, 100)
-        self.get_logger().info('LiDAR SLAM mapper ready; publishing /slam/map')
+        self.odom_subscription = self.create_subscription(
+            SerialData, 'serial_rx', self.on_serial, 20)
+        self.get_logger().info('LiDAR and Roomba odometry mapper ready; publishing /slam/map')
+
+    def on_serial(self, message):
+        self.serial_buffer.extend(message.data)
+        while len(self.serial_buffer) >= 26:
+            if (all(value in (0, 1) for value in self.serial_buffer[1:7])
+                    and self.serial_buffer[16] <= 5):
+                packet = self.serial_buffer[:26]
+                del self.serial_buffer[:26]
+                distance = int.from_bytes(packet[12:14], 'big', signed=True) / 1000.0
+                angle = math.radians(int.from_bytes(packet[14:16], 'big', signed=True))
+                mid = self.odom_pose[2] + angle / 2
+                self.odom_pose[0] += distance * math.cos(mid)
+                self.odom_pose[1] += distance * math.sin(mid)
+                self.odom_pose[2] += angle
+                self.odom_seen = True
+            else:
+                del self.serial_buffer[0]
+        if len(self.serial_buffer) > 128:
+            del self.serial_buffer[:-25]
 
     def on_point(self, message):
         angle = float(message.angle_deg)
@@ -44,14 +72,27 @@ class LidarSlam(Node):
                   for a, r in self.scan]
         if len(points) < 20:
             return
+        odom_dx = self.odom_pose[0] - self.scan_odom_pose[0]
+        odom_dy = self.odom_pose[1] - self.scan_odom_pose[1]
+        odom_da = self.odom_pose[2] - self.scan_odom_pose[2]
         if self.previous:
-            self.match_scan(points)
+            scan_delta = self.match_scan(points)
+            if scan_delta is not None:
+                weight = self.lidar_weight if self.odom_seen else 1.0
+                odom_dx = (1 - weight) * odom_dx + weight * scan_delta[0]
+                odom_dy = (1 - weight) * odom_dy + weight * scan_delta[1]
+                odom_da = (1 - weight) * odom_da + weight * scan_delta[2]
+        heading = self.pose[2]
+        self.pose[0] += math.cos(heading) * odom_dx - math.sin(heading) * odom_dy
+        self.pose[1] += math.sin(heading) * odom_dx + math.cos(heading) * odom_dy
+        self.pose[2] += odom_da
+        self.scan_odom_pose = list(self.odom_pose)
         self.previous = points
         self.integrate(points)
         self.publish_map()
 
     def match_scan(self, points):
-        """Search a small pose neighborhood against the preceding scan."""
+        """Estimate robot motion between scans, in the previous scan frame."""
         stride = max(1, len(points) // 90)
         reference = self.previous[::stride]
         sample = points[::stride]
@@ -69,10 +110,12 @@ class LidarSlam(Node):
                     if error < best[0]:
                         best = (error, dx, dy, da)
         _, dx, dy, da = best
-        heading = self.pose[2]
-        self.pose[0] += math.cos(heading) * dx - math.sin(heading) * dy
-        self.pose[1] += math.sin(heading) * dx + math.cos(heading) * dy
-        self.pose[2] += da
+        # The local transform aligns current points to the previous scan; invert
+        # it to obtain the LiDAR estimate of robot motion, then blend with wheel odometry.
+        scan_da = -da
+        scan_dx = -(math.cos(da) * dx + math.sin(da) * dy)
+        scan_dy = -(-math.sin(da) * dx + math.cos(da) * dy)
+        return scan_dx, scan_dy, scan_da
 
     def integrate(self, points):
         origin_x = self.width // 2 + round(self.pose[0] / self.resolution)
@@ -90,7 +133,11 @@ class LidarSlam(Node):
                     if self.grid[index] == -1:
                         self.grid[index] = 0
             if 0 <= ex < self.width and 0 <= ey < self.height:
-                self.grid[ey * self.width + ex] = 100
+                index = ey * self.width + ex
+                self.hits[index] = min(255, self.hits[index] + 1)
+                # Values 50-79 are tentative returns; repeatedly observed walls
+                # become stable occupied cells (80-100).
+                self.grid[index] = min(100, 50 + self.hits[index] * 10)
 
     def publish_map(self):
         message = OccupancyGrid()

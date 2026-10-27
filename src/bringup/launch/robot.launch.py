@@ -54,7 +54,7 @@ def launch_setup(context):
             respawn=True, respawn_delay=3.0,
         ))
         nodes.append(Node(
-            package='lidar', executable='lidar_slam_node', name='lidar_slam_node',
+            package='neuravac_slam', executable='neuravac_slam_node', name='neuravac_slam_node',
             output='screen', respawn=True, respawn_delay=3.0,
         ))
 
