@@ -249,3 +249,12 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 - [LiDAR documentation](docs/Lidar)
 - [Vision package guide](src/vision/README.md)
 - [Web dashboard guide](src/web/README.md)
+
+## bringup
+
+One-command launch of every node plus stable USB device names (`/dev/neuravac_*`). See `src/bringup/README.md`.
+
+```bash
+ros2 run bringup neuravac_udev_setup --install   # once
+ros2 launch bringup robot.launch.py
+```
