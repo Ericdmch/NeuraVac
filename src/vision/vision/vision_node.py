@@ -61,6 +61,7 @@ class VisionNode(Node):
         self.declare_parameter('model_path', '')
         self.declare_parameter('camera_index', 0)
         self.declare_parameter('camera_device', '')
+        self.declare_parameter('camera_fourcc', 'MJPG')
         self.declare_parameter('camera_width', 1920)
         self.declare_parameter('camera_height', 1080)
         self.declare_parameter('camera_frame_id', 'camera_optical_frame')
@@ -104,11 +105,24 @@ class VisionNode(Node):
         # replug picks up the new /dev/videoN. Empty means use camera_index.
         camera_device = str(self.get_parameter('camera_device').value).strip()
 
+        # Most USB webcams cannot stream uncompressed video at 1080p and then
+        # time out with "select() timeout". Ask for MJPEG, the format the
+        # dashboard's own capture uses. Empty keeps the driver default.
+        camera_fourcc = str(self.get_parameter('camera_fourcc').value).strip()
+        if camera_fourcc and len(camera_fourcc) != 4:
+            raise ValueError('camera_fourcc must be four characters, e.g. MJPG')
+
         def open_camera(index):
             if camera_device:
                 capture = runtime.cv2.VideoCapture(camera_device, runtime.cv2.CAP_V4L2)
             else:
                 capture = runtime.cv2.VideoCapture(index)
+            if camera_fourcc:
+                # The format must be set before the frame size.
+                capture.set(
+                    runtime.cv2.CAP_PROP_FOURCC,
+                    runtime.cv2.VideoWriter_fourcc(*camera_fourcc),
+                )
             capture.set(runtime.cv2.CAP_PROP_FRAME_WIDTH, camera_width)
             capture.set(runtime.cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
             capture.set(runtime.cv2.CAP_PROP_BUFFERSIZE, 1)

@@ -5,4 +5,6 @@ vision_node:
     # to fall back to camera_index.
     camera_device: /dev/neuravac_camera
     camera_index: 0
+    # Webcam pixel format. MJPG is needed for 1080p on most USB webcams.
+    camera_fourcc: MJPG
     inference_hz: 5.0
