@@ -5,14 +5,53 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "neuravac"
 version = "0.1.0"
-description = "Neuravac Roomba ROS 2 node and Flask web interface"
+description = "NeuraVac robot: Roomba and LiDAR ROS 2 nodes, camera vision, Flask web dashboard, and bringup"
+readme = "README.md"
 requires-python = ">=3.10"
+
+# Plain-pip dependencies shared by the robot nodes and the dashboard.
+# ROS 2 itself (rclpy, sensor_msgs, launch, launch_ros, ament_index_python)
+# and the generated roomba_interfaces messages are NOT on PyPI. They come from
+# /opt/ros/jazzy and the colcon build, so the venv must be created with
+# --system-site-packages.
 dependencies = [
-    "Flask>=3.0",
-    "pyserial>=3.5",
+    "Flask>=3.0",            # web dashboard
+    "pyserial>=3.5",         # roomba and lidar serial links
+    "opencv-python-headless", # webcam capture and JPEG encoding (web, vision)
+    "numpy",
 ]
 
 [project.optional-dependencies]
+# Camera/detection node. These are what the floor-vision-pi bundle imports;
+# the bundle's own requirements-pi.txt is the authority for exact versions.
+vision = [
+    "ultralytics",
+    "torch",
+    "ncnn",
+]
 test = [
     "pytest>=7.0",
 ]
+all = [
+    "neuravac[vision,test]",
+]
+
+# The repo uses the ROS layout, src/<package>/<package>/, so each import root
+# is mapped explicitly. (colcon builds the same code through each package's own
+# setup.py; this file is for the pip/venv side.)
+[tool.setuptools]
+packages = ["bringup", "lidar", "roomba", "vision", "web"]
+
+[tool.setuptools.package-dir]
+bringup = "src/bringup/bringup"
+lidar = "src/lidar/lidar"
+roomba = "src/roomba/roomba"
+vision = "src/vision/vision"
+web = "src/web/web"
+
+[tool.setuptools.package-data]
+# Dashboard assets that live inside the web package.
+web = ["templates/*.html", "static/*", "static/images/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/bringup/tests", "src/web/tests"]

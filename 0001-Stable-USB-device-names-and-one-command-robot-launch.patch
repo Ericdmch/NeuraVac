@@ -1,0 +1,1003 @@
+From a0a72cbdf746c5692be530961bc78a68a69f2769 Mon Sep 17 00:00:00 2001
+From: neuravac <williamhuang.eng@gmail.com>
+Date: Mon, 26 Oct 2026 22:09:11 -0400
+Subject: [PATCH] Stable USB device names and one-command robot launch
+
+- bringup package: robot.launch.py starts roomba, lidar, vision and web
+- bringup/udev_setup: guided tool that creates /dev/neuravac_{roomba,lidar,camera}
+- roomba/lidar/vision YAML and defaults use the stable names; lidar and
+  vision configs are now installed
+- vision: camera_device parameter, re-resolved on camera recovery
+- web: can show frames from the vision topic so only one process owns the webcam
+---
+ README.md                            |  11 +-
+ src/bringup/README.md                |  79 ++++++++++
+ src/bringup/bringup/__init__.py      |   0
+ src/bringup/bringup/udev_setup.py    | 223 +++++++++++++++++++++++++++
+ src/bringup/launch/robot.launch.py   |  94 +++++++++++
+ src/bringup/package.xml              |  21 +++
+ src/bringup/resource/bringup         |   0
+ src/bringup/setup.cfg                |   4 +
+ src/bringup/setup.py                 |  28 ++++
+ src/bringup/tests/test_udev_setup.py | 108 +++++++++++++
+ src/lidar/config/lidar_params.yaml   |   5 +-
+ src/lidar/lidar/lidar_node.py        |   2 +-
+ src/lidar/setup.py                   |   2 +
+ src/roomba/config/roomba_params.yaml |   5 +-
+ src/roomba/roomba/roomba_node.py     |   2 +-
+ src/vision/config/vision_params.yaml |   8 +
+ src/vision/setup.py                  |   2 +
+ src/vision/vision/vision_node.py     |  13 +-
+ src/web/README.md                    |   8 +-
+ src/web/package.xml                  |   1 +
+ src/web/tests/test_latest_jpeg.py    |  37 +++++
+ src/web/web/camera.py                |  34 +++-
+ src/web/web/web_node.py              |  44 +++++-
+ 23 files changed, 712 insertions(+), 19 deletions(-)
+ create mode 100644 src/bringup/README.md
+ create mode 100644 src/bringup/bringup/__init__.py
+ create mode 100644 src/bringup/bringup/udev_setup.py
+ create mode 100644 src/bringup/launch/robot.launch.py
+ create mode 100644 src/bringup/package.xml
+ create mode 100644 src/bringup/resource/bringup
+ create mode 100644 src/bringup/setup.cfg
+ create mode 100644 src/bringup/setup.py
+ create mode 100644 src/bringup/tests/test_udev_setup.py
+ create mode 100644 src/vision/config/vision_params.yaml
+ create mode 100644 src/web/tests/test_latest_jpeg.py
+
+diff --git a/README.md b/README.md
+index cd1befd..5f4b8cf 100644
+--- a/README.md
++++ b/README.md
+@@ -7,4 +7,13 @@
+ 
+ ## roomba_interfaces
+ 
+-## web
+\ No newline at end of file
++## web
++
++## bringup
++
++One-command launch of every node plus stable USB device names (`/dev/neuravac_*`). See `src/bringup/README.md`.
++
++```bash
++ros2 run bringup neuravac_udev_setup --install   # once
++ros2 launch bringup robot.launch.py
++```
+diff --git a/src/bringup/README.md b/src/bringup/README.md
+new file mode 100644
+index 0000000..49cbb6e
+--- /dev/null
++++ b/src/bringup/README.md
+@@ -0,0 +1,79 @@
++# bringup
++
++Starts the whole robot with one command and keeps the USB devices from
++swapping names between plugs.
++
++## One-time setup: stable USB names
++
++Linux numbers `/dev/ttyUSB0`, `/dev/ttyUSB1`, `/dev/video0` in the order devices
++are plugged in, so the Roomba cable and the LiDAR can swap. Give each device a
++fixed name instead:
++
++```bash
++sudo usermod -aG dialout,video $USER      # once, then log out and back in
++ros2 run bringup neuravac_udev_setup --install
++ls -l /dev/neuravac_*
++```
++
++The tool asks you to unplug and replug the Roomba cable, the LiDAR and the
++webcam one at a time, then installs `/etc/udev/rules.d/99-neuravac.rules` so
++that these always exist, whichever `ttyUSBn` / `videoN` they land on:
++
++| Name | Device | Used by |
++| --- | --- | --- |
++| `/dev/neuravac_roomba` | Roomba serial cable | `roomba_node` |
++| `/dev/neuravac_lidar` | LiDAR | `lidar_node` |
++| `/dev/neuravac_camera` | Webcam (capture node) | `vision_node` / `web_node` |
++
++How each device is recognised is printed by the tool:
++
++* **serial** - the adapter has a unique USB serial number, so it is found on any
++  port.
++* **port** - cheap USB-serial chips (CH340, many CP210x) have no serial number,
++  and two identical adapters are indistinguishable. These are matched by
++  physical USB port, so each device must stay in the same port (or hub port)
++  after setup. Re-run the tool if you move one.
++
++If `ls -l /dev/neuravac_*` shows a link missing, unplug and replug that device.
++Without `--install` the tool only prints the rules.
++
++## Run everything
++
++```bash
++colcon build --symlink-install
++source install/setup.bash
++ros2 launch bringup robot.launch.py
++```
++
++| Argument | Default | Effect |
++| --- | --- | --- |
++| `use_roomba` | `true` | Roomba serial node |
++| `use_lidar` | `true` | LiDAR node |
++| `use_vision` | `true` | Camera + detection node |
++| `use_web` | `true` | Flask dashboard on port 5000 |
++| `camera_device` | `/dev/neuravac_camera` | Webcam used by the dashboard when `use_vision:=false` |
++
++Example without the model running: `ros2 launch bringup robot.launch.py use_vision:=false`.
++
++Parameters still live in each package's `config/` YAML
++(`roomba_params.yaml`, `lidar_params.yaml`, `vision_params.yaml`); the launch
++file loads them. The web dashboard is configured with `NEURAVAC_*` environment
++variables as described in `src/web/README.md`.
++
++## Things to know
++
++* **One process owns the webcam.** With `use_vision:=true` the vision node opens
++  it and the dashboard shows the frames vision publishes on
++  `camera/image/compressed` (about `inference_hz` frames per second). With
++  `use_vision:=false` the dashboard opens `camera_device` itself.
++* **Unplugged devices.** `roomba_node` and `lidar_node` exit if their port is
++  missing; the launch file retries every 3 seconds, so you can plug them in
++  after launching.
++* **One Python environment.** The vision README builds the workspace from a
++  venv created with `--system-site-packages` so the generated executables use
++  it. `web_node` needs Flask and OpenCV in that same interpreter for the launch
++  file to start it, instead of the separate `~/neuravac-web-venv` used for
++  manual runs.
++* **Without udev rules** you can instead point each YAML at
++  `/dev/serial/by-path/...` or `/dev/v4l/by-path/...`, which are also tied to
++  the physical port.
+diff --git a/src/bringup/bringup/__init__.py b/src/bringup/bringup/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/bringup/bringup/udev_setup.py b/src/bringup/bringup/udev_setup.py
+new file mode 100644
+index 0000000..fb66640
+--- /dev/null
++++ b/src/bringup/bringup/udev_setup.py
+@@ -0,0 +1,223 @@
++"""Give the robot's USB devices stable names: /dev/neuravac_{roomba,lidar,camera}.
++
++Linux hands out /dev/ttyUSB0, /dev/ttyUSB1, /dev/video0 ... in plug-in order, so
++the numbers change between boots and replugs. This tool asks you to unplug and
++replug each device once, works out how to recognise it, and writes a udev rule
++that creates a fixed symlink for it.
++
++    python3 udev_setup.py             # guided; prints the rules
++    python3 udev_setup.py --install   # guided; installs them (asks for sudo)
++
++Recognition strategy per device:
++  * USB serial number, when the adapter has a unique one. The device is found
++    again on any port.
++  * Otherwise the physical USB port. Cheap USB-serial chips (CH340, many CP210x)
++    have no serial number, and two identical adapters look the same, so the
++    device must stay in the same port (or the same port of the same hub).
++"""
++
++import argparse
++import glob
++import os
++import subprocess
++import sys
++import time
++
++RULES_PATH = '/etc/udev/rules.d/99-neuravac.rules'
++
++# name -> (kind, human description)
++DEVICES = {
++    'roomba': ('serial', 'Roomba USB-serial cable'),
++    'lidar': ('serial', 'LiDAR USB cable'),
++    'camera': ('video', 'webcam'),
++}
++
++NODE_GLOBS = {
++    'serial': ['/dev/ttyUSB*', '/dev/ttyACM*'],
++    'video': ['/dev/video*'],
++}
++
++
++def list_nodes(kind):
++    nodes = set()
++    for pattern in NODE_GLOBS[kind]:
++        nodes.update(glob.glob(pattern))
++    return nodes
++
++
++def udev_properties(node):
++    """Return the udev property dict (ID_PATH, ID_SERIAL_SHORT, ...) for a node."""
++    result = subprocess.run(
++        ['udevadm', 'info', '--query=property', f'--name={node}'],
++        capture_output=True, text=True, check=True,
++    )
++    props = {}
++    for line in result.stdout.splitlines():
++        key, sep, value = line.partition('=')
++        if sep:
++            props[key] = value
++    return props
++
++
++def pick_video_node(nodes, props_by_node):
++    """A webcam exposes several /dev/video* nodes; pick the capture one."""
++    def is_capture(node):
++        return ':capture:' in props_by_node[node].get('ID_V4L_CAPABILITIES', '')
++
++    def index(node):
++        try:
++            name = os.path.basename(node)
++            with open(f'/sys/class/video4linux/{name}/index') as handle:
++                return int(handle.read().strip())
++        except (OSError, ValueError):
++            return 99
++
++    return sorted(nodes, key=lambda n: (not is_capture(n), index(n), n))[0]
++
++
++def identity(props):
++    """(vendor id, product id, serial) for a device, serial may be ''."""
++    return (
++        props.get('ID_VENDOR_ID', ''),
++        props.get('ID_MODEL_ID', ''),
++        props.get('ID_SERIAL_SHORT', ''),
++    )
++
++
++def choose_methods(selected):
++    """Decide how to recognise each device.
++
++    ``selected`` maps name -> udev properties. Returns name -> 'serial' or
++    'path'. A serial number is only trusted when present and not shared with
++    another selected device (some adapters ship with a generic serial).
++    """
++    methods = {}
++    ids = {name: identity(props) for name, props in selected.items()}
++    for name, key in ids.items():
++        vendor, product, serial = key
++        duplicated = sum(1 for other in ids.values() if other == key) > 1
++        methods[name] = 'serial' if (vendor and product and serial and not duplicated) \
++            else 'path'
++    return methods
++
++
++def build_rule(name, kind, props, method):
++    """Return one udev rule line that creates /dev/neuravac_<name>."""
++    if kind == 'serial':
++        match = ['SUBSYSTEM=="tty"']
++        access = 'GROUP="dialout", MODE="0660"'
++    else:
++        match = ['SUBSYSTEM=="video4linux"', 'ATTR{index}=="0"']
++        access = 'GROUP="video", MODE="0660"'
++
++    if method == 'serial':
++        vendor, product, serial = identity(props)
++        match += [
++            f'ENV{{ID_VENDOR_ID}}=="{vendor}"',
++            f'ENV{{ID_MODEL_ID}}=="{product}"',
++            f'ENV{{ID_SERIAL_SHORT}}=="{serial}"',
++        ]
++    else:
++        path = props.get('ID_PATH', '')
++        if not path:
++            raise ValueError(f'{name}: udev reports no ID_PATH, cannot build a rule')
++        match.append(f'ENV{{ID_PATH}}=="{path}"')
++
++    return ', '.join(match + [f'SYMLINK+="neuravac_{name}"', access])
++
++
++def build_rules(selected, methods):
++    lines = [
++        '# NeuraVac stable device names. Generated by bringup/udev_setup.py.',
++        '# Re-run the tool if you move a device to a different USB port and the',
++        '# rule for it says "port".',
++    ]
++    for name, props in selected.items():
++        kind = DEVICES[name][0]
++        lines.append(f'# {name}: matched by {methods[name]} '
++                     f'({"/".join(identity(props)[:2]) or "unknown id"})')
++        lines.append(build_rule(name, kind, props, methods[name]))
++    return '\n'.join(lines) + '\n'
++
++
++def detect(name, kind, prompt=input, sleep=time.sleep):
++    """Unplug/replug one device and return the udev properties of the new node."""
++    description = DEVICES[name][1]
++    prompt(f'\n[{name}] Unplug the {description}, then press Enter... ')
++    sleep(1.0)
++    before = list_nodes(kind)
++    prompt(f'[{name}] Plug the {description} back in, wait 3 seconds, '
++           f'then press Enter... ')
++    sleep(1.0)
++    new = list_nodes(kind) - before
++    if not new:
++        raise RuntimeError(
++            f'No new {kind} device appeared after replugging the {description}. '
++            f'Check the cable and that it was unplugged first.'
++        )
++    props_by_node = {node: udev_properties(node) for node in new}
++    if kind == 'video':
++        node = pick_video_node(new, props_by_node)
++    elif len(new) == 1:
++        node = next(iter(new))
++    else:
++        raise RuntimeError(
++            f'{len(new)} devices appeared at once ({", ".join(sorted(new))}); '
++            f'replug only the {description}.'
++        )
++    print(f'  found {node}')
++    return props_by_node[node]
++
++
++def install(rules_text):
++    """Write the rules file with sudo and reload udev."""
++    subprocess.run(['sudo', 'tee', RULES_PATH], input=rules_text, text=True,
++                   stdout=subprocess.DEVNULL, check=True)
++    subprocess.run(['sudo', 'udevadm', 'control', '--reload-rules'], check=True)
++    subprocess.run(['sudo', 'udevadm', 'trigger'], check=True)
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
++    parser.add_argument('--install', action='store_true',
++                        help=f'write {RULES_PATH} and reload udev (uses sudo)')
++    parser.add_argument('--only', nargs='+', choices=sorted(DEVICES),
++                        help='configure only these devices')
++    args = parser.parse_args(argv)
++
++    names = args.only or list(DEVICES)
++    selected = {}
++    try:
++        for name in names:
++            selected[name] = detect(name, DEVICES[name][0])
++    except (RuntimeError, subprocess.CalledProcessError, FileNotFoundError) as error:
++        print(f'error: {error}', file=sys.stderr)
++        return 1
++
++    methods = choose_methods(selected)
++    try:
++        rules = build_rules(selected, methods)
++    except ValueError as error:
++        print(f'error: {error}', file=sys.stderr)
++        return 1
++
++    print('\n' + rules)
++    if 'path' in methods.values():
++        print('Devices matched by "path" must stay in the same physical USB port.')
++
++    if args.install:
++        install(rules)
++        print(f'Installed {RULES_PATH}. Replug the devices, then check:')
++    else:
++        print(f'Not installed. Re-run with --install, or save the rules above to '
++              f'{RULES_PATH} and run:\n'
++              f'  sudo udevadm control --reload-rules && sudo udevadm trigger\n'
++              f'Then check:')
++    print('  ls -l /dev/neuravac_*')
++    print('Your user must be in the dialout and video groups '
++          '(sudo usermod -aG dialout,video $USER, then log out and in).')
++    return 0
++
++
++if __name__ == '__main__':
++    sys.exit(main())
+diff --git a/src/bringup/launch/robot.launch.py b/src/bringup/launch/robot.launch.py
+new file mode 100644
+index 0000000..47606cc
+--- /dev/null
++++ b/src/bringup/launch/robot.launch.py
+@@ -0,0 +1,94 @@
++"""Start the whole NeuraVac robot: roomba, lidar, vision and the web dashboard.
++
++    ros2 launch bringup robot.launch.py
++    ros2 launch bringup robot.launch.py use_vision:=false      # no camera model
++    ros2 launch bringup robot.launch.py use_lidar:=false use_roomba:=false
++
++Each node reads its parameters from the config/ YAML of its own package. The
++USB devices are referenced by the stable /dev/neuravac_* names that
++`ros2 run bringup neuravac_udev_setup` creates, so they no longer depend on the
++order the cables were plugged in.
++
++Only one process can capture from the webcam. When vision runs it owns the
++camera and the dashboard shows the frames vision publishes on
++camera/image/compressed; with use_vision:=false the dashboard opens the webcam
++itself.
++"""
++
++import os
++
++from ament_index_python.packages import get_package_share_directory
++from launch import LaunchDescription
++from launch.actions import DeclareLaunchArgument, OpaqueFunction
++from launch.substitutions import LaunchConfiguration
++from launch_ros.actions import Node
++
++TRUE_VALUES = ('1', 'true', 'yes', 'on')
++
++
++def package_config(package, filename):
++    return os.path.join(get_package_share_directory(package), 'config', filename)
++
++
++def enabled(context, name):
++    return LaunchConfiguration(name).perform(context).strip().lower() in TRUE_VALUES
++
++
++def launch_setup(context):
++    nodes = []
++
++    if enabled(context, 'use_roomba'):
++        nodes.append(Node(
++            package='roomba', executable='roomba_node', name='roomba_node',
++            parameters=[package_config('roomba', 'roomba_params.yaml')],
++            output='screen',
++            # Exits when the serial port is missing; retry so plugging it in later works.
++            respawn=True, respawn_delay=3.0,
++        ))
++
++    if enabled(context, 'use_lidar'):
++        nodes.append(Node(
++            package='lidar', executable='lidar_node', name='lidar_node',
++            parameters=[package_config('lidar', 'lidar_params.yaml')],
++            output='screen',
++            respawn=True, respawn_delay=3.0,
++        ))
++
++    use_vision = enabled(context, 'use_vision')
++    if use_vision:
++        nodes.append(Node(
++            package='vision', executable='vision_node', name='vision_node',
++            parameters=[package_config('vision', 'vision_params.yaml')],
++            output='screen',
++        ))
++
++    if enabled(context, 'use_web'):
++        camera_env = {
++            'NEURAVAC_CAMERA_SOURCE': 'ros' if use_vision else 'device',
++            'NEURAVAC_CAMERA_DEVICE': LaunchConfiguration('camera_device').perform(context),
++        }
++        nodes.append(Node(
++            package='web', executable='web_node', name='web_node',
++            output='screen',
++            additional_env=camera_env,
++        ))
++
++    return nodes
++
++
++def generate_launch_description():
++    arguments = [
++        DeclareLaunchArgument('use_roomba', default_value='true',
++                              description='Start the Roomba serial node'),
++        DeclareLaunchArgument('use_lidar', default_value='true',
++                              description='Start the LiDAR node'),
++        DeclareLaunchArgument('use_vision', default_value='true',
++                              description='Start the camera/detection node '
++                                          '(it then owns the webcam)'),
++        DeclareLaunchArgument('use_web', default_value='true',
++                              description='Start the Flask dashboard on port 5000'),
++        DeclareLaunchArgument('camera_device', default_value='/dev/neuravac_camera',
++                              description='Webcam used by the dashboard when '
++                                          'use_vision:=false'),
++    ]
++    return LaunchDescription(arguments + [OpaqueFunction(function=launch_setup)])
+diff --git a/src/bringup/package.xml b/src/bringup/package.xml
+new file mode 100644
+index 0000000..6c406ec
+--- /dev/null
++++ b/src/bringup/package.xml
+@@ -0,0 +1,21 @@
++<?xml version="1.0"?>
++<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
++<package format="3">
++  <name>bringup</name>
++  <version>0.1.0</version>
++  <description>Launch file and USB device setup for the full NeuraVac robot.</description>
++  <maintainer email="williamhuang.eng@gmail.com">neuravac</maintainer>
++  <license>TODO: License declaration</license>
++
++  <exec_depend>ament_index_python</exec_depend>
++  <exec_depend>launch</exec_depend>
++  <exec_depend>launch_ros</exec_depend>
++  <exec_depend>roomba</exec_depend>
++  <exec_depend>lidar</exec_depend>
++  <exec_depend>vision</exec_depend>
++  <exec_depend>web</exec_depend>
++
++  <export>
++    <build_type>ament_python</build_type>
++  </export>
++</package>
+diff --git a/src/bringup/resource/bringup b/src/bringup/resource/bringup
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/bringup/setup.cfg b/src/bringup/setup.cfg
+new file mode 100644
+index 0000000..e6531aa
+--- /dev/null
++++ b/src/bringup/setup.cfg
+@@ -0,0 +1,4 @@
++[develop]
++script_dir=$base/lib/bringup
++[install]
++install_scripts=$base/lib/bringup
+diff --git a/src/bringup/setup.py b/src/bringup/setup.py
+new file mode 100644
+index 0000000..82f3d9c
+--- /dev/null
++++ b/src/bringup/setup.py
+@@ -0,0 +1,28 @@
++from glob import glob
++
++from setuptools import find_packages, setup
++
++package_name = 'bringup'
++
++setup(
++    name=package_name,
++    version='0.1.0',
++    packages=find_packages(exclude=['tests']),
++    data_files=[
++        ('share/ament_index/resource_index/packages',
++            ['resource/' + package_name]),
++        ('share/' + package_name, ['package.xml']),
++        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
++    ],
++    install_requires=['setuptools'],
++    zip_safe=True,
++    maintainer='neuravac',
++    maintainer_email='williamhuang.eng@gmail.com',
++    description='Launch file and USB device setup for the full NeuraVac robot.',
++    license='TODO: License declaration',
++    entry_points={
++        'console_scripts': [
++            'neuravac_udev_setup = bringup.udev_setup:main',
++        ],
++    },
++)
+diff --git a/src/bringup/tests/test_udev_setup.py b/src/bringup/tests/test_udev_setup.py
+new file mode 100644
+index 0000000..d0c5f33
+--- /dev/null
++++ b/src/bringup/tests/test_udev_setup.py
+@@ -0,0 +1,108 @@
++"""Rule generation and device detection, with udev and /dev mocked out."""
++import sys
++import unittest
++from pathlib import Path
++from unittest import mock
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++from bringup import udev_setup as u
++
++CH340_LIDAR = {
++    'ID_VENDOR_ID': '1a86', 'ID_MODEL_ID': '7523', 'ID_SERIAL_SHORT': '',
++    'ID_PATH': 'platform-xhci-hcd.1-usb-0:1.2:1.0',
++}
++CH340_ROOMBA = dict(CH340_LIDAR, ID_PATH='platform-xhci-hcd.1-usb-0:1.3:1.0')
++FTDI_ROOMBA = {
++    'ID_VENDOR_ID': '0403', 'ID_MODEL_ID': '6001', 'ID_SERIAL_SHORT': 'A50285BI',
++    'ID_PATH': 'platform-xhci-hcd.1-usb-0:1.3:1.0',
++}
++WEBCAM = {
++    'ID_VENDOR_ID': '046d', 'ID_MODEL_ID': '085c', 'ID_SERIAL_SHORT': '',
++    'ID_PATH': 'platform-xhci-hcd.0-usb-0:2:1.0',
++    'ID_V4L_CAPABILITIES': ':capture:',
++}
++
++
++class ChooseMethodTests(unittest.TestCase):
++    def test_identical_adapters_without_serial_use_port(self):
++        methods = u.choose_methods({'lidar': CH340_LIDAR, 'roomba': CH340_ROOMBA})
++        self.assertEqual(methods, {'lidar': 'path', 'roomba': 'path'})
++
++    def test_unique_serial_is_used(self):
++        methods = u.choose_methods({'lidar': CH340_LIDAR, 'roomba': FTDI_ROOMBA})
++        self.assertEqual(methods, {'lidar': 'path', 'roomba': 'serial'})
++
++    def test_shared_generic_serial_falls_back_to_port(self):
++        a = dict(FTDI_ROOMBA, ID_SERIAL_SHORT='0001')
++        b = dict(FTDI_ROOMBA, ID_SERIAL_SHORT='0001',
++                 ID_PATH='platform-xhci-hcd.1-usb-0:1.2:1.0')
++        methods = u.choose_methods({'roomba': a, 'lidar': b})
++        self.assertEqual(methods, {'roomba': 'path', 'lidar': 'path'})
++
++
++class BuildRuleTests(unittest.TestCase):
++    def test_serial_rule_by_port(self):
++        rule = u.build_rule('lidar', 'serial', CH340_LIDAR, 'path')
++        self.assertIn('SUBSYSTEM=="tty"', rule)
++        self.assertIn('ENV{ID_PATH}=="platform-xhci-hcd.1-usb-0:1.2:1.0"', rule)
++        self.assertIn('SYMLINK+="neuravac_lidar"', rule)
++        self.assertIn('GROUP="dialout"', rule)
++        self.assertNotIn('ID_SERIAL_SHORT', rule)
++
++    def test_serial_rule_by_serial_number(self):
++        rule = u.build_rule('roomba', 'serial', FTDI_ROOMBA, 'serial')
++        self.assertIn('ENV{ID_VENDOR_ID}=="0403"', rule)
++        self.assertIn('ENV{ID_SERIAL_SHORT}=="A50285BI"', rule)
++        self.assertNotIn('ID_PATH', rule)
++
++    def test_camera_rule_selects_capture_node_only(self):
++        rule = u.build_rule('camera', 'video', WEBCAM, 'path')
++        self.assertIn('SUBSYSTEM=="video4linux"', rule)
++        self.assertIn('ATTR{index}=="0"', rule)
++        self.assertIn('SYMLINK+="neuravac_camera"', rule)
++        self.assertIn('GROUP="video"', rule)
++
++    def test_missing_path_is_an_error(self):
++        with self.assertRaises(ValueError):
++            u.build_rule('lidar', 'serial', {'ID_VENDOR_ID': '1a86'}, 'path')
++
++    def test_rules_file_has_one_rule_per_device(self):
++        selected = {'lidar': CH340_LIDAR, 'roomba': FTDI_ROOMBA, 'camera': WEBCAM}
++        text = u.build_rules(selected, u.choose_methods(selected))
++        rules = [l for l in text.splitlines() if l and not l.startswith('#')]
++        self.assertEqual(len(rules), 3)
++        for name in selected:
++            self.assertEqual(text.count(f'SYMLINK+="neuravac_{name}"'), 1)
++
++
++class DetectTests(unittest.TestCase):
++    def run_detect(self, name, kind, before, after, props):
++        listings = iter([before, after])
++        with mock.patch.object(u, 'list_nodes', side_effect=lambda k: next(listings)), \
++                mock.patch.object(u, 'udev_properties', side_effect=lambda n: props[n]):
++            return u.detect(name, kind, prompt=lambda _: '', sleep=lambda _: None)
++
++    def test_finds_the_new_serial_node(self):
++        props = {'/dev/ttyUSB1': CH340_LIDAR}
++        found = self.run_detect('lidar', 'serial', {'/dev/ttyUSB0'},
++                                {'/dev/ttyUSB0', '/dev/ttyUSB1'}, props)
++        self.assertEqual(found, CH340_LIDAR)
++
++    def test_no_new_device_is_reported(self):
++        with self.assertRaises(RuntimeError):
++            self.run_detect('lidar', 'serial', {'/dev/ttyUSB0'}, {'/dev/ttyUSB0'}, {})
++
++    def test_two_new_serial_devices_are_ambiguous(self):
++        props = {'/dev/ttyUSB0': CH340_LIDAR, '/dev/ttyUSB1': CH340_ROOMBA}
++        with self.assertRaises(RuntimeError):
++            self.run_detect('lidar', 'serial', set(), set(props), props)
++
++    def test_webcam_picks_capture_node(self):
++        meta = dict(WEBCAM, ID_V4L_CAPABILITIES=':')
++        props = {'/dev/video0': WEBCAM, '/dev/video1': meta}
++        found = self.run_detect('camera', 'video', set(), set(props), props)
++        self.assertEqual(found, WEBCAM)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/src/lidar/config/lidar_params.yaml b/src/lidar/config/lidar_params.yaml
+index f06144c..9c09968 100644
+--- a/src/lidar/config/lidar_params.yaml
++++ b/src/lidar/config/lidar_params.yaml
+@@ -1,4 +1,5 @@
+ lidar_node:
+   ros__parameters:
+-    serial_port: /dev/ttyUSB0
+-    baudrate: 230400
+\ No newline at end of file
++    # Stable name created by `ros2 run bringup neuravac_udev_setup`
++    serial_port: /dev/neuravac_lidar
++    baudrate: 230400
+diff --git a/src/lidar/lidar/lidar_node.py b/src/lidar/lidar/lidar_node.py
+index 982b831..7d77847 100755
+--- a/src/lidar/lidar/lidar_node.py
++++ b/src/lidar/lidar/lidar_node.py
+@@ -9,7 +9,7 @@ class Lidar(Node):
+         super().__init__('lidar_node')
+ 
+         # Serial connection
+-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
++        self.declare_parameter('serial_port', '/dev/neuravac_lidar')
+         self.declare_parameter('baudrate', 230400)
+ 
+         serial_port = self.get_parameter('serial_port').value
+diff --git a/src/lidar/setup.py b/src/lidar/setup.py
+index 6409a77..ff74bd2 100644
+--- a/src/lidar/setup.py
++++ b/src/lidar/setup.py
+@@ -10,6 +10,8 @@ setup(
+         ('share/ament_index/resource_index/packages',
+             ['resource/' + package_name]),
+         ('share/' + package_name, ['package.xml']),
++        ('share/' + package_name + '/config',
++            ['config/lidar_params.yaml']),
+     ],
+     install_requires=['setuptools'],
+     zip_safe=True,
+diff --git a/src/roomba/config/roomba_params.yaml b/src/roomba/config/roomba_params.yaml
+index c0bfb30..59ee997 100644
+--- a/src/roomba/config/roomba_params.yaml
++++ b/src/roomba/config/roomba_params.yaml
+@@ -1,4 +1,5 @@
+ roomba_node:
+   ros__parameters:
+-    serial_port: /dev/ttyUSB0
+-    baudrate: 115200
+\ No newline at end of file
++    # Stable name created by `ros2 run bringup neuravac_udev_setup`
++    serial_port: /dev/neuravac_roomba
++    baudrate: 115200
+diff --git a/src/roomba/roomba/roomba_node.py b/src/roomba/roomba/roomba_node.py
+index 8ae3aef..3e4fb06 100755
+--- a/src/roomba/roomba/roomba_node.py
++++ b/src/roomba/roomba/roomba_node.py
+@@ -12,7 +12,7 @@ class Roomba(Node):
+         super().__init__('roomba_node')
+ 
+         # Serial connection
+-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
++        self.declare_parameter('serial_port', '/dev/neuravac_roomba')
+         self.declare_parameter('baudrate', 115200)
+ 
+         serial_port = self.get_parameter('serial_port').value
+diff --git a/src/vision/config/vision_params.yaml b/src/vision/config/vision_params.yaml
+new file mode 100644
+index 0000000..bf358cb
+--- /dev/null
++++ b/src/vision/config/vision_params.yaml
+@@ -0,0 +1,8 @@
++vision_node:
++  ros__parameters:
++    bundle_dir: ~/floor-vision-pi
++    # Stable name created by `ros2 run bringup neuravac_udev_setup`. Leave empty
++    # to fall back to camera_index.
++    camera_device: /dev/neuravac_camera
++    camera_index: 0
++    inference_hz: 5.0
+diff --git a/src/vision/setup.py b/src/vision/setup.py
+index 6b1cce2..2b98c93 100644
+--- a/src/vision/setup.py
++++ b/src/vision/setup.py
+@@ -11,6 +11,8 @@ setup(
+         ('share/ament_index/resource_index/packages',
+             ['resource/' + package_name]),
+         ('share/' + package_name, ['package.xml']),
++        ('share/' + package_name + '/config',
++            ['config/vision_params.yaml']),
+     ],
+     install_requires=['setuptools'],
+     zip_safe=True,
+diff --git a/src/vision/vision/vision_node.py b/src/vision/vision/vision_node.py
+index 2c7def5..149f1f6 100644
+--- a/src/vision/vision/vision_node.py
++++ b/src/vision/vision/vision_node.py
+@@ -60,6 +60,7 @@ class VisionNode(Node):
+         self.declare_parameter('bundle_dir', '~/floor-vision-pi')
+         self.declare_parameter('model_path', '')
+         self.declare_parameter('camera_index', 0)
++        self.declare_parameter('camera_device', '')
+         self.declare_parameter('camera_width', 1920)
+         self.declare_parameter('camera_height', 1080)
+         self.declare_parameter('camera_frame_id', 'camera_optical_frame')
+@@ -98,8 +99,16 @@ class VisionNode(Node):
+         if camera_index < 0 or camera_width < 1 or camera_height < 1:
+             raise ValueError('camera_index must be nonnegative and dimensions positive')
+ 
++        # A device path such as /dev/neuravac_camera survives the USB port
++        # changing; it is resolved on every (re)open so camera recovery after a
++        # replug picks up the new /dev/videoN. Empty means use camera_index.
++        camera_device = str(self.get_parameter('camera_device').value).strip()
++
+         def open_camera(index):
+-            capture = runtime.cv2.VideoCapture(index)
++            if camera_device:
++                capture = runtime.cv2.VideoCapture(camera_device, runtime.cv2.CAP_V4L2)
++            else:
++                capture = runtime.cv2.VideoCapture(index)
+             capture.set(runtime.cv2.CAP_PROP_FRAME_WIDTH, camera_width)
+             capture.set(runtime.cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+             capture.set(runtime.cv2.CAP_PROP_BUFFERSIZE, 1)
+@@ -133,7 +142,7 @@ class VisionNode(Node):
+         self._timer = self.create_timer(1.0 / inference_hz, self._process_frame)
+         self.get_logger().info(
+             f'Vision ready: model={runtime.model_path}, imgsz={self._imgsz}, '
+-            f'device={self._device}, camera={self.get_parameter("camera_index").value}, '
++            f'device={self._device}, camera={camera_device or camera_index}, '
+             f'target={inference_hz:g} Hz'
+         )
+         self.get_logger().info(
+diff --git a/src/web/README.md b/src/web/README.md
+index 5cf23f8..03cf28f 100644
+--- a/src/web/README.md
++++ b/src/web/README.md
+@@ -33,11 +33,13 @@ source install/setup.bash
+ ~/neuravac-web-venv/bin/python -c 'from web.web_node import main; main()'
+ ```
+ 
+-Camera defaults: `/dev/video0`, 1920×1080, MJPEG capture. Override with
++Camera defaults: `/dev/neuravac_camera` (see `src/bringup/README.md`), 1920×1080, MJPEG capture. Override with
+ `NEURAVAC_CAMERA_DEVICE`, `NEURAVAC_CAMERA_WIDTH`, and
+ `NEURAVAC_CAMERA_HEIGHT` environment variables before starting the node.
+-Only one process should own the camera device; stop this node before running
+-a vision node that captures the same webcam.
++Only one process should own the camera device. Set `NEURAVAC_CAMERA_SOURCE=ros`
++to show the frames a running vision node publishes on `camera/image/compressed`
++(`NEURAVAC_CAMERA_TOPIC` overrides the topic) instead of opening the webcam;
++`ros2 launch bringup robot.launch.py` does this automatically.
+ 
+ Verification (with ROS messages built and sourced):
+ 
+diff --git a/src/web/package.xml b/src/web/package.xml
+index c87cd2c..3562ed7 100644
+--- a/src/web/package.xml
++++ b/src/web/package.xml
+@@ -9,6 +9,7 @@
+ 
+   <depend>rclpy</depend>
+   <depend>roomba_interfaces</depend>
++  <depend>sensor_msgs</depend>
+   <exec_depend>python3-flask</exec_depend>
+   <exec_depend>python3-serial</exec_depend>
+   <exec_depend>python3-opencv</exec_depend>
+diff --git a/src/web/tests/test_latest_jpeg.py b/src/web/tests/test_latest_jpeg.py
+new file mode 100644
+index 0000000..c9c1143
+--- /dev/null
++++ b/src/web/tests/test_latest_jpeg.py
+@@ -0,0 +1,37 @@
++"""LatestJpeg: the camera feed used when vision owns the webcam."""
++import sys
++import unittest
++from pathlib import Path
++from unittest import mock
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++from web.camera import LatestJpeg
++
++
++class LatestJpegTests(unittest.TestCase):
++    def test_no_frame_yet_is_offline(self):
++        self.assertIsNone(LatestJpeg().snapshot())
++
++    def test_returns_newest_frame(self):
++        feed = LatestJpeg()
++        feed.update(b'\xff\xd8one\xff\xd9')
++        feed.update(bytearray(b'\xff\xd8two\xff\xd9'))
++        self.assertEqual(feed.snapshot(), b'\xff\xd8two\xff\xd9')
++
++    def test_stale_frame_is_not_served(self):
++        feed = LatestJpeg()
++        with mock.patch('web.camera.time.monotonic', return_value=100.0):
++            feed.update(b'frame')
++        with mock.patch('web.camera.time.monotonic', return_value=101.0):
++            self.assertEqual(feed.snapshot(), b'frame')
++        with mock.patch('web.camera.time.monotonic', return_value=103.0):
++            self.assertIsNone(feed.snapshot())
++
++    def test_start_and_close_are_safe(self):
++        feed = LatestJpeg()
++        feed.start()
++        feed.close()
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/src/web/web/camera.py b/src/web/web/camera.py
+index 65e0f28..0ad160e 100644
+--- a/src/web/web/camera.py
++++ b/src/web/web/camera.py
+@@ -5,8 +5,40 @@ import threading
+ import time
+ 
+ 
++class LatestJpeg:
++    """Newest JPEG pushed in by a ROS subscription, same interface as CameraCapture.
++
++    Used when the vision node owns the webcam and publishes its frames, since
++    only one process can capture from the device.
++    """
++
++    MAX_AGE_SECONDS = 2.0
++
++    def __init__(self):
++        self._lock = threading.Lock()
++        self._jpeg = None
++        self._updated = 0.0
++
++    def update(self, jpeg):
++        with self._lock:
++            self._jpeg = bytes(jpeg)
++            self._updated = time.monotonic()
++
++    def start(self):
++        pass
++
++    def snapshot(self):
++        with self._lock:
++            if time.monotonic() - self._updated > self.MAX_AGE_SECONDS:
++                return None
++            return self._jpeg
++
++    def close(self):
++        pass
++
++
+ class CameraCapture:
+-    def __init__(self, device='/dev/video0', width=1920, height=1080):
++    def __init__(self, device='/dev/neuravac_camera', width=1920, height=1080):
+         self.device = device
+         self.width = width
+         self.height = height
+diff --git a/src/web/web/web_node.py b/src/web/web/web_node.py
+index b248855..92d00bd 100755
+--- a/src/web/web/web_node.py
++++ b/src/web/web/web_node.py
+@@ -12,7 +12,7 @@ from rclpy.node import Node
+ from roomba_interfaces.msg import LidarPoint, SerialData
+ 
+ from .override import roomba_drive
+-from .camera import CameraCapture
++from .camera import CameraCapture, LatestJpeg
+ from .telemetry import SensorState
+ 
+ 
+@@ -257,11 +257,48 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
+     return app
+ 
+ 
++def build_camera(bridge):
++    """Create the dashboard's camera feed.
++
++    NEURAVAC_CAMERA_SOURCE=ros shows the frames the vision node publishes,
++    because the webcam can only be opened by one process. Anything else (the
++    default) opens NEURAVAC_CAMERA_DEVICE directly.
++    """
++    if os.environ.get('NEURAVAC_CAMERA_SOURCE', 'device').lower() == 'ros':
++        from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
++        from sensor_msgs.msg import CompressedImage
++
++        feed = LatestJpeg()
++
++        def on_image(msg):
++            if 'jpeg' in msg.format.lower() or 'jpg' in msg.format.lower():
++                feed.update(msg.data)
++
++        bridge.add_subscriber(
++            CompressedImage,
++            os.environ.get('NEURAVAC_CAMERA_TOPIC', 'camera/image/compressed'),
++            on_image,
++            QoSProfile(
++                history=HistoryPolicy.KEEP_LAST,
++                depth=1,
++                reliability=ReliabilityPolicy.BEST_EFFORT,
++            ),
++        )
++        return feed
++
++    return CameraCapture(
++        device=os.environ.get('NEURAVAC_CAMERA_DEVICE', '/dev/neuravac_camera'),
++        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1920')),
++        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '1080')),
++    )
++
++
+ def main(args=None):
+     rclpy.init(args=args)
+ 
+     serial_bridge = SerialBridge('serial_tx', SerialData)
+     lidar_bridge = LidarBridge('lidar_points', LidarPoint)
++    camera = build_camera(lidar_bridge.bridge)
+ 
+     executor = MultiThreadedExecutor()
+     executor.add_node(serial_bridge.bridge)
+@@ -271,11 +308,6 @@ def main(args=None):
+     web_root = os.environ.get('NEURAVAC_WEB_ROOT') or get_package_share_directory('web')
+     template_dir = os.path.join(web_root, 'templates')
+     static_dir = os.path.join(web_root, 'static')
+-    camera = CameraCapture(
+-        device=os.environ.get('NEURAVAC_CAMERA_DEVICE', '/dev/video0'),
+-        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1920')),
+-        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '1080')),
+-    )
+     camera.start()
+     app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir, camera)
+ 
+-- 
+2.43.0
+

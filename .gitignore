@@ -16,3 +16,4 @@ test
 env
 
 todo.md
+*.egg-info/
