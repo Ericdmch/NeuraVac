@@ -5,8 +5,40 @@ import threading
 import time
 
 
+class LatestJpeg:
+    """Newest JPEG pushed in by a ROS subscription, same interface as CameraCapture.
+
+    Used when the vision node owns the webcam and publishes its frames, since
+    only one process can capture from the device.
+    """
+
+    MAX_AGE_SECONDS = 2.0
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._jpeg = None
+        self._updated = 0.0
+
+    def update(self, jpeg):
+        with self._lock:
+            self._jpeg = bytes(jpeg)
+            self._updated = time.monotonic()
+
+    def start(self):
+        pass
+
+    def snapshot(self):
+        with self._lock:
+            if time.monotonic() - self._updated > self.MAX_AGE_SECONDS:
+                return None
+            return self._jpeg
+
+    def close(self):
+        pass
+
+
 class CameraCapture:
-    def __init__(self, device='/dev/video0', width=1920, height=1080):
+    def __init__(self, device='/dev/neuravac_camera', width=1920, height=1080):
         self.device = device
         self.width = width
         self.height = height

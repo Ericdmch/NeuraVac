@@ -12,7 +12,7 @@ from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 
 from .override import roomba_drive
-from .camera import CameraCapture
+from .camera import CameraCapture, LatestJpeg
 from .telemetry import SensorState
 
 
@@ -257,11 +257,48 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
     return app
 
 
+def build_camera(bridge):
+    """Create the dashboard's camera feed.
+
+    NEURAVAC_CAMERA_SOURCE=ros shows the frames the vision node publishes,
+    because the webcam can only be opened by one process. Anything else (the
+    default) opens NEURAVAC_CAMERA_DEVICE directly.
+    """
+    if os.environ.get('NEURAVAC_CAMERA_SOURCE', 'device').lower() == 'ros':
+        from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+        from sensor_msgs.msg import CompressedImage
+
+        feed = LatestJpeg()
+
+        def on_image(msg):
+            if 'jpeg' in msg.format.lower() or 'jpg' in msg.format.lower():
+                feed.update(msg.data)
+
+        bridge.add_subscriber(
+            CompressedImage,
+            os.environ.get('NEURAVAC_CAMERA_TOPIC', 'camera/image/compressed'),
+            on_image,
+            QoSProfile(
+                history=HistoryPolicy.KEEP_LAST,
+                depth=1,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+            ),
+        )
+        return feed
+
+    return CameraCapture(
+        device=os.environ.get('NEURAVAC_CAMERA_DEVICE', '/dev/neuravac_camera'),
+        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1920')),
+        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '1080')),
+    )
+
+
 def main(args=None):
     rclpy.init(args=args)
 
     serial_bridge = SerialBridge('serial_tx', SerialData)
     lidar_bridge = LidarBridge('lidar_points', LidarPoint)
+    camera = build_camera(lidar_bridge.bridge)
 
     executor = MultiThreadedExecutor()
     executor.add_node(serial_bridge.bridge)
@@ -271,11 +308,6 @@ def main(args=None):
     web_root = os.environ.get('NEURAVAC_WEB_ROOT') or get_package_share_directory('web')
     template_dir = os.path.join(web_root, 'templates')
     static_dir = os.path.join(web_root, 'static')
-    camera = CameraCapture(
-        device=os.environ.get('NEURAVAC_CAMERA_DEVICE', '/dev/video0'),
-        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1920')),
-        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '1080')),
-    )
     camera.start()
     app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir, camera)
 

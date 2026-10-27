@@ -60,6 +60,7 @@ class VisionNode(Node):
         self.declare_parameter('bundle_dir', '~/floor-vision-pi')
         self.declare_parameter('model_path', '')
         self.declare_parameter('camera_index', 0)
+        self.declare_parameter('camera_device', '')
         self.declare_parameter('camera_width', 1920)
         self.declare_parameter('camera_height', 1080)
         self.declare_parameter('camera_frame_id', 'camera_optical_frame')
@@ -98,8 +99,16 @@ class VisionNode(Node):
         if camera_index < 0 or camera_width < 1 or camera_height < 1:
             raise ValueError('camera_index must be nonnegative and dimensions positive')
 
+        # A device path such as /dev/neuravac_camera survives the USB port
+        # changing; it is resolved on every (re)open so camera recovery after a
+        # replug picks up the new /dev/videoN. Empty means use camera_index.
+        camera_device = str(self.get_parameter('camera_device').value).strip()
+
         def open_camera(index):
-            capture = runtime.cv2.VideoCapture(index)
+            if camera_device:
+                capture = runtime.cv2.VideoCapture(camera_device, runtime.cv2.CAP_V4L2)
+            else:
+                capture = runtime.cv2.VideoCapture(index)
             capture.set(runtime.cv2.CAP_PROP_FRAME_WIDTH, camera_width)
             capture.set(runtime.cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
             capture.set(runtime.cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -133,7 +142,7 @@ class VisionNode(Node):
         self._timer = self.create_timer(1.0 / inference_hz, self._process_frame)
         self.get_logger().info(
             f'Vision ready: model={runtime.model_path}, imgsz={self._imgsz}, '
-            f'device={self._device}, camera={self.get_parameter("camera_index").value}, '
+            f'device={self._device}, camera={camera_device or camera_index}, '
             f'target={inference_hz:g} Hz'
         )
         self.get_logger().info(

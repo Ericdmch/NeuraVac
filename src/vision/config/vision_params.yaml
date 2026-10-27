@@ -1,0 +1,8 @@
+vision_node:
+  ros__parameters:
+    bundle_dir: ~/floor-vision-pi
+    # Stable name created by `ros2 run bringup neuravac_udev_setup`. Leave empty
+    # to fall back to camera_index.
+    camera_device: /dev/neuravac_camera
+    camera_index: 0
+    inference_hz: 5.0

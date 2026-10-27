@@ -12,7 +12,7 @@ class Roomba(Node):
         super().__init__('roomba_node')
 
         # Serial connection
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        self.declare_parameter('serial_port', '/dev/neuravac_roomba')
         self.declare_parameter('baudrate', 115200)
 
         serial_port = self.get_parameter('serial_port').value

@@ -9,7 +9,7 @@ class Lidar(Node):
         super().__init__('lidar_node')
 
         # Serial connection
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        self.declare_parameter('serial_port', '/dev/neuravac_lidar')
         self.declare_parameter('baudrate', 230400)
 
         serial_port = self.get_parameter('serial_port').value

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>bringup</name>
+  <version>0.1.0</version>
+  <description>Launch file and USB device setup for the full NeuraVac robot.</description>
+  <maintainer email="williamhuang.eng@gmail.com">neuravac</maintainer>
+  <license>TODO: License declaration</license>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>roomba</exec_depend>
+  <exec_depend>lidar</exec_depend>
+  <exec_depend>vision</exec_depend>
+  <exec_depend>web</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
