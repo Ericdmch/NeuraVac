@@ -14,6 +14,8 @@ topics instead of depending on each other directly:
 - The vision node publishes camera frames and object detections.
 - The web node bridges ROS topics to a Flask dashboard for monitoring and
   manual control.
+- The bringup package starts the complete robot with one launch command and
+  provides stable USB device names.
 - The interfaces package contains the messages shared by those nodes.
 
 ## System overview
@@ -30,6 +32,10 @@ flowchart LR
     L -->|lidar_points| W
     V -->|camera frames<br/>detections| W
     W --> Browser[Web browser<br/>:5000]
+    B[bringup<br/>robot.launch.py] -. starts .-> R
+    B -. starts .-> L
+    B -. starts .-> V
+    B -. starts .-> W
 ```
 
 The hardware nodes can run independently. ROS 2 provides the transport and
@@ -46,6 +52,7 @@ node does **not** drive the Roomba.
 | [`roomba_interfaces`](src/roomba_interfaces) | `ament_cmake` | Builds the custom ROS 2 messages shared by the nodes. |
 | [`vision`](src/vision) | `ament_python` | Captures camera frames, runs the deployed floor-vision model, and publishes detections. |
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
+| [`bringup`](src/bringup) | `ament_python` | Launches the robot nodes together and creates stable USB device names. |
 
 ### Interfaces and topics
 
@@ -109,7 +116,7 @@ source install/setup.bash
 When only one package is being developed, a focused build is faster:
 
 ```bash
-colcon build --packages-select roomba_interfaces roomba lidar web --symlink-install
+colcon build --packages-select roomba_interfaces roomba lidar vision web bringup --symlink-install
 ```
 
 Build `vision` after its model bundle dependencies are installed:
@@ -118,60 +125,76 @@ Build `vision` after its model bundle dependencies are installed:
 colcon build --packages-up-to vision --symlink-install
 ```
 
-## Configure the hardware
+## Configure the hardware and USB names
 
 The Roomba and LiDAR must use different serial devices. Do not configure both
-nodes to use the same `/dev/ttyUSB*` path.
+nodes to use the same `/dev/ttyUSB*` path. The bringup package supports stable
+names so the devices do not swap when they are plugged in in a different
+order.
 
-Check the detected adapters:
+Install the udev rules once. The setup command asks you to unplug and replug
+the Roomba cable, LiDAR, and webcam one at a time:
 
 ```bash
-ls -l /dev/serial/by-id
-ls -l /dev/serial/by-path
+sudo usermod -aG dialout,video $USER
+ros2 run bringup neuravac_udev_setup --install
+ls -l /dev/neuravac_*
 ```
 
-Set the ports and baud rates in:
+Log out and back in after changing groups. The resulting device names are:
+
+| Device | Stable path |
+| --- | --- |
+| Roomba serial adapter | `/dev/neuravac_roomba` |
+| LiDAR serial adapter | `/dev/neuravac_lidar` |
+| Webcam | `/dev/neuravac_camera` |
+
+The serial ports and baud rates are configured in:
 
 - [`src/roomba/config/roomba_params.yaml`](src/roomba/config/roomba_params.yaml)
 - [`src/lidar/config/lidar_params.yaml`](src/lidar/config/lidar_params.yaml)
 
-The Python nodes use the same values as their fallback defaults. Prefer
-`/dev/serial/by-path/...` or another stable udev symlink when the USB
-enumeration order can change.
+The YAML files use the stable names created by the udev setup tool. If the
+rules are not installed, use `/dev/serial/by-path/...` or another stable udev
+symlink instead of `/dev/ttyUSB0` and `/dev/ttyUSB1`. Cheap USB-serial
+adapters without unique serial numbers are identified by their physical USB
+port, so keep each adapter in the same port after setup.
 
-## Run the nodes
+## Start the robot
 
-Open a separate terminal for each command. Every terminal must source both the
-ROS installation and this workspace:
+After building and sourcing the workspace, start the complete robot with:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/Neuravac/install/setup.bash
+ros2 launch bringup robot.launch.py
 ```
 
-Start the custom interfaces first if they have not already been built, then
-run the hardware nodes:
+This launch file starts `roomba_node`, `lidar_node`, `vision_node`, and
+`web_node` together. The Roomba and LiDAR nodes automatically retry every
+three seconds if a serial device is temporarily unplugged. Open
+<http://localhost:5000> from a browser on the robot or forward port 5000 over
+SSH to use the dashboard.
+
+The launch file also supports these arguments:
 
 ```bash
-ros2 run roomba roomba_node --ros-args \
-  --params-file ~/Neuravac/src/roomba/config/roomba_params.yaml
+ros2 launch bringup robot.launch.py use_vision:=false
+ros2 launch bringup robot.launch.py use_lidar:=false use_roomba:=false
+ros2 launch bringup robot.launch.py use_web:=false
 ```
+
+With `use_vision:=false`, the dashboard captures the webcam directly using
+`camera_device`:
 
 ```bash
-ros2 run lidar lidar_node --ros-args \
-  --params-file ~/Neuravac/src/lidar/config/lidar_params.yaml
+ros2 launch bringup robot.launch.py \
+  use_vision:=false camera_device:=/dev/neuravac_camera
 ```
 
-Start the dashboard:
-
-```bash
-ros2 run web web_node
-```
-
-Open <http://localhost:5000> from a browser on the robot or forward port 5000
-over SSH. The dashboard provides serial controls, LiDAR data, camera frames,
-and Roomba telemetry. The web package documentation contains additional
-camera and deployment instructions in [`src/web/README.md`](src/web/README.md).
+Only one process can own the webcam. When vision is enabled, `vision_node`
+owns the camera and the dashboard displays the frames published on
+`camera/image/compressed`.
 
 ### Start vision
 
@@ -231,6 +254,7 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 .
 ├── docs/                 Hardware manuals and NeuraVac logo assets
 ├── src/
+│   ├── bringup/          Full-robot launch file and USB udev setup
 │   ├── lidar/            LiDAR ROS 2 node and configuration
 │   ├── roomba/           Roomba serial ROS 2 node and configuration
 │   ├── roomba_interfaces/Custom ROS 2 messages
@@ -247,12 +271,4 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 - [LiDAR documentation](docs/Lidar)
 - [Vision package guide](src/vision/README.md)
 - [Web dashboard guide](src/web/README.md)
-
-## bringup
-
-One-command launch of every node plus stable USB device names (`/dev/neuravac_*`). See `src/bringup/README.md`.
-
-```bash
-ros2 run bringup neuravac_udev_setup --install   # once
-ros2 launch bringup robot.launch.py
-```
+- [Bringup package guide](src/bringup/README.md)

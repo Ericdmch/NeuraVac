@@ -17,3 +17,5 @@ env
 
 todo.md
 *.egg-info/
+
+*.egg-info
