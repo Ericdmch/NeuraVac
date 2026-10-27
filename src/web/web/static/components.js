@@ -262,7 +262,7 @@ function LidarView() {
       try {
         const incoming = JSON.parse(event.data);
         const now = performance.now();
-        const recent = (scanRef.current || []).filter(point => now - point.receivedAt < 200);
+        const recent = (scanRef.current || []).filter(point => now - point.receivedAt < 450);
         incoming.forEach(([x, y, ageMs]) => recent.push({ x, y, receivedAt: now - ageMs }));
         scanRef.current = recent;
         drawLidar(recent);
@@ -372,45 +372,27 @@ function LidarView() {
 }
 
 function CameraView() {
-  const [frameUrl, setFrameUrl] = React.useState(null);
   const [isOnline, setIsOnline] = React.useState(false);
 
   React.useEffect(() => {
     let stopped = false;
     let timer;
-    let currentUrl;
-    const controller = new AbortController();
-
-    async function updateFrame() {
+    async function checkStatus() {
       try {
-        const response = await fetch('/camera/frame', {
-          cache: 'no-store', signal: controller.signal,
-        });
-        if (!response.ok) throw new Error('Camera offline');
-        const blob = await response.blob();
-        if (stopped) return;
-        const nextUrl = URL.createObjectURL(blob);
-        const previousUrl = currentUrl;
-        currentUrl = nextUrl;
-        setFrameUrl(nextUrl);
-        setIsOnline(true);
-        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        const response = await fetch('/camera/status', { cache: 'no-store' });
+        const status = response.ok ? await response.json() : { online: false };
+        if (!stopped) setIsOnline(!!status.online);
       } catch (error) {
         if (stopped) return;
         setIsOnline(false);
-        setFrameUrl(null);
-        if (currentUrl) URL.revokeObjectURL(currentUrl);
-        currentUrl = null;
       }
-      if (!stopped) timer = window.setTimeout(updateFrame, 200);
+      if (!stopped) timer = window.setTimeout(checkStatus, 1000);
     }
 
-    updateFrame();
+    checkStatus();
     return () => {
       stopped = true;
-      controller.abort();
       window.clearTimeout(timer);
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
     };
   }, []);
 
@@ -427,9 +409,8 @@ function CameraView() {
         </span>
       </div>
       <div className="camera-frame">
-        {frameUrl ? <img src={frameUrl} alt="Live view from the robot camera" /> : (
-          <p role="status">Camera unavailable. Reconnecting…</p>
-        )}
+        <img src="/camera/stream" alt="Live view from the robot camera" />
+        {!isOnline && <p className="camera-offline" role="status">Camera unavailable. Reconnecting…</p>}
       </div>
     </section>
   );
@@ -438,6 +419,7 @@ function CameraView() {
 function SlamMap() {
   const canvasRef = React.useRef(null);
   const [online, setOnline] = React.useState(false);
+  const [scaleBarWidth, setScaleBarWidth] = React.useState(0);
   React.useEffect(() => {
     let stopped = false;
     async function refresh() {
@@ -447,27 +429,49 @@ function SlamMap() {
         if (stopped) return;
         const width = Number(response.headers.get('X-Map-Width'));
         const height = Number(response.headers.get('X-Map-Height'));
+        const resolution = Number(response.headers.get('X-Map-Resolution'));
         const data = new Uint8Array(await response.arrayBuffer());
-        if (!width || !height || data.length !== width * height) throw new Error('Invalid map data');
+        if (!width || !height || !resolution || data.length !== width * height) throw new Error('Invalid map data');
+        let minX = width, minY = height, maxX = -1, maxY = -1;
+        for (let i = 0; i < data.length; i += 1) {
+          if (data[i] === 255) continue;
+          const x = i % width, y = Math.floor(i / width);
+          minX = Math.min(minX, x); minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+        }
+        if (maxX < 0) { minX = 0; minY = 0; maxX = width - 1; maxY = height - 1; }
+        const padding = Math.max(6, Math.round(Math.max(maxX - minX, maxY - minY) * 0.06));
+        minX = Math.max(0, minX - padding); minY = Math.max(0, minY - padding);
+        maxX = Math.min(width - 1, maxX + padding); maxY = Math.min(height - 1, maxY + padding);
+        const viewWidth = maxX - minX + 1, viewHeight = maxY - minY + 1;
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
-        canvas.width = width; canvas.height = height;
-        const image = context.createImageData(width, height);
-        for (let i = 0; i < data.length; i += 1) {
-          const value = data[i] === 255 ? -1 : data[i];
-          const pixel = ((height - 1 - Math.floor(i / width)) * width + i % width) * 4;
-          if (value < 0) {
-            image.data[pixel] = 15; image.data[pixel + 1] = 22; image.data[pixel + 2] = 31;
-          } else if (value >= 80) {
-            image.data[pixel] = 70; image.data[pixel + 1] = 235; image.data[pixel + 2] = 125;
-          } else if (value > 0) {
-            image.data[pixel] = 255; image.data[pixel + 1] = 180; image.data[pixel + 2] = 65;
-          } else {
-            image.data[pixel] = 35; image.data[pixel + 1] = 43; image.data[pixel + 2] = 53;
+        canvas.width = viewWidth; canvas.height = viewHeight;
+        const image = context.createImageData(viewWidth, viewHeight);
+        for (let row = 0; row < viewHeight; row += 1) {
+          const sourceRow = maxY - row;
+          for (let column = 0; column < viewWidth; column += 1) {
+            const value = data[sourceRow * width + minX + column];
+            const pixel = (row * viewWidth + column) * 4;
+            if (value === 255) {
+              image.data[pixel] = 15; image.data[pixel + 1] = 22; image.data[pixel + 2] = 31;
+            } else if (value >= 80) {
+              image.data[pixel] = 70; image.data[pixel + 1] = 235; image.data[pixel + 2] = 125;
+            } else if (value > 0) {
+              image.data[pixel] = 255; image.data[pixel + 1] = 180; image.data[pixel + 2] = 65;
+            } else {
+              image.data[pixel] = 35; image.data[pixel + 1] = 43; image.data[pixel + 2] = 53;
+            }
+            image.data[pixel + 3] = 255;
           }
-          image.data[pixel + 3] = 255;
         }
         context.putImageData(image, 0, 0);
+        const wrapper = canvas.parentElement;
+        const pixelScale = Math.min(
+          wrapper.clientWidth / viewWidth,
+          wrapper.clientHeight / viewHeight,
+        );
+        setScaleBarWidth(Math.min(180, pixelScale / resolution));
         setOnline(true);
       } catch (error) { if (!stopped) setOnline(false); }
       if (!stopped) window.setTimeout(refresh, 2000);
@@ -478,8 +482,10 @@ function SlamMap() {
   return <section className="slam-view" aria-labelledby="slam-map-title">
     <div className="lidar-header"><div><p className="console-label">MAPPING / LIDAR ODOMETRY</p><h2 id="slam-map-title">SLAM Map</h2></div>
       <span className={`connection-status ${online ? 'is-online' : ''}`}><span className="status-dot" />{online ? 'MAPPING' : 'WAITING FOR SLAM'}</span></div>
-    <div className="slam-canvas-wrap"><canvas ref={canvasRef} aria-label="Accumulated LiDAR occupancy map" /></div>
-    <p className="panel-note slam-note">50 mm cells · <span className="map-legend-suspected">Amber: new return</span> · <span className="map-legend-wall">Green: persistent wall</span></p>
+    <div className="slam-canvas-wrap"><canvas ref={canvasRef} aria-label="Accumulated LiDAR occupancy map" />
+      {scaleBarWidth > 0 && <div className="slam-map-scale"><span style={{ width: `${scaleBarWidth}px` }} /><small>1 m</small></div>}
+    </div>
+    <p className="panel-note slam-note">Auto-zoom to explored area · 50 mm cells · <span className="map-legend-suspected">Amber: new return</span> · <span className="map-legend-wall">Green: persistent wall</span></p>
   </section>;
 }
 

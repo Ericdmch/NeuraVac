@@ -7,4 +7,7 @@ vision_node:
     camera_index: 0
     # Webcam pixel format. MJPG is needed for 1080p on most USB webcams.
     camera_fourcc: MJPG
+    # Publish live camera frames independently of the slower detector cadence.
+    camera_publish_hz: 12.0
+    camera_jpeg_quality: 68
     inference_hz: 5.0

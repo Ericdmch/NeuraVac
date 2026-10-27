@@ -15,6 +15,7 @@ camera/image/compressed; with use_vision:=false the dashboard opens the webcam
 itself.
 """
 
+import glob
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -34,8 +35,22 @@ def enabled(context, name):
     return LaunchConfiguration(name).perform(context).strip().lower() in TRUE_VALUES
 
 
+def virtualenv_pythonpath():
+    """Expose project venv packages to ROS's system Python executables."""
+    virtualenv = os.environ.get('VIRTUAL_ENV')
+    if not virtualenv:
+        return {}
+    candidates = glob.glob(os.path.join(virtualenv, 'lib', 'python*', 'site-packages'))
+    if not candidates:
+        return {}
+    inherited = os.environ.get('PYTHONPATH', '')
+    pythonpath = os.pathsep.join([candidates[0], inherited] if inherited else [candidates[0]])
+    return {'PYTHONPATH': pythonpath}
+
+
 def launch_setup(context):
     nodes = []
+    python_environment = virtualenv_pythonpath()
 
     if enabled(context, 'use_roomba'):
         nodes.append(Node(
@@ -64,6 +79,7 @@ def launch_setup(context):
             package='vision', executable='vision_node', name='vision_node',
             parameters=[package_config('vision', 'vision_params.yaml')],
             output='screen',
+            additional_env=python_environment,
         ))
 
     if enabled(context, 'use_web'):
@@ -71,6 +87,7 @@ def launch_setup(context):
             'NEURAVAC_CAMERA_SOURCE': 'ros' if use_vision else 'device',
             'NEURAVAC_CAMERA_DEVICE': LaunchConfiguration('camera_device').perform(context),
         }
+        camera_env.update(python_environment)
         nodes.append(Node(
             package='web', executable='web_node', name='web_node',
             output='screen',

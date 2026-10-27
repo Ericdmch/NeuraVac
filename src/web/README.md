@@ -1,13 +1,15 @@
 # ROS dashboard with USB camera
 
 `web_node` serves serial controls, LiDAR, and a live USB camera panel on port
-5000. Camera capture is shared across viewers. The browser requests a fresh
-JPEG up to five times per second; unavailable or stale frames show OFFLINE
-and reconnect automatically. This feed shows the raw camera image.
+5000. Camera capture is shared across viewers. The browser receives frames over
+a multipart MJPEG stream, so it displays each new capture without a request per
+frame. With vision enabled, raw frames publish at 12 Hz independently of the
+5 Hz detector. Unavailable or stale frames show OFFLINE and reconnect
+automatically. This feed shows the raw camera image.
 
 The LiDAR panel uses a persistent `/lidar/stream` server-sent-events connection.
 It batches incoming ROS points at up to 50 Hz and sends only newly received
-points; the browser keeps a rolling 200 ms view. This avoids repeatedly opening
+points; the browser keeps a rolling 450 ms view. This avoids repeatedly opening
 HTTP requests and retransmitting the entire scan. The occupancy panel uses a
 compact binary map response and refreshes less often to leave more CPU and
 network capacity for the live scan.

@@ -126,7 +126,7 @@ class SerialBridge:
         self.bridge.publish(self.topic, message)
 
 class LidarBridge:
-    RECENT_POINT_MAX_AGE_SECONDS = 0.2
+    RECENT_POINT_MAX_AGE_SECONDS = 0.45
 
     def __init__(self, topic, data_type = LidarPoint):
         self.bridge = WebBridge(name='web_lidar_node')
@@ -135,7 +135,7 @@ class LidarBridge:
         self.topic = topic
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
-        self._points = deque(maxlen=360)
+        self._points = deque(maxlen=1440)
         self._point_sequence = 0
         self._map = None
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
@@ -246,6 +246,36 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         else:
             response = Response(jpeg, mimetype='image/jpeg')
         response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.get('/camera/status')
+    def camera_status():
+        online = camera is not None and camera.snapshot() is not None
+        response = jsonify(online=online)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.get('/camera/stream')
+    def camera_stream():
+        if camera is None:
+            return jsonify(error='Camera unavailable'), 503
+
+        def frames():
+            previous = None
+            while True:
+                jpeg = camera.snapshot()
+                if jpeg is None or jpeg is previous:
+                    time.sleep(0.02)
+                    continue
+                previous = jpeg
+                yield (b'--frame\r\nContent-Type: image/jpeg\r\n'
+                       + f'Content-Length: {len(jpeg)}\r\n\r\n'.encode('ascii')
+                       + jpeg + b'\r\n')
+
+        response = Response(
+            frames(), content_type='multipart/x-mixed-replace; boundary=frame')
+        response.headers['Cache-Control'] = 'no-store, no-transform'
+        response.headers['X-Accel-Buffering'] = 'no'
         return response
 
     @app.post('/submit')

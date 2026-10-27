@@ -24,16 +24,20 @@ topics instead of depending on each other directly:
 flowchart LR
     Roomba[ iRobot Roomba ] <-->|USB serial<br/>115200 baud| R[roomba_node]
     Lidar[USB LiDAR] -->|USB serial<br/>230400 baud| L[lidar_node]
-    Camera[USB camera] --> V[vision_node]
+    Camera[USB camera] --> V[vision_node<br/>capture 12 Hz<br/>detection 5 Hz]
     Bundle[(floor-vision-pi<br/>inference bundle)] --> V
 
     R -->|serial_rx| W[web_node]
+    R -->|serial_rx<br/>wheel odometry| S[neuravac_slam_node]
     W -->|serial_tx| R
     L -->|lidar_points| W
-    V -->|camera frames<br/>detections| W
-    W --> Browser[Web browser<br/>:5000]
+    L -->|lidar_points| S
+    S -->|slam/map| W
+    V -->|camera frames 12 Hz<br/>detections 5 Hz| W
+    W -->|MJPEG camera<br/>LiDAR event stream| Browser[Web browser<br/>:5000]
     B[bringup<br/>robot.launch.py] -. starts .-> R
     B -. starts .-> L
+    B -. starts .-> S
     B -. starts .-> V
     B -. starts .-> W
 ```
@@ -60,9 +64,11 @@ into revolutions, uses Roomba group-0 distance and angle deltas as its motion
 prior, and blends local LiDAR scan matching to reduce wheel drift. It publishes
 a 20 m square occupancy grid on `/slam/map` at 5 cm resolution. Tentative wall
 returns appear amber in the dashboard; repeated returns become persistent green
-walls. Drive slowly through rooms for best results. This local mapper has no
-loop closure, so long runs can accumulate drift. Camera detections are not
-visual odometry and are not fused into localization.
+walls. The dashboard auto-zooms to the explored portion of the map so typical
+rooms use the available panel area. Drive slowly through rooms for best
+results. This local mapper has no loop closure, so long runs can accumulate
+drift. Camera detections are not visual odometry and are not fused into
+localization.
 
 ### Interfaces and topics
 
@@ -180,14 +186,19 @@ port, so keep each adapter in the same port after setup.
 After building and sourcing the workspace, start the complete robot with:
 
 ```bash
+source .venv/bin/activate # if using the project virtual environment
 source /opt/ros/jazzy/setup.bash
 source ~/Neuravac/install/setup.bash
 ros2 launch bringup robot.launch.py
 ```
 
-This launch file starts `roomba_node`, `lidar_node`, `vision_node`, and
-`web_node` together. The Roomba and LiDAR nodes automatically retry every
-three seconds if a serial device is temporarily unplugged. Open
+When `.venv` is active, bringup adds its package directory to the vision and
+web nodes' Python paths, making pip-installed OpenCV and Flask available while
+keeping the ROS system interpreter.
+This launch file starts `roomba_node`, `lidar_node`, `neuravac_slam_node`,
+`vision_node`, and `web_node` together. The Roomba and LiDAR nodes
+automatically retry every three seconds if a serial device is temporarily
+unplugged. Open
 <http://localhost:5000> from a browser on the robot or forward port 5000 over
 SSH to use the dashboard.
 

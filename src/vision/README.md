@@ -1,9 +1,10 @@
 # NeuraVac camera vision node
 
-`vision_node` wraps the existing `floor-vision-pi` inference bundle in ROS 2. It
-publishes a JPEG-compressed camera stream, an optional annotated stream, and a
-detection batch for every camera update. Suggested actions are metadata only;
-the node does not publish Roomba drive commands.
+`vision_node` wraps the existing `floor-vision-pi` inference bundle in ROS 2.
+It captures and publishes raw JPEG camera frames independently at up to 12 Hz,
+while object detection runs at 5 Hz by default. It also publishes an optional
+annotated stream and a detection batch. Suggested actions are metadata only;
+the vision node does not publish Roomba drive commands.
 
 ## Topics
 
@@ -105,10 +106,12 @@ do not prove an object is on the floor and must not directly control the robot.
 | `camera_fourcc` | `MJPG` | Camera pixel format; empty keeps the driver default |
 | `camera_width` | `1920` | Requested USB camera width |
 | `camera_height` | `1080` | Requested USB camera height |
+| `camera_publish_hz` | `12.0` | Camera capture and raw image publish rate, independent of detection |
+| `camera_jpeg_quality` | `68` | JPEG quality for the fast raw camera feed |
 | `camera_frame_id` | `camera_optical_frame` | ROS image frame identifier |
 | `device` | `cpu` | Ultralytics inference device |
 | `threads` | `3` | CPU thread limit |
-| `inference_hz` | `5.0` | Maximum requested inference update rate |
+| `inference_hz` | `5.0` | Maximum object-detection update rate |
 | `imgsz` | `0` | Use calibrated profile size; nonzero must match profile |
 | `publish_annotated_image` | `true` | Publish the boxed JPEG preview |
 | `jpeg_quality` | `80` | JPEG quality from 1 to 100 |

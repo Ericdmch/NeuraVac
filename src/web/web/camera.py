@@ -76,7 +76,7 @@ class CameraCapture:
                 capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
                 capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
                 capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                capture.set(cv2.CAP_PROP_FPS, 10)
+                capture.set(cv2.CAP_PROP_FPS, 15)
                 capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 if not capture.isOpened():
                     raise RuntimeError(f'Cannot open camera {self.device}')
@@ -90,7 +90,6 @@ class CameraCapture:
                     with self._lock:
                         self._jpeg = jpeg.tobytes()
                         self._updated = time.monotonic()
-                    self._stop.wait(0.1)
             except Exception as error:
                 logging.getLogger(__name__).warning('Camera offline: %s', error)
             finally:
