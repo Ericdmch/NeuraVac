@@ -1,6 +1,8 @@
 # NeuraVac
 
-![NeuraVac](docs/Neuravac/LogoText.svg)
+<p align="center" style="background-color: #ffffff; padding: 20px; border-radius: 6px;">
+  <img src="docs/Neuravac/LogoText.svg" alt="NeuraVac">
+</p>
 
 NeuraVac is a ROS 2 robot platform built around an iRobot Roomba. It combines
 direct Roomba control, USB LiDAR, camera-based floor-object detection, and a
