@@ -54,6 +54,13 @@ node does **not** drive the Roomba.
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
 | [`bringup`](src/bringup) | `ament_python` | Launches the robot nodes together and creates stable USB device names. |
 
+The LiDAR package also runs `lidar_slam_node` during bringup when LiDAR is
+enabled. It groups points into revolutions, performs local correlative
+scan-to-scan matching, and publishes a 20 m square occupancy grid on
+`/slam/map` at 5 cm resolution. The matcher estimates motion from LiDAR alone;
+camera detections are not visual odometry and are not fused into localization.
+The local matcher is intended for slow indoor mapping and can drift over time.
+
 ### Interfaces and topics
 
 #### Roomba serial bridge
@@ -71,6 +78,7 @@ robot in safe mode and uses 115200 baud by default.
 | Topic | Type | Purpose |
 | --- | --- | --- |
 | `lidar_points` | `roomba_interfaces/msg/LidarPoint` | Decoded points containing `angle_deg`, `distance_mm`, and `intensity`. |
+| `slam/map` | `nav_msgs/msg/OccupancyGrid` | Accumulated 2-D occupancy map in the `map` frame. |
 
 The LiDAR node expects the D6 packet format described in the source and uses
 230400 baud by default.

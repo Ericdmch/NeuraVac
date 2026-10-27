@@ -53,6 +53,10 @@ def launch_setup(context):
             output='screen',
             respawn=True, respawn_delay=3.0,
         ))
+        nodes.append(Node(
+            package='lidar', executable='lidar_slam_node', name='lidar_slam_node',
+            output='screen', respawn=True, respawn_delay=3.0,
+        ))
 
     use_vision = enabled(context, 'use_vision')
     if use_vision:

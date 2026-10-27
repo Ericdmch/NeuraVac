@@ -3,12 +3,13 @@
 <package format="3">
   <name>lidar</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>USB LiDAR driver and 2-D scan-matching SLAM mapper.</description>
   <maintainer email="williamhuang.eng@gmail.com">neuravac</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
   <depend>roomba_interfaces</depend>
+  <depend>nav_msgs</depend>
   <exec_depend>python3-serial</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
