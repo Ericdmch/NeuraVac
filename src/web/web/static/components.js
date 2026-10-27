@@ -467,6 +467,42 @@ function CameraView() {
   );
 }
 
+function SlamMap() {
+  const canvasRef = React.useRef(null);
+  const [online, setOnline] = React.useState(false);
+  React.useEffect(() => {
+    let stopped = false;
+    async function refresh() {
+      try {
+        const response = await fetch('/slam/map', { cache: 'no-store' });
+        const map = await response.json();
+        if (!response.ok || !map.data) throw new Error('Map unavailable');
+        if (stopped) return;
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+        canvas.width = map.width; canvas.height = map.height;
+        const image = context.createImageData(map.width, map.height);
+        for (let i = 0; i < map.data.length; i += 1) {
+          const value = map.data[i];
+          const shade = value < 0 ? 22 : Math.round(35 + value * 1.65);
+          image.data.set([value < 0 ? 15 : shade, value < 0 ? 22 : shade, value < 0 ? 31 : shade, 255], i * 4);
+        }
+        context.putImageData(image, 0, 0);
+        setOnline(true);
+      } catch (error) { if (!stopped) setOnline(false); }
+      if (!stopped) window.setTimeout(refresh, 1000);
+    }
+    refresh();
+    return () => { stopped = true; };
+  }, []);
+  return <section className="slam-view" aria-labelledby="slam-map-title">
+    <div className="lidar-header"><div><p className="console-label">MAPPING / LIDAR ODOMETRY</p><h2 id="slam-map-title">SLAM Map</h2></div>
+      <span className={`connection-status ${online ? 'is-online' : ''}`}><span className="status-dot" />{online ? 'MAPPING' : 'WAITING FOR SLAM'}</span></div>
+    <div className="slam-canvas-wrap"><canvas ref={canvasRef} aria-label="Accumulated LiDAR occupancy map" /></div>
+    <p className="panel-note slam-note">LiDAR scan matching · 50 mm cells · Map is centered at the starting pose</p>
+  </section>;
+}
+
 function App() {
   const telemetry = useTelemetry();
   return (
@@ -476,7 +512,7 @@ function App() {
         <Status online={!!telemetry?.online}>{telemetry?.online ? 'ROOMBA CONNECTED' : 'WAITING FOR ROOMBA'}</Status>
       </header>
       <div className="dashboard-grid">
-        <div className="visual-column"><CameraView /><LidarView /></div>
+        <div className="visual-column"><CameraView /><LidarView /><SlamMap /></div>
         <aside className="control-column"><SensorPanel telemetry={telemetry} /><RemoteOverride /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />

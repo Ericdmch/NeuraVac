@@ -6,6 +6,7 @@ import time
 
 from ament_index_python.packages import get_package_share_directory
 from flask import Flask, Response, jsonify, render_template, request
+from nav_msgs.msg import OccupancyGrid
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -133,6 +134,22 @@ class LidarBridge:
         self.topic = topic
         self._lock = threading.Lock()
         self._points = deque(maxlen=720)
+        self._map = None
+        self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
+
+    def map_callback(self, message):
+        info = message.info
+        with self._lock:
+            self._map = {
+                'width': info.width, 'height': info.height,
+                'resolution': info.resolution,
+                'origin': {'x': info.origin.position.x, 'y': info.origin.position.y},
+                'data': list(message.data),
+            }
+
+    def map_snapshot(self):
+        with self._lock:
+            return self._map
 
     def lidar_callback(self, msg):
         point = {
@@ -253,6 +270,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             )
             scan.append({'x': x, 'y': y})
         return jsonify(scan)
+
+    @app.get('/slam/map')
+    def slam_map():
+        result = lidar_bridge.map_snapshot()
+        response = jsonify(result or {'available': False})
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     return app
 
