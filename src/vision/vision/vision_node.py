@@ -65,6 +65,7 @@ class VisionNode(Node):
         self.declare_parameter('camera_width', 1920)
         self.declare_parameter('camera_height', 1080)
         self.declare_parameter('camera_frame_id', 'camera_optical_frame')
+        self.declare_parameter('flip_code', -1)  # Added safely without duplicating width
         self.declare_parameter('device', 'cpu')
         self.declare_parameter('threads', 3)
         self.declare_parameter('inference_hz', 5.0)
@@ -116,16 +117,19 @@ class VisionNode(Node):
             if camera_device:
                 capture = runtime.cv2.VideoCapture(camera_device, runtime.cv2.CAP_V4L2)
             else:
-                capture = runtime.cv2.VideoCapture(index)
+                capture = runtime.cv2.VideoCapture(index, runtime.cv2.CAP_V4L2)  # Force V4L2 backend for Linux webcams
+            
             if camera_fourcc:
-                # The format must be set before the frame size.
                 capture.set(
                     runtime.cv2.CAP_PROP_FOURCC,
                     runtime.cv2.VideoWriter_fourcc(*camera_fourcc),
                 )
             capture.set(runtime.cv2.CAP_PROP_FRAME_WIDTH, camera_width)
             capture.set(runtime.cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+            
+            # --- CRITICAL FOR REMOVING LAG ---
             capture.set(runtime.cv2.CAP_PROP_BUFFERSIZE, 1)
+            # ---------------------------------
             return capture
 
         self._camera = runtime.RecoveringCamera(camera_index, factory=open_camera)
@@ -258,6 +262,12 @@ class VisionNode(Node):
         if frame is None:
             self._publish_invalid_batch(stamp)
             return
+
+        # --- FLIP CAMERA FRAME ---
+        flip_param = self.get_parameter('flip_code').value
+        if flip_param is not None and flip_param in (-1, 0, 1):
+            frame = self._cv2.flip(frame, int(flip_param))
+        # -------------------------
 
         height, width = frame.shape[:2]
         self._last_width = width
