@@ -295,7 +295,7 @@ function LidarView() {
     }
 
     updateLidar();
-    const interval = window.setInterval(updateLidar, 50);
+    const interval = window.setInterval(updateLidar, 25);
     return () => {
       isMounted = false;
       window.clearInterval(interval);
@@ -484,8 +484,11 @@ function SlamMap() {
         const image = context.createImageData(map.width, map.height);
         for (let i = 0; i < map.data.length; i += 1) {
           const value = map.data[i];
-          const shade = value < 0 ? 22 : Math.round(35 + value * 1.65);
-          image.data.set([value < 0 ? 15 : shade, value < 0 ? 22 : shade, value < 0 ? 31 : shade, 255], i * 4);
+          const row = Math.floor(i / map.width);
+          const column = i % map.width;
+          const pixel = ((map.height - 1 - row) * map.width + column) * 4;
+          const color = value < 0 ? [15, 22, 31] : value >= 80 ? [70, 235, 125] : value > 0 ? [255, 180, 65] : [35, 43, 53];
+          image.data.set([...color, 255], pixel);
         }
         context.putImageData(image, 0, 0);
         setOnline(true);
@@ -499,7 +502,7 @@ function SlamMap() {
     <div className="lidar-header"><div><p className="console-label">MAPPING / LIDAR ODOMETRY</p><h2 id="slam-map-title">SLAM Map</h2></div>
       <span className={`connection-status ${online ? 'is-online' : ''}`}><span className="status-dot" />{online ? 'MAPPING' : 'WAITING FOR SLAM'}</span></div>
     <div className="slam-canvas-wrap"><canvas ref={canvasRef} aria-label="Accumulated LiDAR occupancy map" /></div>
-    <p className="panel-note slam-note">LiDAR scan matching · 50 mm cells · Map is centered at the starting pose</p>
+    <p className="panel-note slam-note">50 mm cells · <span className="map-legend-suspected">Amber: new return</span> · <span className="map-legend-wall">Green: persistent wall</span></p>
   </section>;
 }
 
