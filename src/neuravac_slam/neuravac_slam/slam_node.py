@@ -2,6 +2,7 @@
 
 import math
 
+import numpy as np
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rclpy.node import Node
@@ -94,19 +95,18 @@ class LidarSlam(Node):
     def match_scan(self, points):
         """Estimate robot motion between scans, in the previous scan frame."""
         stride = max(1, len(points) // 90)
-        reference = self.previous[::stride]
-        sample = points[::stride]
+        reference = np.asarray(self.previous[::stride], dtype=float)
+        sample = np.asarray(points[::stride], dtype=float)
         best = (float('inf'), 0.0, 0.0, 0.0)
         for da in (-0.06, -0.03, 0.0, 0.03, 0.06):
             c, s = math.cos(da), math.sin(da)
             for dx in (-0.10, -0.05, 0.0, 0.05, 0.10):
                 for dy in (-0.10, -0.05, 0.0, 0.05, 0.10):
-                    error = 0.0
-                    for x, y in sample:
-                        x, y = c * x - s * y + dx, s * x + c * y + dy
-                        nearest = min((x - rx) ** 2 + (y - ry) ** 2
-                                      for rx, ry in reference)
-                        error += min(nearest, 0.25)
+                    rotated = sample @ np.array([[c, s], [-s, c]])
+                    delta = rotated + (dx, dy)
+                    offsets = delta[:, None, :] - reference[None, :, :]
+                    nearest = np.min(np.einsum('ijk,ijk->ij', offsets, offsets), axis=1)
+                    error = float(np.minimum(nearest, 0.25).sum())
                     if error < best[0]:
                         best = (error, dx, dy, da)
         _, dx, dy, da = best

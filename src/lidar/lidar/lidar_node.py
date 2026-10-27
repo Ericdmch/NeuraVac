@@ -32,7 +32,7 @@ class Lidar(Node):
         )
 
         # ROS2 Serial topics
-        self.serial_timer = self.create_timer(0.01, self.read_serial)
+        self.serial_timer = self.create_timer(0.002, self.read_serial)
         
         self.lidar_points = self.create_publisher(
             LidarPoint,

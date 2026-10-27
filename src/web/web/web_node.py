@@ -1,4 +1,5 @@
 from collections import deque
+import json
 import math
 import os
 import threading
@@ -133,7 +134,9 @@ class LidarBridge:
 
         self.topic = topic
         self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
         self._points = deque(maxlen=360)
+        self._point_sequence = 0
         self._map = None
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
 
@@ -157,20 +160,51 @@ class LidarBridge:
             'distance_mm': int(msg.distance_mm),
             'intensity': int(msg.intensity),
         }
-        with self._lock:
-            self._points.append((time.monotonic(), point))
+        with self._condition:
+            self._point_sequence += 1
+            self._points.append((time.monotonic(), self._point_sequence, point))
+            self._condition.notify_all()
 
     def snapshot(self):
         cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
         with self._lock:
-            recent_points = [
-                (timestamp, point)
-                for timestamp, point in self._points
-                if timestamp >= cutoff
-            ]
-            self._points.clear()
-            self._points.extend(recent_points)
-            return [point for _, point in recent_points]
+            return [point for timestamp, _, point in self._points
+                    if timestamp >= cutoff]
+
+    def stream(self):
+        """Yield compact recent scans over one persistent SSE connection."""
+        sequence = 0
+        while True:
+            scan_points = []
+            previous_sequence = sequence
+            with self._condition:
+                if not self._condition.wait_for(
+                    lambda: self._point_sequence != sequence, timeout=0.1
+                ):
+                    # Empty updates let the browser expire old returns promptly.
+                    pass
+                else:
+                    # Coalesce packet bursts, then send only new points rather
+                    # than repeatedly serializing the whole recent scan.
+                    deadline = time.monotonic() + 0.02
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            break
+                        self._condition.wait(timeout=remaining)
+                    sequence = self._point_sequence
+                    cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
+                    scan_points = [(stamp, point)
+                                   for stamp, point_sequence, point in self._points
+                                   if stamp >= cutoff and point_sequence > previous_sequence]
+
+            scan = []
+            now = time.monotonic()
+            for stamp, point in scan_points:
+                x, y = self.polar_to_cartesian(
+                    point['angle_deg'], point['distance_mm'])
+                scan.append([x, y, max(0.0, (now - stamp) * 1000)])
+            yield f'data: {json.dumps(scan, separators=(",", ":"))}\n\n'
 
     @staticmethod
     def polar_to_cartesian(angle_deg, distance_mm):
@@ -271,11 +305,33 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             scan.append({'x': x, 'y': y})
         return jsonify(scan)
 
+    @app.get('/lidar/stream')
+    def lidar_stream():
+        response = Response(lidar_bridge.stream(), mimetype='text/event-stream')
+        response.headers['Cache-Control'] = 'no-cache, no-transform'
+        response.headers['X-Accel-Buffering'] = 'no'
+        return response
+
     @app.get('/slam/map')
     def slam_map():
         result = lidar_bridge.map_snapshot()
         response = jsonify(result or {'available': False})
         response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.get('/slam/map/binary')
+    def slam_map_binary():
+        result = lidar_bridge.map_snapshot()
+        if result is None:
+            return jsonify(available=False), 503
+        response = Response(
+            bytes(value & 0xFF for value in result['data']),
+            mimetype='application/octet-stream',
+        )
+        response.headers['Cache-Control'] = 'no-store'
+        response.headers['X-Map-Width'] = str(result['width'])
+        response.headers['X-Map-Height'] = str(result['height'])
+        response.headers['X-Map-Resolution'] = str(result['resolution'])
         return response
 
     return app
@@ -336,7 +392,8 @@ def main(args=None):
     app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir, camera)
 
     try:
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False,
+                threaded=True)
     except KeyboardInterrupt:
         pass
     finally:

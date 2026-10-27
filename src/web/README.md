@@ -5,6 +5,13 @@
 JPEG up to five times per second; unavailable or stale frames show OFFLINE
 and reconnect automatically. This feed shows the raw camera image.
 
+The LiDAR panel uses a persistent `/lidar/stream` server-sent-events connection.
+It batches incoming ROS points at up to 50 Hz and sends only newly received
+points; the browser keeps a rolling 200 ms view. This avoids repeatedly opening
+HTTP requests and retransmitting the entire scan. The occupancy panel uses a
+compact binary map response and refreshes less often to leave more CPU and
+network capacity for the live scan.
+
 The dashboard polls Roomba 680 OI sensor group 0 (`142 0`) at 2 Hz via the
 existing `serial_tx` / `serial_rx` ROS topics. `/telemetry` returns battery,
 charging, current, temperature, bumpers, cliffs, wheel drops, wall flags,
@@ -28,7 +35,7 @@ ROS 2 Jazzy packages must be available to the same Python interpreter.
 ```bash
 source /opt/ros/jazzy/setup.bash
 cd ~/Neuravac
-colcon build --packages-select web --symlink-install
+colcon build --packages-select roomba_interfaces lidar neuravac_slam web --symlink-install
 source install/setup.bash
 ~/neuravac-web-venv/bin/python -c 'from web.web_node import main; main()'
 ```

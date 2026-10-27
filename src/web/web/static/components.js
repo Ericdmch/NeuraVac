@@ -223,6 +223,7 @@ function LidarView() {
     const context = canvas.getContext('2d');
     const { zoom, panX, panY } = viewRef.current;
     const radius = size * 0.46 * zoom;
+    const pointScale = radius / maxRangeMm;
     if (canvas.width !== Math.round(width * scale) || canvas.height !== Math.round(height * scale)) {
       canvas.width = Math.round(width * scale);
       canvas.height = Math.round(height * scale);
@@ -247,7 +248,6 @@ function LidarView() {
     context.stroke();
 
     scan.forEach((point) => {
-      const pointScale = radius / maxRangeMm;
       const x = point.x * pointScale;
       const y = point.y * pointScale;
       context.fillStyle = '#ff8a3d';
@@ -257,43 +257,22 @@ function LidarView() {
   }
 
   React.useEffect(() => {
-    let isMounted = true;
-    let requestInFlight = false;
-
-    async function updateLidar() {
-      if (requestInFlight) {
-        return;
-      }
-      requestInFlight = true;
-
+    const stream = new EventSource('/lidar/stream');
+    stream.onmessage = (event) => {
       try {
-        const response = await fetch('/lidar', { cache: 'no-store' });
-        if (!response.ok) {
-          throw new Error(`Lidar endpoint returned HTTP ${response.status}`);
-        }
-
-        const scan = await response.json();
-        if (isMounted) {
-          scanRef.current = scan;
-          drawLidar(scan);
-          setIsOnline(scan.length > 0);
-        }
+        const incoming = JSON.parse(event.data);
+        const now = performance.now();
+        const recent = (scanRef.current || []).filter(point => now - point.receivedAt < 200);
+        incoming.forEach(([x, y, ageMs]) => recent.push({ x, y, receivedAt: now - ageMs }));
+        scanRef.current = recent;
+        drawLidar(recent);
+        setIsOnline(recent.length > 0);
       } catch (error) {
-        if (isMounted) {
-          setIsOnline(false);
-          console.error('Unable to read lidar data.', error);
-        }
-      } finally {
-        requestInFlight = false;
+        console.error('Invalid LiDAR stream update.', error);
       }
-    }
-
-    updateLidar();
-    const interval = window.setInterval(updateLidar, 20);
-    return () => {
-      isMounted = false;
-      window.clearInterval(interval);
     };
+    stream.onerror = () => setIsOnline(false);
+    return () => stream.close();
   }, []);
 
   React.useEffect(() => {
@@ -463,26 +442,35 @@ function SlamMap() {
     let stopped = false;
     async function refresh() {
       try {
-        const response = await fetch('/slam/map', { cache: 'no-store' });
-        const map = await response.json();
-        if (!response.ok || !map.data) throw new Error('Map unavailable');
+        const response = await fetch('/slam/map/binary', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Map unavailable');
         if (stopped) return;
+        const width = Number(response.headers.get('X-Map-Width'));
+        const height = Number(response.headers.get('X-Map-Height'));
+        const data = new Uint8Array(await response.arrayBuffer());
+        if (!width || !height || data.length !== width * height) throw new Error('Invalid map data');
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
-        canvas.width = map.width; canvas.height = map.height;
-        const image = context.createImageData(map.width, map.height);
-        for (let i = 0; i < map.data.length; i += 1) {
-          const value = map.data[i];
-          const row = Math.floor(i / map.width);
-          const column = i % map.width;
-          const pixel = ((map.height - 1 - row) * map.width + column) * 4;
-          const color = value < 0 ? [15, 22, 31] : value >= 80 ? [70, 235, 125] : value > 0 ? [255, 180, 65] : [35, 43, 53];
-          image.data.set([...color, 255], pixel);
+        canvas.width = width; canvas.height = height;
+        const image = context.createImageData(width, height);
+        for (let i = 0; i < data.length; i += 1) {
+          const value = data[i] === 255 ? -1 : data[i];
+          const pixel = ((height - 1 - Math.floor(i / width)) * width + i % width) * 4;
+          if (value < 0) {
+            image.data[pixel] = 15; image.data[pixel + 1] = 22; image.data[pixel + 2] = 31;
+          } else if (value >= 80) {
+            image.data[pixel] = 70; image.data[pixel + 1] = 235; image.data[pixel + 2] = 125;
+          } else if (value > 0) {
+            image.data[pixel] = 255; image.data[pixel + 1] = 180; image.data[pixel + 2] = 65;
+          } else {
+            image.data[pixel] = 35; image.data[pixel + 1] = 43; image.data[pixel + 2] = 53;
+          }
+          image.data[pixel + 3] = 255;
         }
         context.putImageData(image, 0, 0);
         setOnline(true);
       } catch (error) { if (!stopped) setOnline(false); }
-      if (!stopped) window.setTimeout(refresh, 1000);
+      if (!stopped) window.setTimeout(refresh, 2000);
     }
     refresh();
     return () => { stopped = true; };
