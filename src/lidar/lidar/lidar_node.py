@@ -32,7 +32,7 @@ class Lidar(Node):
         )
 
         # ROS2 Serial topics
-        self.serial_timer = self.create_timer(0.01, self.read_serial)
+        self.serial_timer = self.create_timer(0.002, self.read_serial)
         
         self.lidar_points = self.create_publisher(
             LidarPoint,
@@ -85,6 +85,7 @@ class Lidar(Node):
         Clears up the buffer too
         """
 
+        points = []
         while True:
             start = self._buffer.find(b'\xAA\x55')
 
@@ -94,24 +95,26 @@ class Lidar(Node):
                 else:
                     self._buffer.clear()
             
-                return
+                return points
             
             if start:
                 del self._buffer[:start]
 
             if len(self._buffer) < 4:
-                return
+                return points
 
             lsn = self._buffer[3]
             packet_length = 10 + lsn * 3
 
             if len(self._buffer) < packet_length:
-                return
+                return points
 
             packet = self._buffer[:packet_length]
             del self._buffer[:packet_length]
 
-            return self.decode_packet(packet)
+            decoded = self.decode_packet(packet)
+            if decoded:
+                points.extend(decoded)
 
     
     def checksum(self, received_cs, packet):

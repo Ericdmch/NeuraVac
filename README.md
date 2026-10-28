@@ -32,7 +32,7 @@ flowchart LR
 
     R -->|serial_rx| W[web_node]
     W -->|serial_tx| R
-    L -->|lidar_points<br/>10 ms push batches| W
+    L -->|lidar_points<br/>20 ms incremental batches| W
     S -->|slam/map<br/>OccupancyGrid| W
     V -->|camera frames<br/>detections| W
     W --> Browser[Web browser<br/>:5000]
@@ -48,9 +48,10 @@ the dashboard subscribes to the topics it needs. Vision detections contain
 advisory actions such as `clean`, `avoid`, and `avoid_and_review`; the vision
 node does **not** drive the Roomba.
 
-The dashboard streams LiDAR updates as they arrive, batching points for up to
-10 ms before sending them to the browser. The browser draws on its next frame
-and keeps a rolling 250 ms of points visible.
+The LiDAR reader polls every 2 ms and drains all complete packets from the
+serial buffer, avoiding stale packet backlogs. The dashboard streams new
+points incrementally in timestamped batches of up to 20 ms; the browser draws
+on its next frame and keeps a rolling 250 ms visible.
 
 The `neuravac_slam` node groups each revolution into a scan, estimates robot
 motion by matching LiDAR returns against the accumulated occupancy grid, and
