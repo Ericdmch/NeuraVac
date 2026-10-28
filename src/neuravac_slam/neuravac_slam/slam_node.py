@@ -1,4 +1,4 @@
-"""Small-room 2D SLAM using LiDAR scans only (no camera or wheel odometry)."""
+"""Small-room 2D SLAM using LiDAR scans with wheel odometry as a prior."""
 
 import math
 import threading
@@ -9,6 +9,7 @@ from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint
+from std_srvs.srv import Trigger
 
 
 class LidarMapper(Node):
@@ -44,11 +45,29 @@ class LidarMapper(Node):
         self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 50)
         self.create_subscription(Odometry, 'odom', self.on_odometry, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
+        self.create_service(Trigger, 'slam/reset', self.reset_map)
         self.create_timer(1.0 / max(0.2, float(value('map_publish_hz'))), self.publish_map)
         self.get_logger().info(
             f'LiDAR-only SLAM ready: {self.size}x{self.size}, '
             f'{self.resolution:.2f} m/cell; wheel odometry is a scan-matching prior'
         )
+
+    def reset_map(self, _request, response):
+        """Clear accumulated state; subsequent scans build a fresh map."""
+        with self._lock:
+            self.grid.fill(0)
+            self._scan.clear()
+            self._last_angle = None
+            self._last_scan = None
+            self._pose.fill(0.0)
+            self._odom_at_last_scan = (
+                self._odom_pose.copy() if self._odom_pose is not None else None
+            )
+            self._map_version += 1
+        response.success = True
+        response.message = 'SLAM map and pose reset; mapping resumes with the next LiDAR scans.'
+        self.get_logger().info(response.message)
+        return response
 
     def on_odometry(self, message):
         q = message.pose.pose.orientation

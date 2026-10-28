@@ -14,6 +14,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 from roomba_interfaces.srv import RequestTelemetry
+from std_srvs.srv import Trigger
 
 from .override import roomba_drive
 from .camera import CameraCapture, LatestJpeg
@@ -169,6 +170,21 @@ class LidarBridge:
         self._map_sequence = 0
         self._map = None
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
+        self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
+
+    def reset_slam(self):
+        if not self._slam_reset_client.wait_for_service(timeout_sec=0.5):
+            return False, 'SLAM reset service is unavailable.'
+        completed = threading.Event()
+        future = self._slam_reset_client.call_async(Trigger.Request())
+        future.add_done_callback(lambda _future: completed.set())
+        if not completed.wait(timeout=2.0):
+            return False, 'SLAM reset request timed out.'
+        try:
+            response = future.result()
+        except Exception as error:
+            return False, f'SLAM reset failed: {error}'
+        return response.success, response.message
 
     def lidar_callback(self, msg):
         point = {
@@ -402,6 +418,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             events(), mimetype='text/event-stream',
             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
         )
+
+    @app.post('/slam/reset')
+    def reset_slam():
+        success, message = lidar_bridge.reset_slam()
+        if not success:
+            return jsonify(error=message), 503
+        return jsonify(reset=True, message=message)
 
     return app
 

@@ -32,6 +32,7 @@ flowchart LR
 
     R -->|serial_rx / odom| W[web_node]
     W -->|RequestTelemetry service| R
+    W -->|slam/reset service| S
     L -->|lidar_points<br/>20 ms incremental batches| W
     S -->|slam/map<br/>OccupancyGrid| W
     V -->|camera frames<br/>detections| W
@@ -59,8 +60,11 @@ prediction, then corrects the pose against LiDAR scans before updating
 `/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
 odometry. The camera is not used for mapping. The dashboard's **Room map**
 panel shows the growing map; stronger wall returns appear brighter. The map
-is held in memory and starts fresh when the node restarts. This initial scan
-matcher is intended for slow mapping in small rooms; without loop closure,
+is held in memory and starts fresh when the node restarts. Use **Reset & Remap**
+in the Room map panel to clear the occupancy grid and scan-matching pose; the
+next LiDAR revolutions build a fresh map from the robot's current position.
+This calls `/slam/reset` (`std_srvs/srv/Trigger`). This initial scan matcher
+is intended for slow mapping in small rooms; without loop closure,
 long drives can drift, and moving objects can leave temporary marks.
 
 The dashboard reads cached telemetry every five seconds and has a **Request
@@ -109,10 +113,18 @@ prior because wheel slip can make it drift. See
 
 #### LiDAR
 
-| Topic | Type | Purpose |
+| Topic or service | Type | Purpose |
 | --- | --- | --- |
 | `lidar_points` | `roomba_interfaces/msg/LidarPoint` | Decoded points containing `angle_deg`, `distance_mm`, and `intensity`. |
 | `slam/map` | `nav_msgs/msg/OccupancyGrid` | LiDAR-only 2D room map in the `map` frame. |
+| `slam/reset` | `std_srvs/srv/Trigger` | Clears map and pose; fresh LiDAR scans recalculate the map. |
+
+The dashboard's **Reset & Remap** button calls this service. To reset from a
+terminal:
+
+```bash
+ros2 service call /slam/reset std_srvs/srv/Trigger "{}"
+```
 
 The LiDAR node expects the D6 packet format described in the source and uses
 230400 baud by default.

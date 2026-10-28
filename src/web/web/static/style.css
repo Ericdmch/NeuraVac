@@ -44,6 +44,7 @@ h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
 .telemetry-refresh { border: 1px solid #344351; border-radius: 6px; background: #1a2531; color: var(--gray-300); font: 9px 'JetBrains Mono', monospace; padding: 7px 9px; }
 .telemetry-refresh:hover:not(:disabled) { border-color: var(--bright-blue); color: var(--soft-white); }
 .telemetry-refresh:disabled { opacity: .55; cursor: wait; }
+.slam-map-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 .connection-status { display: inline-flex; align-items: center; flex-shrink: 0; gap: 7px; color: var(--gray-500); font-size: 9px; letter-spacing: 1px; }
 .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--gray-500); }
 .connection-status.is-online { color: var(--green); }

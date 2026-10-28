@@ -462,6 +462,23 @@ function LidarView() {
 function SlamMapView() {
   const canvasRef = React.useRef(null);
   const [status, setStatus] = React.useState('WAITING FOR MAP');
+  const [resetting, setResetting] = React.useState(false);
+  const [resetError, setResetError] = React.useState('');
+
+  async function resetMap() {
+    setResetting(true);
+    setResetError('');
+    try {
+      const response = await fetch('/slam/reset', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to reset map.');
+      setStatus('RESET · WAITING FOR SCANS');
+    } catch (error) {
+      setResetError(error.message);
+    } finally {
+      setResetting(false);
+    }
+  }
 
   React.useEffect(() => {
     const stream = new EventSource('/slam/map/stream');
@@ -484,7 +501,7 @@ function SlamMapView() {
           maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
         }
       }
-      if (maxX < 0) return;
+      if (maxX < 0) return false;
       const margin = 12;
       minX = Math.max(0, minX - margin); minY = Math.max(0, minY - margin);
       maxX = Math.min(map.width - 1, maxX + margin); maxY = Math.min(map.height - 1, maxY + margin);
@@ -515,9 +532,13 @@ function SlamMapView() {
         context.arc(left + (robotX - minX) * fit, top + (robotY - minY) * fit, 5 * devicePixelRatio, 0, Math.PI * 2);
         context.fill();
       }
+      return true;
     }
     stream.onmessage = event => {
-      try { latestMap = JSON.parse(event.data); drawMap(latestMap); setStatus('MAPPING · LIDAR ONLY'); }
+      try {
+        latestMap = JSON.parse(event.data);
+        setStatus(drawMap(latestMap) ? 'MAPPING · LIDAR ONLY' : 'WAITING FOR SCANS');
+      }
       catch (error) { console.error('Unable to decode LiDAR map.', error); }
     };
     stream.onerror = () => setStatus('WAITING FOR MAP');
@@ -528,9 +549,15 @@ function SlamMapView() {
 
   return <section className="lidar-view slam-map-view" aria-labelledby="slam-map-title">
     <div className="lidar-header"><div><p className="console-label">LIDAR + WHEEL ODOMETRY / SCAN MATCHED</p><h2 id="slam-map-title">Room map</h2></div>
-      <span className={`connection-status ${status === 'WAITING FOR MAP' ? '' : 'is-online'}`}><span className="status-dot" />{status}</span></div>
+      <div className="slam-map-actions">
+        <button className="telemetry-refresh" type="button" onClick={resetMap} disabled={resetting}>
+          {resetting ? 'RESETTING…' : 'RESET & REMAP'}
+        </button>
+        <span className={`connection-status ${status === 'WAITING FOR MAP' ? '' : 'is-online'}`}><span className="status-dot" />{status}</span>
+      </div>
+    </div>
     <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
-    <p className="panel-note slam-map-note">Orange = persistent wall returns · Blue = map origin · LiDAR scan matching corrects wheel odometry</p>
+    <p className="panel-note slam-map-note">{resetError || 'Orange = persistent wall returns · Blue = map origin · Reset clears the map and pose; fresh scans rebuild it.'}</p>
   </section>;
 }
 
