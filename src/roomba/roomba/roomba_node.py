@@ -3,6 +3,7 @@ import math
 import threading
 
 import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from roomba_interfaces.msg import SerialData
@@ -59,7 +60,8 @@ class Roomba(Node):
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
         self._sensor_query_timer = self.create_timer(0.5, self.request_group_zero)
         self._sensor_service = self.create_service(
-            RequestTelemetry, 'request_telemetry', self.request_telemetry
+            RequestTelemetry, 'request_telemetry', self.request_telemetry,
+            callback_group=ReentrantCallbackGroup(),
         )
         self._sensor_buffer = bytearray()
         self._sensor_condition = threading.Condition()
