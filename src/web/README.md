@@ -5,9 +5,10 @@
 JPEG up to five times per second; unavailable or stale frames show OFFLINE
 and reconnect automatically. This feed shows the raw camera image.
 
-The LiDAR panel polls `/lidar` every 25 ms (up to 40 updates per second) and
-shows points received in the preceding 250 ms. The server retains up to 1,440
-recent points so each response can display a fuller, fresher scan.
+The LiDAR panel receives points through a server-sent event stream. The web
+node batches arriving points for at most 10 ms, and the browser redraws on its
+next animation frame instead of waiting for another HTTP poll. The display
+keeps points from the preceding 250 ms, up to the latest 1,440 buffered points.
 
 The dashboard polls Roomba 680 OI sensor group 0 (`142 0`) at 2 Hz via the
 existing `serial_tx` / `serial_rx` ROS topics. `/telemetry` returns battery,

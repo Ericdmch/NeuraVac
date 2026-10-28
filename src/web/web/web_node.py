@@ -1,4 +1,5 @@
 from collections import deque
+import json
 import math
 import os
 import threading
@@ -125,14 +126,16 @@ class SerialBridge:
 
 class LidarBridge:
     RECENT_POINT_MAX_AGE_SECONDS = 0.25
+    STREAM_BATCH_SECONDS = 0.01
 
     def __init__(self, topic, data_type = LidarPoint):
         self.bridge = WebBridge(name='web_lidar_node')
         self.bridge.add_subscriber(data_type, topic, self.lidar_callback)
 
         self.topic = topic
-        self._lock = threading.Lock()
+        self._condition = threading.Condition()
         self._points = deque(maxlen=1440)
+        self._sequence = 0
 
     def lidar_callback(self, msg):
         point = {
@@ -140,20 +143,40 @@ class LidarBridge:
             'distance_mm': int(msg.distance_mm),
             'intensity': int(msg.intensity),
         }
-        with self._lock:
-            self._points.append((time.monotonic(), point))
+        with self._condition:
+            self._sequence += 1
+            self._points.append((self._sequence, time.monotonic(), point))
+            self._condition.notify_all()
+
+    def wait_for_points(self, after_sequence, timeout):
+        with self._condition:
+            self._condition.wait_for(
+                lambda: self._sequence > after_sequence,
+                timeout=timeout,
+            )
+            latest_sequence = self._sequence
+            cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
+            points = [
+                point for sequence, timestamp, point in self._points
+                if sequence > after_sequence and timestamp >= cutoff
+            ]
+            return latest_sequence, points
+
+    def current_sequence(self):
+        with self._condition:
+            return self._sequence
 
     def snapshot(self):
         cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
-        with self._lock:
+        with self._condition:
             recent_points = [
-                (timestamp, point)
-                for timestamp, point in self._points
+                (sequence, timestamp, point)
+                for sequence, timestamp, point in self._points
                 if timestamp >= cutoff
             ]
             self._points.clear()
             self._points.extend(recent_points)
-            return [point for _, point in recent_points]
+            return [point for _, _, point in recent_points]
 
     @staticmethod
     def polar_to_cartesian(angle_deg, distance_mm):
@@ -253,6 +276,40 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             )
             scan.append({'x': x, 'y': y})
         return jsonify(scan)
+
+    @app.get('/lidar/stream')
+    def lidar_stream():
+        def events():
+            sequence = lidar_bridge.current_sequence()
+            while True:
+                sequence, points = lidar_bridge.wait_for_points(sequence, timeout=1.0)
+                if not points:
+                    yield ': keepalive\n\n'
+                    continue
+
+                deadline = time.monotonic() + lidar_bridge.STREAM_BATCH_SECONDS
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    sequence, next_points = lidar_bridge.wait_for_points(
+                        sequence, timeout=remaining
+                    )
+                    points.extend(next_points)
+
+                scan = []
+                for point in points:
+                    x, y = lidar_bridge.polar_to_cartesian(
+                        point['angle_deg'], point['distance_mm']
+                    )
+                    scan.append({'x': x, 'y': y})
+                yield f'data: {json.dumps(scan, separators=(",", ":"))}\n\n'
+
+        return Response(
+            events(),
+            mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+        )
 
     return app
 

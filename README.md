@@ -1,6 +1,8 @@
 # NeuraVac
 
-![NeuraVac](docs/Neuravac/LogoWhite.svg)
+<p align="center">
+  <img src="docs/Neuravac/LogoWhite.svg" alt="NeuraVac" width="320">
+</p>
 
 NeuraVac is a ROS 2 robot platform built around an iRobot Roomba. It combines
 direct Roomba control, USB LiDAR, camera-based floor-object detection, and a
@@ -29,7 +31,7 @@ flowchart LR
 
     R -->|serial_rx| W[web_node]
     W -->|serial_tx| R
-    L -->|lidar_points| W
+    L -->|lidar_points<br/>10 ms push batches| W
     V -->|camera frames<br/>detections| W
     W --> Browser[Web browser<br/>:5000]
     B[bringup<br/>robot.launch.py] -. starts .-> R
@@ -42,6 +44,10 @@ The hardware nodes can run independently. ROS 2 provides the transport and
 the dashboard subscribes to the topics it needs. Vision detections contain
 advisory actions such as `clean`, `avoid`, and `avoid_and_review`; the vision
 node does **not** drive the Roomba.
+
+The dashboard streams LiDAR updates as they arrive, batching points for up to
+10 ms before sending them to the browser. The browser draws on its next frame
+and keeps a rolling 250 ms of points visible.
 
 ## ROS 2 packages
 

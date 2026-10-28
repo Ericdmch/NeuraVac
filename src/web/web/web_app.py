@@ -4,9 +4,11 @@ MEANT FOR WEB-ONLY TESTING OF THE REACT FRONTEND WITHOUT A ROS2 ENVIRONMENT
 """
 
 import math
+import json
 import os
+import time
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SPEED = 200
@@ -86,13 +88,29 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir):
 
     @app.get('/lidar')
     def lidar():
-        return jsonify([
+        return jsonify(lidar_points())
+
+    def lidar_points():
+        return [
             {
                 'x': lidar_bridge.polar_to_cartesian(point['angle_deg'], point['distance_mm'])[0],
                 'y': lidar_bridge.polar_to_cartesian(point['angle_deg'], point['distance_mm'])[1],
             }
             for point in lidar_bridge.snapshot()['points']
-        ])
+        ]
+
+    @app.get('/lidar/stream')
+    def lidar_stream():
+        def events():
+            while True:
+                yield f'data: {json.dumps(lidar_points(), separators=(",", ":"))}\n\n'
+                time.sleep(0.2)
+
+        return Response(
+            events(),
+            mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+        )
 
 
 

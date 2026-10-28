@@ -200,6 +200,7 @@ function RemoteOverride() {
 function LidarView() {
   const canvasRef = React.useRef(null);
   const scanRef = React.useRef(null);
+  const rollingPointsRef = React.useRef([]);
   const viewRef = React.useRef({ zoom: 1, panX: 0, panY: 0 });
   const dragRef = React.useRef(null);
   const [isOnline, setIsOnline] = React.useState(false);
@@ -261,44 +262,74 @@ function LidarView() {
 
   React.useEffect(() => {
     let isMounted = true;
-    let requestInFlight = false;
+    const stream = new EventSource('/lidar/stream');
+    let drawScheduled = false;
 
-    async function updateLidar() {
-      if (requestInFlight) {
+    function drawRecentPoints() {
+      drawScheduled = false;
+      if (!isMounted) {
         return;
       }
-      requestInFlight = true;
 
-      try {
-        const response = await fetch('/lidar', { cache: 'no-store' });
-        if (!response.ok) {
-          throw new Error(`Lidar endpoint returned HTTP ${response.status}`);
-        }
+      const cutoff = performance.now() - 250;
+      const recentPoints = rollingPointsRef.current.filter(
+        point => point.receivedAt >= cutoff
+      );
+      rollingPointsRef.current = recentPoints;
+      const scan = recentPoints.map(({ x, y }) => ({ x, y }));
+      scanRef.current = scan;
 
-        const scan = await response.json();
-        if (isMounted) {
-          scanRef.current = scan;
-          setRulerLength(Math.round(
-            Math.max(...scan.map((point) => Math.hypot(point.x, point.y)), 1) / 2
-          ));
-          drawLidar(scan);
-          setIsOnline(scan.length > 0);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setIsOnline(false);
-          console.error('Unable to read lidar data.', error);
-        }
-      } finally {
-        requestInFlight = false;
+      if (scan.length) {
+        const maxRange = Math.max(
+          ...scan.map(point => Math.hypot(point.x, point.y)),
+          1
+        );
+        const nextRulerLength = Math.round(maxRange / 2);
+        setRulerLength(current =>
+          Math.abs(current - nextRulerLength) >= 25 ? nextRulerLength : current
+        );
+      }
+      drawLidar(scan);
+      setIsOnline(scan.length > 0);
+    }
+
+    function scheduleDraw() {
+      if (!drawScheduled) {
+        drawScheduled = true;
+        window.requestAnimationFrame(drawRecentPoints);
       }
     }
 
-    updateLidar();
-    const interval = window.setInterval(updateLidar, 25);
+    stream.onmessage = event => {
+      try {
+        const batch = JSON.parse(event.data);
+        const receivedAt = performance.now();
+        for (const point of batch) {
+          rollingPointsRef.current.push({ ...point, receivedAt });
+        }
+        scheduleDraw();
+      } catch (error) {
+        console.error('Unable to decode LiDAR update.', error);
+      }
+    };
+
+    stream.onerror = () => {
+      if (stream.readyState === EventSource.CLOSED) {
+        console.error('LiDAR event stream closed.');
+      }
+    };
+
+    const expiryTimer = window.setInterval(() => {
+      const points = rollingPointsRef.current;
+      if (points.length && performance.now() - points[points.length - 1].receivedAt >= 250) {
+        scheduleDraw();
+      }
+    }, 50);
+
     return () => {
       isMounted = false;
-      window.clearInterval(interval);
+      stream.close();
+      window.clearInterval(expiryTimer);
     };
   }, []);
 
