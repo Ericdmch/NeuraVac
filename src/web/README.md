@@ -16,8 +16,8 @@ occupancy grid published by `neuravac_slam`.
 
 The Roomba node samples OI sensor group 0 (`142 0`) at 2 Hz for wheel
 odometry. The dashboard reads its cached sensor data every five seconds;
-**Request now** calls the `/request_telemetry` ROS service for an immediate
-sample. `/telemetry` returns battery,
+**Request now** calls the `/request_telemetry` ROS service, which returns an
+immediate 26-byte sample. `/telemetry` returns battery,
 charging, current, temperature, bumpers, cliffs, wheel drops, wall flags,
 overcurrent, and incremental distance/turn readings. Replies are accumulated
 across serial chunks; incomplete, invalid, or late responses are ignored.

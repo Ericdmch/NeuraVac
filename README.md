@@ -64,8 +64,8 @@ matcher is intended for slow mapping in small rooms; without loop closure,
 long drives can drift, and moving objects can leave temporary marks.
 
 The dashboard reads cached telemetry every five seconds and has a **Request
-now** button. The `request_telemetry` ROS service triggers an immediate group 0
-sensor query. The background 2 Hz sensor reads remain enabled for odometry;
+now** button. The `request_telemetry` ROS service requests and returns an
+immediate group 0 packet. The background 2 Hz sensor reads remain enabled for odometry;
 they send only a two-byte query and receive the 26-byte group 0 packet.
 
 ## ROS 2 packages
@@ -89,7 +89,7 @@ they send only a two-byte query and receive the 26-byte group 0 packet.
 | `serial_rx` | `roomba_interfaces/msg/SerialData` | Roomba -> ROS | Raw bytes received from the Roomba. |
 | `serial_tx` | `roomba_interfaces/msg/SerialData` | ROS -> Roomba | Raw bytes sent to the Roomba. |
 | `odom` | `nav_msgs/msg/Odometry` | Roomba -> ROS | Wheel-odometry pose from incremental OI distance/angle reports. |
-| `request_telemetry` | `roomba_interfaces/srv/RequestTelemetry` | ROS -> Roomba | Requests a fresh 26-byte OI sensor group 0 response. |
+| `request_telemetry` | `roomba_interfaces/srv/RequestTelemetry` | ROS -> Roomba | Requests and returns a fresh 26-byte OI sensor group 0 response. |
 
 `SerialData` contains a `uint8[] data` field. The Roomba node starts the
 robot in safe mode and uses 115200 baud by default.

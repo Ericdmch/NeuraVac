@@ -14,7 +14,8 @@ packet:
 ros2 service call /request_telemetry roomba_interfaces/srv/RequestTelemetry "{}"
 ```
 
-This service sends the OI Sensors command `[142, 0]`. The 2 Hz background
+This service sends the OI Sensors command `[142, 0]` and returns the complete
+26-byte packet. The 2 Hz background
 requests remain enabled for odometry and use the same small command and
 26-byte response. The [SCI manual](../../docs/Roomba/Roomba_SCI_manual.md)
 documents packet sizes, signed values, drive commands, LEDs, and songs.
