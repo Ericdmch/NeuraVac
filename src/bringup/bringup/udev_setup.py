@@ -140,6 +140,27 @@ def build_rules(selected, methods):
     return '\n'.join(lines) + '\n'
 
 
+def merge_rules(existing_text, generated_text):
+    """Replace newly selected device rules while preserving the other links."""
+    def entries(text):
+        lines = text.splitlines()
+        found = {}
+        for index, line in enumerate(lines[:-1]):
+            if line.startswith('# ') and ': matched by ' in line:
+                name = line[2:].split(':', 1)[0]
+                if name in DEVICES and f'SYMLINK+="neuravac_{name}"' in lines[index + 1]:
+                    found[name] = [line, lines[index + 1]]
+        return found
+
+    generated_lines = generated_text.splitlines()
+    merged = entries(existing_text)
+    merged.update(entries(generated_text))
+    lines = generated_lines[:3]
+    for name in DEVICES:
+        lines.extend(merged.get(name, []))
+    return '\n'.join(lines) + '\n'
+
+
 def detect(name, kind, prompt=input, sleep=time.sleep):
     """Unplug/replug one device and return the udev properties of the new node."""
     description = DEVICES[name][1]
@@ -197,6 +218,11 @@ def main(argv=None):
     methods = choose_methods(selected)
     try:
         rules = build_rules(selected, methods)
+        try:
+            with open(RULES_PATH, encoding='utf-8') as existing_file:
+                rules = merge_rules(existing_file.read(), rules)
+        except FileNotFoundError:
+            pass
     except ValueError as error:
         print(f'error: {error}', file=sys.stderr)
         return 1
