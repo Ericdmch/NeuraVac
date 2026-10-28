@@ -128,7 +128,7 @@ class SerialBridge:
 
 class LidarBridge:
     RECENT_POINT_MAX_AGE_SECONDS = 0.25
-    STREAM_BATCH_SECONDS = 0.01
+    STREAM_BATCH_SECONDS = 0.02
 
     def __init__(self, topic, data_type = LidarPoint):
         self.bridge = WebBridge(name='web_lidar_node')
@@ -167,6 +167,43 @@ class LidarBridge:
                 if sequence > after_sequence and timestamp >= cutoff
             ]
             return latest_sequence, points
+
+    def stream(self):
+        """Send only new LiDAR returns with their measurement age."""
+        sequence = 0
+        while True:
+            previous_sequence = sequence
+            with self._condition:
+                arrived = self._condition.wait_for(
+                    lambda: self._sequence > sequence,
+                    timeout=0.1,
+                )
+                if arrived:
+                    deadline = time.monotonic() + self.STREAM_BATCH_SECONDS
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            break
+                        self._condition.wait(timeout=remaining)
+                    sequence = self._sequence
+                    cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
+                    points = [
+                        (timestamp, point)
+                        for point_sequence, timestamp, point in self._points
+                        if point_sequence > previous_sequence and timestamp >= cutoff
+                    ]
+                else:
+                    points = []
+
+            now = time.monotonic()
+            batch = []
+            for timestamp, point in points:
+                x, y = self.polar_to_cartesian(
+                    point['angle_deg'], point['distance_mm']
+                )
+                age_ms = max(0.0, (now - timestamp) * 1000)
+                batch.append((x, y, age_ms))
+            yield f'data: {json.dumps(batch, separators=(",", ":"))}\n\n'
 
     def current_sequence(self):
         with self._condition:
@@ -307,36 +344,12 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
 
     @app.get('/lidar/stream')
     def lidar_stream():
-        def events():
-            sequence = lidar_bridge.current_sequence()
-            while True:
-                sequence, points = lidar_bridge.wait_for_points(sequence, timeout=1.0)
-                if not points:
-                    yield ': keepalive\n\n'
-                    continue
-
-                deadline = time.monotonic() + lidar_bridge.STREAM_BATCH_SECONDS
-                while True:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        break
-                    sequence, next_points = lidar_bridge.wait_for_points(
-                        sequence, timeout=remaining
-                    )
-                    points.extend(next_points)
-
-                scan = []
-                for point in points:
-                    x, y = lidar_bridge.polar_to_cartesian(
-                        point['angle_deg'], point['distance_mm']
-                    )
-                    scan.append({'x': x, 'y': y})
-                yield f'data: {json.dumps(scan, separators=(",", ":"))}\n\n'
-
         return Response(
-            events(),
-            mimetype='text/event-stream',
-            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+            lidar_bridge.stream(), mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache, no-transform',
+                'X-Accel-Buffering': 'no',
+            },
         )
 
     @app.get('/slam/map/stream')

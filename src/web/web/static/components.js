@@ -227,8 +227,10 @@ function LidarView() {
     // should move toward the robot marker, not get hidden by per-frame scaling.
     const maxRange = 8000;
 
-    canvas.width = width * scale;
-    canvas.height = height * scale;
+    if (canvas.width !== Math.round(width * scale) || canvas.height !== Math.round(height * scale)) {
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+    }
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, width, height);
     context.save();
@@ -295,8 +297,12 @@ function LidarView() {
       try {
         const batch = JSON.parse(event.data);
         const receivedAt = performance.now();
-        for (const point of batch) {
-          rollingPointsRef.current.push({ ...point, receivedAt });
+        const cutoff = receivedAt - 250;
+        rollingPointsRef.current = rollingPointsRef.current.filter(
+          point => point.receivedAt >= cutoff
+        );
+        for (const [x, y, ageMs] of batch) {
+          rollingPointsRef.current.push({ x, y, receivedAt: receivedAt - ageMs });
         }
         scheduleDraw();
       } catch (error) {
