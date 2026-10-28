@@ -223,10 +223,9 @@ function LidarView() {
     const context = canvas.getContext('2d');
     const { zoom, panX, panY } = viewRef.current;
     const radius = size * 0.46 * zoom;
-    const maxRange = Math.max(
-      ...scan.map((point) => Math.hypot(point.x, point.y)),
-      1
-    );
+    // Keep a physical scale: nearby returns (like a hand over the sensor)
+    // should move toward the robot marker, not get hidden by per-frame scaling.
+    const maxRange = 8000;
 
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -250,12 +249,11 @@ function LidarView() {
     context.stroke();
 
     scan.forEach((point) => {
-      const distance = Math.min(Math.hypot(point.x, point.y) / maxRange, 1) * radius;
-      const scale = Math.hypot(point.x, point.y) ? distance / Math.hypot(point.x, point.y) : 0;
-      const x = point.x * scale;
-      const y = point.y * scale;
+      const pointScale = radius / maxRange;
+      const x = point.x * pointScale;
+      const y = point.y * pointScale;
       context.fillStyle = '#ff8a3d';
-      context.fillRect(x - 1.5, y - 1.5, 3, 3);
+      context.fillRect(x - 2, y - 2, 4, 4);
     });
     context.restore();
   }
@@ -280,14 +278,7 @@ function LidarView() {
       scanRef.current = scan;
 
       if (scan.length) {
-        const maxRange = Math.max(
-          ...scan.map(point => Math.hypot(point.x, point.y)),
-          1
-        );
-        const nextRulerLength = Math.round(maxRange / 2);
-        setRulerLength(current =>
-          Math.abs(current - nextRulerLength) >= 25 ? nextRulerLength : current
-        );
+        setRulerLength(4000);
       }
       drawLidar(scan);
       setIsOnline(scan.length > 0);
@@ -434,6 +425,81 @@ function LidarView() {
   );
 }
 
+function SlamMapView() {
+  const canvasRef = React.useRef(null);
+  const [status, setStatus] = React.useState('WAITING FOR MAP');
+
+  React.useEffect(() => {
+    const stream = new EventSource('/slam/map/stream');
+    let latestMap = null;
+    function drawMap(map) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const context = canvas.getContext('2d');
+      const width = canvas.width = Math.max(1, canvas.clientWidth * devicePixelRatio);
+      const height = canvas.height = Math.max(1, canvas.clientHeight * devicePixelRatio);
+      context.fillStyle = '#0b121c'; context.fillRect(0, 0, width, height);
+      const binary = atob(map.data);
+      const cells = new Uint8Array(binary.length);
+      let minX = map.width, minY = map.height, maxX = -1, maxY = -1;
+      for (let i = 0; i < binary.length; i += 1) {
+        cells[i] = binary.charCodeAt(i);
+        if (cells[i] >= 40 && cells[i] !== 255) {
+          const x = i % map.width, y = Math.floor(i / map.width);
+          minX = Math.min(minX, x); minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+        }
+      }
+      if (maxX < 0) return;
+      const margin = 12;
+      minX = Math.max(0, minX - margin); minY = Math.max(0, minY - margin);
+      maxX = Math.min(map.width - 1, maxX + margin); maxY = Math.min(map.height - 1, maxY + margin);
+      const cropWidth = maxX - minX + 1, cropHeight = maxY - minY + 1;
+      const fit = Math.min(width / cropWidth, height / cropHeight);
+      const drawWidth = cropWidth * fit, drawHeight = cropHeight * fit;
+      const left = (width - drawWidth) / 2, top = (height - drawHeight) / 2;
+      const image = context.createImageData(cropWidth, cropHeight);
+      for (let y = 0; y < cropHeight; y += 1) {
+        for (let x = 0; x < cropWidth; x += 1) {
+          const value = cells[(minY + y) * map.width + minX + x];
+          const offset = (y * cropWidth + x) * 4;
+          if (value === 255) image.data.set([17, 27, 39, 255], offset);
+          else if (value >= 75) image.data.set([255, 138, 61, 255], offset);
+          else if (value >= 40) image.data.set([186, 133, 93, 235], offset);
+          else image.data.set([35, 51, 66, 255], offset);
+        }
+      }
+      const layer = document.createElement('canvas');
+      layer.width = cropWidth; layer.height = cropHeight;
+      layer.getContext('2d').putImageData(image, 0, 0);
+      context.imageSmoothingEnabled = false;
+      context.drawImage(layer, left, top, drawWidth, drawHeight);
+      const robotX = (0 - map.origin_x) / map.resolution;
+      const robotY = (0 - map.origin_y) / map.resolution;
+      if (robotX >= minX && robotX <= maxX && robotY >= minY && robotY <= maxY) {
+        context.fillStyle = '#63b3ff'; context.beginPath();
+        context.arc(left + (robotX - minX) * fit, top + (robotY - minY) * fit, 5 * devicePixelRatio, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+    stream.onmessage = event => {
+      try { latestMap = JSON.parse(event.data); drawMap(latestMap); setStatus('MAPPING · LIDAR ONLY'); }
+      catch (error) { console.error('Unable to decode LiDAR map.', error); }
+    };
+    stream.onerror = () => setStatus('WAITING FOR MAP');
+    const resize = () => { if (latestMap) drawMap(latestMap); };
+    window.addEventListener('resize', resize);
+    return () => { stream.close(); window.removeEventListener('resize', resize); };
+  }, []);
+
+  return <section className="lidar-view slam-map-view" aria-labelledby="slam-map-title">
+    <div className="lidar-header"><div><p className="console-label">2D OCCUPANCY GRID / SCAN MATCHING</p><h2 id="slam-map-title">Room map</h2></div>
+      <span className="connection-status is-online"><span className="status-dot" />{status}</span></div>
+    <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
+    <p className="panel-note slam-map-note">Orange = persistent wall returns · Blue = starting position · Map is built from LiDAR only</p>
+  </section>;
+}
+
 function CameraView() {
   const [frameUrl, setFrameUrl] = React.useState(null);
   const [isOnline, setIsOnline] = React.useState(false);
@@ -507,7 +573,7 @@ function App() {
         <Status online={!!telemetry?.online}>{telemetry?.online ? 'ROOMBA CONNECTED' : 'WAITING FOR ROOMBA'}</Status>
       </header>
       <div className="dashboard-grid">
-        <div className="visual-column"><CameraView /><LidarView /></div>
+        <div className="visual-column"><CameraView /><LidarView /><SlamMapView /></div>
         <aside className="control-column"><SensorPanel telemetry={telemetry} /><RemoteOverride /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />

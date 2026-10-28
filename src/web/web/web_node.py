@@ -1,5 +1,6 @@
 from collections import deque
 import json
+import base64
 import math
 import os
 import threading
@@ -7,6 +8,7 @@ import time
 
 from ament_index_python.packages import get_package_share_directory
 from flask import Flask, Response, jsonify, render_template, request
+from nav_msgs.msg import OccupancyGrid
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -136,6 +138,10 @@ class LidarBridge:
         self._condition = threading.Condition()
         self._points = deque(maxlen=1440)
         self._sequence = 0
+        self._map_condition = threading.Condition()
+        self._map_sequence = 0
+        self._map = None
+        self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
 
     def lidar_callback(self, msg):
         point = {
@@ -165,6 +171,28 @@ class LidarBridge:
     def current_sequence(self):
         with self._condition:
             return self._sequence
+
+    def map_callback(self, message):
+        encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
+        payload = {
+            'width': int(message.info.width),
+            'height': int(message.info.height),
+            'resolution': float(message.info.resolution),
+            'origin_x': float(message.info.origin.position.x),
+            'origin_y': float(message.info.origin.position.y),
+            'data': encoded,
+        }
+        with self._map_condition:
+            self._map = payload
+            self._map_sequence += 1
+            self._map_condition.notify_all()
+
+    def wait_for_map(self, after_sequence, timeout):
+        with self._map_condition:
+            self._map_condition.wait_for(
+                lambda: self._map_sequence > after_sequence, timeout=timeout
+            )
+            return self._map_sequence, self._map
 
     def snapshot(self):
         cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
@@ -308,6 +336,22 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         return Response(
             events(),
             mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+        )
+
+    @app.get('/slam/map/stream')
+    def slam_map_stream():
+        def events():
+            sequence = 0
+            while True:
+                sequence, occupancy = lidar_bridge.wait_for_map(sequence, timeout=15.0)
+                if occupancy is None:
+                    yield ': waiting for LiDAR map\n\n'
+                    continue
+                yield f'data: {json.dumps(occupancy, separators=(",", ":"))}\n\n'
+
+        return Response(
+            events(), mimetype='text/event-stream',
             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
         )
 

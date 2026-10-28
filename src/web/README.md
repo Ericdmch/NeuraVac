@@ -9,6 +9,9 @@ The LiDAR panel receives points through a server-sent event stream. The web
 node batches arriving points for at most 10 ms, and the browser redraws on its
 next animation frame instead of waiting for another HTTP poll. The display
 keeps points from the preceding 250 ms, up to the latest 1,440 buffered points.
+The polar scan uses a fixed 8 m display scale so nearby returns remain visibly
+close to the robot marker. The **Room map** panel displays `/slam/map`, the
+occupancy grid published by `neuravac_slam`.
 
 The dashboard polls Roomba 680 OI sensor group 0 (`142 0`) at 2 Hz via the
 existing `serial_tx` / `serial_rx` ROS topics. `/telemetry` returns battery,
@@ -33,7 +36,7 @@ ROS 2 Jazzy packages must be available to the same Python interpreter.
 ```bash
 source /opt/ros/jazzy/setup.bash
 cd ~/Neuravac
-colcon build --packages-select web --symlink-install
+colcon build --packages-up-to web --symlink-install
 source install/setup.bash
 ~/neuravac-web-venv/bin/python -c 'from web.web_node import main; main()'
 ```
@@ -60,6 +63,16 @@ reboots. It is not configured to start on boot.
 `NEURAVAC_WEB_ROOT` can point to a directory containing `templates` and
 `static` when running a frozen dashboard release independently of ROS's
 installed asset directory.
+
+## LiDAR-only mapping
+
+`neuravac_slam` consumes `lidar_points`, groups full rotations, estimates pose
+by scan matching against its occupancy grid, and publishes `slam/map` at 2
+Hz. It does not use camera or Roomba odometry. Launch it by default with
+`ros2 launch bringup robot.launch.py`; use `use_slam:=false` to turn mapping
+off. Maps persist for the life of the node and reset on restart. Run the robot
+slowly in a room with relatively stationary walls; this initial mapper has no
+loop closure, so accumulated pose drift can distort large or repeated paths.
 
 The telemetry deployment runs from `~/neuravac-dashboard/20261024-telemetry`
 to avoid concurrent checkout edits replacing the running version. The Pi's
