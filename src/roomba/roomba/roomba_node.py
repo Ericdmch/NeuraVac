@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+import math
+
 import rclpy
 from rclpy.node import Node
+from nav_msgs.msg import Odometry
 from roomba_interfaces.msg import SerialData
+from roomba_interfaces.srv import RequestTelemetry
 import serial
 from serial import SerialException
 
@@ -50,6 +54,15 @@ class Roomba(Node):
             self.write_serial,
             10
         )
+        self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
+        self._sensor_query_timer = self.create_timer(0.5, self.request_group_zero)
+        self._sensor_service = self.create_service(
+            RequestTelemetry, 'request_telemetry', self.request_telemetry
+        )
+        self._sensor_buffer = bytearray()
+        self._odom_x = 0.0
+        self._odom_y = 0.0
+        self._odom_yaw = 0.0
         
         # Testing
         if DEBUG:
@@ -65,6 +78,14 @@ class Roomba(Node):
         msg = SerialData()
         msg.data = list(data)
         self.serial_rx.publish(msg)
+        self._sensor_buffer.extend(data)
+        while len(self._sensor_buffer) >= 26:
+            packet = bytes(self._sensor_buffer[:26])
+            if any(value not in (0, 1) for value in packet[1:7]) or packet[16] > 5:
+                del self._sensor_buffer[0]
+                continue
+            del self._sensor_buffer[:26]
+            self.publish_odometry(packet)
         # self.get_logger().info(f'Read {len(data)} bytes from serial: {data}')
 
     def write_serial(self, data : SerialData):
@@ -86,6 +107,50 @@ class Roomba(Node):
             )
         except SerialException as error:
             self.get_logger().error(f'Error writing to serial port: {error}')
+
+    def request_group_zero(self):
+        """Read group 0 for incremental odometry and latest sensor state."""
+        self._write_bytes(bytes((142, 0)))
+
+    def request_telemetry(self, _request, response):
+        """Trigger an immediate group 0 reading through the ROS service."""
+        try:
+            self._write_bytes(bytes((142, 0)))
+            response.accepted = True
+            response.message = 'Requested Roomba sensor group 0 (26 bytes).'
+        except SerialException as error:
+            response.accepted = False
+            response.message = str(error)
+        return response
+
+    def _write_bytes(self, payload):
+        if not self.serial.is_open:
+            raise SerialException('Roomba serial port is not open')
+        self.serial.write(payload)
+
+    def publish_odometry(self, packet):
+        distance_m = int.from_bytes(packet[12:14], 'big', signed=True) / 1000.0
+        delta_yaw = math.radians(int.from_bytes(packet[14:16], 'big', signed=True))
+        mid_yaw = self._odom_yaw + delta_yaw / 2.0
+        self._odom_x += distance_m * math.cos(mid_yaw)
+        self._odom_y += distance_m * math.sin(mid_yaw)
+        self._odom_yaw = math.atan2(
+            math.sin(self._odom_yaw + delta_yaw),
+            math.cos(self._odom_yaw + delta_yaw),
+        )
+
+        message = Odometry()
+        message.header.stamp = self.get_clock().now().to_msg()
+        message.header.frame_id = 'odom'
+        message.child_frame_id = 'base_link'
+        message.pose.pose.position.x = self._odom_x
+        message.pose.pose.position.y = self._odom_y
+        message.pose.pose.orientation.z = math.sin(self._odom_yaw / 2.0)
+        message.pose.pose.orientation.w = math.cos(self._odom_yaw / 2.0)
+        message.pose.covariance[0] = 0.03
+        message.pose.covariance[7] = 0.03
+        message.pose.covariance[35] = 0.08
+        self.odom_pub.publish(message)
 
     def destroy_node(self):
         if hasattr(self, 'serial') and self.serial.is_open:

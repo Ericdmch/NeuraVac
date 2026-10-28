@@ -15,6 +15,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LidarPoint.msg"
   "msg/VisionDetection.msg"
   "msg/VisionDetectionArray.msg"
+  "srv/RequestTelemetry.srv"
   DEPENDENCIES std_msgs
 )
 
