@@ -73,6 +73,13 @@ def launch_setup(context):
             respawn=True, respawn_delay=3.0,
         ))
 
+        if enabled(context, 'use_slam'):
+            nodes.append(Node(
+                package='neuravac_slam', executable='slam_node', name='neuravac_slam',
+                parameters=[package_config('neuravac_slam', 'slam_params.yaml')],
+                output='screen', respawn=True, respawn_delay=3.0,
+            ))
+
     use_vision = enabled(context, 'use_vision')
     if use_vision:
         nodes.append(Node(
@@ -102,6 +109,8 @@ def generate_launch_description():
                               description='Start the Roomba serial node'),
         DeclareLaunchArgument('use_lidar', default_value='true',
                               description='Start the LiDAR node'),
+        DeclareLaunchArgument('use_slam', default_value='true',
+                              description='Build a 2D map from LiDAR scans'),
         DeclareLaunchArgument('use_vision', default_value='true',
                               description='Start the camera/detection node '
                                           '(it then owns the webcam)'),

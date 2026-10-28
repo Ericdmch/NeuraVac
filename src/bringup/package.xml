@@ -12,6 +12,7 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>roomba</exec_depend>
   <exec_depend>lidar</exec_depend>
+  <exec_depend>neuravac_slam</exec_depend>
   <exec_depend>vision</exec_depend>
   <exec_depend>web</exec_depend>
 

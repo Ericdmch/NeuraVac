@@ -40,11 +40,12 @@ all = [
 # is mapped explicitly. (colcon builds the same code through each package's own
 # setup.py; this file is for the pip/venv side.)
 [tool.setuptools]
-packages = ["bringup", "lidar", "roomba", "vision", "web"]
+packages = ["bringup", "lidar", "neuravac_slam", "roomba", "vision", "web"]
 
 [tool.setuptools.package-dir]
 bringup = "src/bringup/bringup"
 lidar = "src/lidar/lidar"
+neuravac_slam = "src/neuravac_slam/neuravac_slam"
 roomba = "src/roomba/roomba"
 vision = "src/vision/vision"
 web = "src/web/web"

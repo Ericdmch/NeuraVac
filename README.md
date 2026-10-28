@@ -26,16 +26,19 @@ topics instead of depending on each other directly:
 flowchart LR
     Roomba[ iRobot Roomba ] <-->|USB serial<br/>115200 baud| R[roomba_node]
     Lidar[USB LiDAR] -->|USB serial<br/>230400 baud| L[lidar_node]
+    L -->|lidar_points| S[neuravac_slam]
     Camera[USB camera] --> V[vision_node]
     Bundle[(floor-vision-pi<br/>inference bundle)] --> V
 
     R -->|serial_rx| W[web_node]
     W -->|serial_tx| R
     L -->|lidar_points<br/>10 ms push batches| W
+    S -->|slam/map<br/>OccupancyGrid| W
     V -->|camera frames<br/>detections| W
     W --> Browser[Web browser<br/>:5000]
     B[bringup<br/>robot.launch.py] -. starts .-> R
     B -. starts .-> L
+    B -. starts .-> S
     B -. starts .-> V
     B -. starts .-> W
 ```
@@ -49,12 +52,22 @@ The dashboard streams LiDAR updates as they arrive, batching points for up to
 10 ms before sending them to the browser. The browser draws on its next frame
 and keeps a rolling 250 ms of points visible.
 
+The `neuravac_slam` node groups each revolution into a scan, estimates robot
+motion by matching LiDAR returns against the accumulated occupancy grid, and
+publishes `/slam/map`. It uses LiDAR only: no camera, wheel odometry, or
+external SLAM service. The dashboard's **Room map** panel shows the growing
+map; stronger wall returns appear brighter. The map is held in memory and
+starts fresh when the node restarts. This initial scan matcher is intended
+for slow mapping in small rooms; without loop closure, long drives can drift,
+and moving objects can leave temporary marks.
+
 ## ROS 2 packages
 
 | Package | Type | Responsibility |
 | --- | --- | --- |
 | [`roomba`](src/roomba) | `ament_python` | Opens the Roomba serial port, sends Open Interface commands, and publishes/receives raw serial bytes. |
 | [`lidar`](src/lidar) | `ament_python` | Reads the LiDAR serial stream, validates packets, decodes angle/distance/intensity, and publishes points. |
+| [`neuravac_slam`](src/neuravac_slam) | `ament_python` | Matches LiDAR scans and publishes a persistent-in-session 2D occupancy grid. |
 | [`roomba_interfaces`](src/roomba_interfaces) | `ament_cmake` | Builds the custom ROS 2 messages shared by the nodes. |
 | [`vision`](src/vision) | `ament_python` | Captures camera frames, runs the deployed floor-vision model, and publishes detections. |
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
@@ -77,6 +90,7 @@ robot in safe mode and uses 115200 baud by default.
 | Topic | Type | Purpose |
 | --- | --- | --- |
 | `lidar_points` | `roomba_interfaces/msg/LidarPoint` | Decoded points containing `angle_deg`, `distance_mm`, and `intensity`. |
+| `slam/map` | `nav_msgs/msg/OccupancyGrid` | LiDAR-only 2D room map in the `map` frame. |
 
 The LiDAR node expects the D6 packet format described in the source and uses
 230400 baud by default.
@@ -122,7 +136,7 @@ source install/setup.bash
 When only one package is being developed, a focused build is faster:
 
 ```bash
-colcon build --packages-select roomba_interfaces roomba lidar vision web bringup --symlink-install
+colcon build --packages-select roomba_interfaces roomba lidar neuravac_slam vision web bringup --symlink-install
 ```
 
 Build `vision` after its model bundle dependencies are installed:
@@ -176,8 +190,9 @@ source ~/Neuravac/install/setup.bash
 ros2 launch bringup robot.launch.py
 ```
 
-This launch file starts `roomba_node`, `lidar_node`, `vision_node`, and
-`web_node` together. The Roomba and LiDAR nodes automatically retry every
+This launch file starts `roomba_node`, `lidar_node`, `neuravac_slam`,
+`vision_node`, and `web_node` together. Set `use_slam:=false` to disable
+mapping while leaving the LiDAR view active. The Roomba and LiDAR nodes automatically retry every
 three seconds if a serial device is temporarily unplugged. Open
 <http://localhost:5000> from a browser on the robot or forward port 5000 over
 SSH to use the dashboard.
@@ -186,6 +201,7 @@ The launch file also supports these arguments:
 
 ```bash
 ros2 launch bringup robot.launch.py use_vision:=false
+ros2 launch bringup robot.launch.py use_slam:=false
 ros2 launch bringup robot.launch.py use_lidar:=false use_roomba:=false
 ros2 launch bringup robot.launch.py use_web:=false
 ```
