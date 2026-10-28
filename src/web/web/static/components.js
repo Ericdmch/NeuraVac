@@ -22,16 +22,32 @@ function useTelemetry() {
         if (!stopped) setTelemetry(null);
       } finally {
         window.clearTimeout(timeout);
-        if (!stopped) timer = window.setTimeout(update, 500);
+        if (!stopped) timer = window.setTimeout(update, 5000);
       }
     }
     update();
     return () => { stopped = true; window.clearTimeout(timer); controller?.abort(); };
   }, []);
-  return telemetry;
+  async function requestTelemetry() {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3000);
+    try {
+      const response = await fetch('/telemetry/request', {
+        method: 'POST', cache: 'no-store', signal: controller.signal,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      setTelemetry(result);
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+  return { telemetry, requestTelemetry };
 }
 
-function SensorPanel({ telemetry }) {
+function SensorPanel({ telemetry, onRequestTelemetry }) {
+  const [requesting, setRequesting] = React.useState(false);
+  const [requestError, setRequestError] = React.useState('');
   const values = telemetry?.online ? telemetry.values : null;
   const percent = values?.battery_percent;
   const flags = [
@@ -42,10 +58,22 @@ function SensorPanel({ telemetry }) {
     ['wall', 'Wall'], ['virtual_wall', 'Virtual wall'], ['overcurrent', 'Overcurrent'],
   ];
   const format = (key, unit) => values?.[key] == null ? '—' : `${values[key]}${unit}`;
+  async function requestNow() {
+    setRequesting(true);
+    setRequestError('');
+    try { await onRequestTelemetry(); }
+    catch (error) { setRequestError(error.message || 'Sensor request failed'); }
+    finally { setRequesting(false); }
+  }
   return <section className="sensor-panel panel" aria-labelledby="sensor-title">
     <div className="panel-header">
       <div><p className="console-label">ROOMBA / TELEMETRY</p><h2 id="sensor-title">Robot sensors</h2></div>
-      <Status online={!!values}>{values ? 'LIVE' : 'NO DATA'}</Status>
+      <div className="telemetry-actions">
+        <button className="telemetry-refresh" type="button" onClick={requestNow} disabled={requesting}>
+          {requesting ? 'REQUESTING…' : 'REQUEST NOW'}
+        </button>
+        <Status online={!!values}>{values ? 'LIVE' : 'NO DATA'}</Status>
+      </div>
     </div>
     <div className="sensor-body">
       <div className="battery-heading">
@@ -69,7 +97,7 @@ function SensorPanel({ telemetry }) {
         <span>Since last read <b>{format('distance_mm', ' mm')}</b></span>
         <span>Turn <b>{format('angle_deg', '°')}</b></span>
       </div>
-      <p className="panel-note">{values ? `Updated ${telemetry.age_seconds.toFixed(1)} s ago · polls at 2 Hz` : 'Readings unavailable or older than 2 s.'}</p>
+      <p className="panel-note">{requestError || (values ? `Updated ${telemetry.age_seconds.toFixed(1)} s ago · display refreshes every 5 s` : 'Waiting for Roomba sensor data…')}</p>
     </div>
   </section>;
 }
@@ -499,10 +527,10 @@ function SlamMapView() {
   }, []);
 
   return <section className="lidar-view slam-map-view" aria-labelledby="slam-map-title">
-    <div className="lidar-header"><div><p className="console-label">2D OCCUPANCY GRID / SCAN MATCHING</p><h2 id="slam-map-title">Room map</h2></div>
-      <span className="connection-status is-online"><span className="status-dot" />{status}</span></div>
+    <div className="lidar-header"><div><p className="console-label">LIDAR + WHEEL ODOMETRY / SCAN MATCHED</p><h2 id="slam-map-title">Room map</h2></div>
+      <span className={`connection-status ${status === 'WAITING FOR MAP' ? '' : 'is-online'}`}><span className="status-dot" />{status}</span></div>
     <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
-    <p className="panel-note slam-map-note">Orange = persistent wall returns · Blue = starting position · Map is built from LiDAR only</p>
+    <p className="panel-note slam-map-note">Orange = persistent wall returns · Blue = map origin · LiDAR scan matching corrects wheel odometry</p>
   </section>;
 }
 
@@ -571,7 +599,7 @@ function CameraView() {
 }
 
 function App() {
-  const telemetry = useTelemetry();
+  const { telemetry, requestTelemetry } = useTelemetry();
   return (
     <main className="page">
       <header className="site-header">
@@ -580,7 +608,7 @@ function App() {
       </header>
       <div className="dashboard-grid">
         <div className="visual-column"><CameraView /><LidarView /><SlamMapView /></div>
-        <aside className="control-column"><SensorPanel telemetry={telemetry} /><RemoteOverride /></aside>
+        <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><RemoteOverride /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />
       <footer>NeuraVac · Live readings from the Raspberry Pi</footer>

@@ -13,6 +13,7 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
+from roomba_interfaces.srv import RequestTelemetry
 
 from .override import roomba_drive
 from .camera import CameraCapture, LatestJpeg
@@ -93,14 +94,40 @@ class SerialBridge:
         self._rx_log = deque(maxlen=8)
         self._rx_sequence = 0
         self.bridge.add_subscriber(SerialData, 'serial_rx', self.receive_serial)
-        self._sensor_timer = self.bridge.create_timer(0.5, self.poll_sensors)
+        self._telemetry_client = self.bridge.create_client(
+            RequestTelemetry, 'request_telemetry'
+        )
 
-    def poll_sensors(self):
-        if self.publisher.get_subscription_count() and self.sensors.request(time.monotonic()):
-            self.send_message(SerialData(data=[142, 0]))
+    def request_telemetry(self):
+        if not self._telemetry_client.wait_for_service(timeout_sec=0.5):
+            return False
+        before = self.sensors.version()
+        if not self.sensors.request(time.monotonic()):
+            return False
+
+        completed = threading.Event()
+        future = self._telemetry_client.call_async(RequestTelemetry.Request())
+        future.add_done_callback(lambda _future: completed.set())
+        if not completed.wait(timeout=1.0):
+            self.sensors.cancel_request()
+            return False
+        try:
+            response = future.result()
+        except Exception:
+            self.sensors.cancel_request()
+            return False
+        if not response.accepted:
+            self.sensors.cancel_request()
+            return False
+        if not self.sensors.wait_for_update(before, timeout=1.0):
+            self.sensors.cancel_request()
+            return False
+        return True
 
     def receive_serial(self, message):
-        self.sensors.receive(bytes(message.data), time.monotonic())
+        now = time.monotonic()
+        self.sensors.request(now)
+        self.sensors.receive(bytes(message.data), now)
         with self._rx_lock:
             self._rx_sequence += 1
             self._rx_log.append({
@@ -270,6 +297,14 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
 
     @app.get('/telemetry')
     def telemetry():
+        response = jsonify(serial_bridge.snapshot())
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.post('/telemetry/request')
+    def request_telemetry():
+        if not serial_bridge.request_telemetry():
+            return jsonify(error='No fresh Roomba sensor response was received.'), 503
         response = jsonify(serial_bridge.snapshot())
         response.headers['Cache-Control'] = 'no-store'
         return response

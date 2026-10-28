@@ -46,7 +46,7 @@ def decode_group_zero(packet):
 
 class SensorState:
     RESPONSE_TIMEOUT = 0.4
-    MAX_AGE = 2.0
+    MAX_AGE = 15.0
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -54,6 +54,8 @@ class SensorState:
         self._buffer = bytearray()
         self._values = None
         self._updated = None
+        self._version = 0
+        self._condition = threading.Condition(self._lock)
 
     def request(self, now):
         with self._lock:
@@ -72,17 +74,35 @@ class SensorState:
                 self._buffer.clear()
                 return
             self._buffer.extend(data)
-            if len(self._buffer) < 26:
-                return
+            while len(self._buffer) >= 26:
+                packet = bytes(self._buffer[:26])
+                try:
+                    values = decode_group_zero(packet)
+                except ValueError:
+                    del self._buffer[0]
+                    continue
+                del self._buffer[:26]
+                self._pending = None
+                self._values = values
+                self._updated = now
+                self._version += 1
+                self._condition.notify_all()
+
+    def version(self):
+        with self._lock:
+            return self._version
+
+    def wait_for_update(self, after_version, timeout):
+        with self._condition:
+            return self._condition.wait_for(
+                lambda: self._version > after_version,
+                timeout=timeout,
+            )
+
+    def cancel_request(self):
+        with self._lock:
             self._pending = None
-            try:
-                values = decode_group_zero(self._buffer)
-            except ValueError:
-                self._buffer.clear()
-                return
             self._buffer.clear()
-            self._values = values
-            self._updated = now
 
     def snapshot(self, now):
         with self._lock:
