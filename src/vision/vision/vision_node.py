@@ -273,9 +273,9 @@ class VisionNode(Node):
         except Exception as error:
             self.get_logger().fatal(f'Camera stopped after recovery attempts: {error}')
             self._publish_invalid_batch(self.get_clock().now().to_msg())
-            if rclpy.ok():
-                rclpy.shutdown()
-            return
+            raise RuntimeError(
+                f'Camera stopped after recovery attempts: {error}'
+            ) from error
 
         stamp = self.get_clock().now().to_msg()
         if frame is None:
@@ -310,6 +310,7 @@ class VisionNode(Node):
             self._publish_invalid_batch(stamp)
             return
 
+        height, width = frame.shape[:2]
         batch = VisionDetectionArray()
         batch.header.stamp = stamp
         batch.header.frame_id = self._camera_frame_id
@@ -389,6 +390,7 @@ class VisionNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = None
+    executor = None
     try:
         node = VisionNode()
         executor = MultiThreadedExecutor(num_threads=2)
@@ -403,6 +405,8 @@ def main(args=None):
             print(f'Could not start vision node: {error}', file=sys.stderr)
         raise
     finally:
+        if executor is not None:
+            executor.shutdown()
         if node is not None:
             node.destroy_node()
         if rclpy.ok():
