@@ -5,6 +5,14 @@
 JPEG up to five times per second; unavailable or stale frames show OFFLINE
 and reconnect automatically. This feed shows the raw camera image.
 
+The **LEDs & songs** panel controls the Roomba power LED's color and intensity
+through OI command 139. Its song editor accepts note tokens such as
+`C4:32 D4:32`, converts them to MIDI note numbers, and sends song definition
+and play commands 140/141. The SCI supports song slots 0–15 and up to 16 notes
+per song. Durations use 1/64-second units. See
+[`docs/Roomba/Roomba_SCI_manual.md`](../../docs/Roomba/Roomba_SCI_manual.md)
+for the device's LED and note ranges.
+
 The LiDAR panel receives points through a server-sent event stream. The web
 node sends incremental, timestamped batches with at most 20 ms coalescing, and
 the browser redraws on its next animation frame instead of waiting for another

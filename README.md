@@ -312,6 +312,7 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 ├── src/
 │   ├── bringup/          Full-robot launch file and USB udev setup
 │   ├── lidar/            LiDAR ROS 2 node and configuration
+│   ├── neuravac_slam/    LiDAR scan matching and 2D occupancy mapping
 │   ├── roomba/           Roomba serial ROS 2 node and configuration
 │   ├── roomba_interfaces/Custom ROS 2 messages
 │   ├── vision/           Camera and floor-object detection node
@@ -322,6 +323,11 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 ```
 
 ## Hardware and protocol references
+
+The web dashboard has an **LEDs & songs** panel for the power LED and short
+Roomba tunes. The editor accepts note tokens such as `C4:32 D4:32`; durations
+are measured in 1/64-second units. LED and song command limits are documented
+in the [SCI manual](docs/Roomba/Roomba_SCI_manual.md).
 
 - [Roomba SCI manual](docs/Roomba/Roomba_SCI_manual.md)
 - [LiDAR documentation](docs/Lidar)

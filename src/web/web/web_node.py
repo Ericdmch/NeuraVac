@@ -382,6 +382,44 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
 
         return jsonify(key=key, pressed=pressed, speed=speed)
 
+    @app.post('/roomba/led')
+    def roomba_led():
+        payload = request.get_json(silent=True) or {}
+        color = payload.get('color')
+        intensity = payload.get('intensity')
+        if any(not isinstance(value, int) or isinstance(value, bool)
+               or value < 0 or value > 255 for value in (color, intensity)):
+            return jsonify(error='Color and intensity must be integers from 0 to 255.'), 400
+        serial_bridge.send_message(SerialData(data=[139, 0, color, intensity]))
+        return jsonify(sent=True, color=color, intensity=intensity)
+
+    @app.post('/roomba/song')
+    def roomba_song():
+        payload = request.get_json(silent=True) or {}
+        song_number = payload.get('song_number')
+        notes = payload.get('notes')
+        if (not isinstance(song_number, int) or isinstance(song_number, bool)
+                or not 0 <= song_number <= 15):
+            return jsonify(error='Song number must be an integer from 0 to 15.'), 400
+        if not isinstance(notes, list) or not 1 <= len(notes) <= 16:
+            return jsonify(error='A song must contain between 1 and 16 notes.'), 400
+
+        note_bytes = []
+        for item in notes:
+            if not isinstance(item, dict):
+                return jsonify(error='Each note must contain note and duration values.'), 400
+            note, duration = item.get('note'), item.get('duration')
+            if (not isinstance(note, int) or isinstance(note, bool) or not 31 <= note <= 127
+                    or not isinstance(duration, int) or isinstance(duration, bool)
+                    or not 0 <= duration <= 255):
+                return jsonify(error='Notes must be 31–127 and durations 0–255.'), 400
+            note_bytes.extend((note, duration))
+
+        # Define the selected slot and play it in one ordered serial write.
+        command = [140, song_number, len(notes), *note_bytes, 141, song_number]
+        serial_bridge.send_message(SerialData(data=command))
+        return jsonify(sent=True, song_number=song_number, note_count=len(notes))
+
     @app.get('/lidar')
     def lidar():
         points = lidar_bridge.snapshot()

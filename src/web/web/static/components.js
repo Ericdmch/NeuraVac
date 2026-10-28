@@ -625,6 +625,84 @@ function CameraView() {
   );
 }
 
+function RoombaEffects() {
+  const [color, setColor] = React.useState(0);
+  const [intensity, setIntensity] = React.useState(180);
+  const [songNumber, setSongNumber] = React.useState(0);
+  const [notesText, setNotesText] = React.useState('C4:24 E4:24 G4:24 C5:48');
+  const [status, setStatus] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const hue = 120 - (color * 120 / 255);
+
+  async function send(path, body) {
+    setBusy(true);
+    setStatus('');
+    try {
+      const response = await fetch(path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      setStatus('Command sent');
+    } catch (error) { setStatus(error.message || 'Roomba command failed'); }
+    finally { setBusy(false); }
+  }
+
+  function playSong(event) {
+    event.preventDefault();
+    const names = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    const tokens = notesText.trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length || tokens.length > 16) {
+      setStatus('Enter between 1 and 16 notes, for example C4:32 D4:32');
+      return;
+    }
+    const notes = [];
+    for (const token of tokens) {
+      const match = /^([A-G])(#?)([1-9]):(\d{1,3})$/i.exec(token);
+      if (!match) { setStatus(`Invalid note “${token}”. Use note names like C4:32.`); return; }
+      const note = (Number(match[3]) + 1) * 12 + names[match[1].toUpperCase()] + (match[2] ? 1 : 0);
+      const duration = Number(match[4]);
+      if (note < 31 || note > 127 || duration < 0 || duration > 255) {
+        setStatus(`${token} is outside the Roomba note or duration range.`); return;
+      }
+      notes.push({ note, duration });
+    }
+    send('/roomba/song', { song_number: Number(songNumber), notes });
+  }
+
+  return <section className="panel roomba-effects" aria-labelledby="effects-title">
+    <div className="panel-header"><div><p className="console-label">OI ACCESSORIES</p><h2 id="effects-title">LEDs & songs</h2></div></div>
+    <div className="effects-body">
+      <div className="effect-heading"><h3>Power LED</h3><span className="led-preview" style={{ backgroundColor: `hsl(${hue} 100% 50% / ${Math.max(0.12, intensity / 255)})` }} /></div>
+      <label className="effect-control">Color <span>{color < 128 ? 'Green' : 'Red'} · {color}</span>
+        <input aria-label="Power LED color from green to red" type="range" min="0" max="255" value={color}
+          onChange={event => setColor(Number(event.target.value))} />
+      </label>
+      <label className="effect-control">Intensity <span>{intensity}</span>
+        <input aria-label="Power LED intensity" type="range" min="0" max="255" value={intensity}
+          onChange={event => setIntensity(Number(event.target.value))} />
+      </label>
+      <button className="effect-button" disabled={busy} onClick={() => send('/roomba/led', { color, intensity })}>Set LED</button>
+
+      <form className="song-form" onSubmit={playSong}>
+        <h3>Play a tune</h3>
+        <label className="effect-control">Song slot (0–15)
+          <input type="number" min="0" max="15" value={songNumber}
+            onChange={event => setSongNumber(event.target.value)} />
+        </label>
+        <label className="effect-control">Notes · note:duration
+          <input type="text" value={notesText} maxLength="180" placeholder="C4:32 D4:32 E4:48"
+            onChange={event => setNotesText(event.target.value)} />
+        </label>
+        <p className="panel-note">MIDI note names; duration is in 1/64-second units. Up to 16 notes.</p>
+        <button className="effect-button" type="submit" disabled={busy}>Save & play</button>
+      </form>
+      {status && <p className="panel-note effect-status" role="status">{status}</p>}
+    </div>
+  </section>;
+}
+
 function App() {
   const { telemetry, requestTelemetry } = useTelemetry();
   return (
@@ -635,7 +713,7 @@ function App() {
       </header>
       <div className="dashboard-grid">
         <div className="visual-column"><CameraView /><LidarView /><SlamMapView /></div>
-        <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><RemoteOverride /></aside>
+        <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><RemoteOverride /><RoombaEffects /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />
       <footer>NeuraVac · Live readings from the Raspberry Pi</footer>
