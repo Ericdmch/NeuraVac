@@ -6,6 +6,7 @@ import threading
 import numpy as np
 import rclpy
 from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint
 
@@ -35,16 +36,56 @@ class LidarMapper(Node):
         self._last_angle = None
         self._last_scan = None
         self._pose = np.zeros(3, dtype=np.float64)
+        self._odom_pose = None
+        self._odom_at_last_scan = None
         self._lock = threading.Lock()
         self._map_version = 0
         self._published_version = -1
         self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 50)
+        self.create_subscription(Odometry, 'odom', self.on_odometry, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
         self.create_timer(1.0 / max(0.2, float(value('map_publish_hz'))), self.publish_map)
         self.get_logger().info(
             f'LiDAR-only SLAM ready: {self.size}x{self.size}, '
-            f'{self.resolution:.2f} m/cell; no camera or wheel odometry used'
+            f'{self.resolution:.2f} m/cell; wheel odometry is a scan-matching prior'
         )
+
+    def on_odometry(self, message):
+        q = message.pose.pose.orientation
+        yaw = math.atan2(
+            2.0 * (q.w * q.z + q.x * q.y),
+            1.0 - 2.0 * (q.y * q.y + q.z * q.z),
+        )
+        self._odom_pose = np.array((
+            message.pose.pose.position.x,
+            message.pose.pose.position.y,
+            yaw,
+        ), dtype=np.float64)
+
+    def _predict_from_odometry(self):
+        if self._odom_pose is None:
+            return
+        current = self._odom_pose.copy()
+        if self._odom_at_last_scan is None:
+            self._odom_at_last_scan = current
+            return
+        previous = self._odom_at_last_scan
+        delta_x, delta_y = current[0] - previous[0], current[1] - previous[1]
+        c, s = math.cos(previous[2]), math.sin(previous[2])
+        local_delta = np.array((c * delta_x + s * delta_y,
+                                -s * delta_x + c * delta_y))
+        c, s = math.cos(self._pose[2]), math.sin(self._pose[2])
+        self._pose[:2] += np.array((c * local_delta[0] - s * local_delta[1],
+                                    s * local_delta[0] + c * local_delta[1]))
+        yaw_delta = math.atan2(
+            math.sin(current[2] - previous[2]),
+            math.cos(current[2] - previous[2]),
+        )
+        self._pose[2] = math.atan2(
+            math.sin(self._pose[2] + yaw_delta),
+            math.cos(self._pose[2] + yaw_delta),
+        )
+        self._odom_at_last_scan = current
 
     def on_point(self, message):
         angle = math.radians(float(message.angle_deg) % 360.0)
@@ -111,7 +152,10 @@ class LidarMapper(Node):
             return
         with self._lock:
             if self._last_scan is not None:
+                self._predict_from_odometry()
                 self._pose = self._match_scan(points)
+            elif self._odom_pose is not None:
+                self._odom_at_last_scan = self._odom_pose.copy()
             theta = self._pose[2]
             c, s = math.cos(theta), math.sin(theta)
             rotation = np.array(((c, -s), (s, c)))
