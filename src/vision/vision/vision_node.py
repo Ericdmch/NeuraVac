@@ -4,10 +4,12 @@
 import importlib
 import math
 import sys
+import threading
 from pathlib import Path
 
 import rclpy
-from rclpy.executors import ExternalShutdownException
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from roomba_interfaces.msg import VisionDetection, VisionDetectionArray
@@ -68,6 +70,7 @@ class VisionNode(Node):
         self.declare_parameter('flip_code', -1)  # Added safely without duplicating width
         self.declare_parameter('device', 'cpu')
         self.declare_parameter('threads', 3)
+        self.declare_parameter('camera_publish_hz', 12.0)
         self.declare_parameter('inference_hz', 5.0)
         self.declare_parameter('imgsz', 0)
         self.declare_parameter('publish_annotated_image', True)
@@ -88,9 +91,12 @@ class VisionNode(Node):
             raise ValueError('jpeg_quality must be between 1 and 100')
 
         inference_hz = float(self.get_parameter('inference_hz').value)
+        camera_publish_hz = float(self.get_parameter('camera_publish_hz').value)
         threads = int(self.get_parameter('threads').value)
         if not math.isfinite(inference_hz) or inference_hz <= 0:
             raise ValueError('inference_hz must be a finite positive number')
+        if not math.isfinite(camera_publish_hz) or camera_publish_hz <= 0:
+            raise ValueError('camera_publish_hz must be a finite positive number')
         if threads < 1:
             raise ValueError('threads must be at least 1')
 
@@ -157,11 +163,24 @@ class VisionNode(Node):
 
         self._last_width = 0
         self._last_height = 0
-        self._timer = self.create_timer(1.0 / inference_hz, self._process_frame)
+        self._frame_lock = threading.Lock()
+        self._latest_frame = None
+        self._camera_group = MutuallyExclusiveCallbackGroup()
+        self._inference_group = MutuallyExclusiveCallbackGroup()
+        self._camera_timer = self.create_timer(
+            1.0 / camera_publish_hz,
+            self._capture_and_publish_frame,
+            callback_group=self._camera_group,
+        )
+        self._timer = self.create_timer(
+            1.0 / inference_hz,
+            self._process_frame,
+            callback_group=self._inference_group,
+        )
         self.get_logger().info(
             f'Vision ready: model={runtime.model_path}, imgsz={self._imgsz}, '
             f'device={self._device}, camera={camera_device or camera_index}, '
-            f'target={inference_hz:g} Hz'
+            f'camera={camera_publish_hz:g} Hz, inference={inference_hz:g} Hz'
         )
         self.get_logger().info(
             'Publishing compressed frames, detections, and advisory actions; '
@@ -248,7 +267,7 @@ class VisionNode(Node):
         runtime.model_path = model_path
         return runtime
 
-    def _process_frame(self):
+    def _read_frame(self):
         try:
             frame = self._camera.read()
         except Exception as error:
@@ -260,8 +279,7 @@ class VisionNode(Node):
 
         stamp = self.get_clock().now().to_msg()
         if frame is None:
-            self._publish_invalid_batch(stamp)
-            return
+            return None, stamp
 
         # --- FLIP CAMERA FRAME ---
         flip_param = self.get_parameter('flip_code').value
@@ -272,6 +290,25 @@ class VisionNode(Node):
         height, width = frame.shape[:2]
         self._last_width = width
         self._last_height = height
+        return frame, stamp
+
+    def _capture_and_publish_frame(self):
+        frame, stamp = self._read_frame()
+        if frame is None:
+            return
+        with self._frame_lock:
+            self._latest_frame = frame.copy()
+        image_message = self._encode_frame(frame, stamp)
+        if image_message is not None:
+            self._image_pub.publish(image_message)
+
+    def _process_frame(self):
+        with self._frame_lock:
+            frame = None if self._latest_frame is None else self._latest_frame.copy()
+        stamp = self.get_clock().now().to_msg()
+        if frame is None:
+            self._publish_invalid_batch(stamp)
+            return
 
         batch = VisionDetectionArray()
         batch.header.stamp = stamp
@@ -294,10 +331,6 @@ class VisionNode(Node):
             for detection in detections
         ]
         self._detections_pub.publish(batch)
-
-        image_message = self._encode_frame(frame, stamp)
-        if image_message is not None:
-            self._image_pub.publish(image_message)
 
         if self._annotated_pub is not None:
             annotated = self._annotate(frame, detections)
@@ -358,7 +391,9 @@ def main(args=None):
     node = None
     try:
         node = VisionNode()
-        rclpy.spin(node)
+        executor = MultiThreadedExecutor(num_threads=2)
+        executor.add_node(node)
+        executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     except Exception as error:

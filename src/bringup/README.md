@@ -64,7 +64,8 @@ variables as described in `src/web/README.md`.
 
 * **One process owns the webcam.** With `use_vision:=true` the vision node opens
   it and the dashboard shows the frames vision publishes on
-  `camera/image/compressed` (about `inference_hz` frames per second). With
+  `camera/image/compressed` (about `camera_publish_hz` frames per second,
+  independently of the slower `inference_hz` object detection). With
   `use_vision:=false` the dashboard opens `camera_device` itself.
 * **Unplugged devices.** `roomba_node` and `lidar_node` exit if their port is
   missing; the launch file retries every 3 seconds, so you can plug them in

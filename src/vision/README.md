@@ -108,6 +108,7 @@ do not prove an object is on the floor and must not directly control the robot.
 | `camera_frame_id` | `camera_optical_frame` | ROS image frame identifier |
 | `device` | `cpu` | Ultralytics inference device |
 | `threads` | `3` | CPU thread limit |
+| `camera_publish_hz` | `12.0` | Compressed camera preview publish rate, independent of object detection |
 | `inference_hz` | `5.0` | Maximum requested inference update rate |
 | `imgsz` | `0` | Use calibrated profile size; nonzero must match profile |
 | `publish_annotated_image` | `true` | Publish the boxed JPEG preview |
