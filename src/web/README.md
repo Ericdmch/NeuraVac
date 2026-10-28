@@ -6,21 +6,25 @@ JPEG up to five times per second; unavailable or stale frames show OFFLINE
 and reconnect automatically. This feed shows the raw camera image.
 
 The LiDAR panel receives points through a server-sent event stream. The web
-node sends incremental, timestamped batches with at most 20 ms coalescing, and the browser redraws on its
-next animation frame instead of waiting for another HTTP poll. The display
+node sends incremental, timestamped batches with at most 20 ms coalescing, and
+the browser redraws on its next animation frame instead of waiting for another
+HTTP poll. The display
 keeps points from the preceding 250 ms, up to the latest 1,440 buffered points.
 The polar scan uses a fixed 8 m display scale so nearby returns remain visibly
 close to the robot marker. The **Room map** panel displays `/slam/map`, the
 occupancy grid published by `neuravac_slam`.
 
-The dashboard polls Roomba 680 OI sensor group 0 (`142 0`) at 2 Hz via the
-existing `serial_tx` / `serial_rx` ROS topics. `/telemetry` returns battery,
+The Roomba node samples OI sensor group 0 (`142 0`) at 2 Hz for wheel
+odometry. The dashboard reads its cached sensor data every five seconds;
+**Request now** calls the `/request_telemetry` ROS service for an immediate
+sample. `/telemetry` returns battery,
 charging, current, temperature, bumpers, cliffs, wheel drops, wall flags,
 overcurrent, and incremental distance/turn readings. Replies are accumulated
 across serial chunks; incomplete, invalid, or late responses are ignored.
-Readings older than two seconds are hidden rather than shown as current.
-The web node owns sensor queries; avoid manually sending sensor-query or
-stream commands through the raw console while it is polling.
+Readings older than 15 seconds are hidden rather than shown as current.
+Use the `/request_telemetry` service instead of issuing sensor queries from
+the raw serial console. The 2 Hz group 0 stream also supplies the scan
+matcher’s odometry prior.
 
 Protocol references: `docs/Roomba/Roomba_SCI_manual.md` confirms the basic
 26-byte layout, flags, and battery units. That document is the 2005 SCI

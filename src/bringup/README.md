@@ -63,6 +63,13 @@ Parameters still live in each package's `config/` YAML
 file loads them. The web dashboard is configured with `NEURAVAC_*` environment
 variables as described in `src/web/README.md`.
 
+`roomba_node` requests sensor group 0 twice per second and publishes
+incremental wheel odometry on `/odom`. The web dashboard only refreshes its
+telemetry display every five seconds; **Request now** or
+`ros2 service call /request_telemetry roomba_interfaces/srv/RequestTelemetry "{}"`
+triggers an immediate sample. The SLAM matcher uses `/odom` as a prediction
+and aligns each LiDAR scan against the map to correct wheel slip.
+
 ## Things to know
 
 * **One process owns the webcam.** With `use_vision:=true` the vision node opens

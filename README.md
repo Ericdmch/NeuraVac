@@ -30,8 +30,8 @@ flowchart LR
     Camera[USB camera] --> V[vision_node]
     Bundle[(floor-vision-pi<br/>inference bundle)] --> V
 
-    R -->|serial_rx| W[web_node]
-    W -->|serial_tx| R
+    R -->|serial_rx / odom| W[web_node]
+    W -->|RequestTelemetry service| R
     L -->|lidar_points<br/>20 ms incremental batches| W
     S -->|slam/map<br/>OccupancyGrid| W
     V -->|camera frames<br/>detections| W
@@ -53,22 +53,28 @@ serial buffer, avoiding stale packet backlogs. The dashboard streams new
 points incrementally in timestamped batches of up to 20 ms; the browser draws
 on its next frame and keeps a rolling 250 ms visible.
 
-The `neuravac_slam` node groups each revolution into a scan, estimates robot
-motion by matching LiDAR returns against the accumulated occupancy grid, and
-publishes `/slam/map`. It uses LiDAR only: no camera, wheel odometry, or
-external SLAM service. The dashboard's **Room map** panel shows the growing
-map; stronger wall returns appear brighter. The map is held in memory and
-starts fresh when the node restarts. This initial scan matcher is intended
-for slow mapping in small rooms; without loop closure, long drives can drift,
-and moving objects can leave temporary marks.
+The `roomba_node` requests OI sensor group 0 twice per second and publishes
+incremental wheel odometry on `/odom`. `neuravac_slam` uses that as a motion
+prediction, then corrects the pose against LiDAR scans before updating
+`/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
+odometry. The camera is not used for mapping. The dashboard's **Room map**
+panel shows the growing map; stronger wall returns appear brighter. The map
+is held in memory and starts fresh when the node restarts. This initial scan
+matcher is intended for slow mapping in small rooms; without loop closure,
+long drives can drift, and moving objects can leave temporary marks.
+
+The dashboard reads cached telemetry every five seconds and has a **Request
+now** button. The `request_telemetry` ROS service triggers an immediate group 0
+sensor query. The background 2 Hz sensor reads remain enabled for odometry;
+they send only a two-byte query and receive the 26-byte group 0 packet.
 
 ## ROS 2 packages
 
 | Package | Type | Responsibility |
 | --- | --- | --- |
-| [`roomba`](src/roomba) | `ament_python` | Opens the Roomba serial port, sends Open Interface commands, and publishes/receives raw serial bytes. |
+| [`roomba`](src/roomba) | `ament_python` | Owns the Roomba serial port, publishes raw serial bytes and wheel odometry, and serves on-demand telemetry requests. See [`src/roomba/README.md`](src/roomba/README.md). |
 | [`lidar`](src/lidar) | `ament_python` | Reads the LiDAR serial stream, validates packets, decodes angle/distance/intensity, and publishes points. |
-| [`neuravac_slam`](src/neuravac_slam) | `ament_python` | Matches LiDAR scans and publishes a persistent-in-session 2D occupancy grid. |
+| [`neuravac_slam`](src/neuravac_slam) | `ament_python` | Uses Roomba wheel odometry as a pose prior, corrects it against LiDAR scans, and publishes a 2D occupancy grid. |
 | [`roomba_interfaces`](src/roomba_interfaces) | `ament_cmake` | Builds the custom ROS 2 messages shared by the nodes. |
 | [`vision`](src/vision) | `ament_python` | Captures camera frames, runs the deployed floor-vision model, and publishes detections. |
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
@@ -82,9 +88,24 @@ and moving objects can leave temporary marks.
 | --- | --- | --- | --- |
 | `serial_rx` | `roomba_interfaces/msg/SerialData` | Roomba -> ROS | Raw bytes received from the Roomba. |
 | `serial_tx` | `roomba_interfaces/msg/SerialData` | ROS -> Roomba | Raw bytes sent to the Roomba. |
+| `odom` | `nav_msgs/msg/Odometry` | Roomba -> ROS | Wheel-odometry pose from incremental OI distance/angle reports. |
+| `request_telemetry` | `roomba_interfaces/srv/RequestTelemetry` | ROS -> Roomba | Requests a fresh 26-byte OI sensor group 0 response. |
 
 `SerialData` contains a `uint8[] data` field. The Roomba node starts the
 robot in safe mode and uses 115200 baud by default.
+
+Read current telemetry from the dashboard or request an immediate sample from
+ROS:
+
+```bash
+ros2 service call /request_telemetry roomba_interfaces/srv/RequestTelemetry "{}"
+```
+
+The SCI manual documents opcode 142 as the sensor request, packet code 0 as
+the 26-byte all-sensor packet, and the distance/angle values as signed,
+big-endian increments. The mapper treats wheel odometry as a scan-matching
+prior because wheel slip can make it drift. See
+[`docs/Roomba/Roomba_SCI_manual.md`](docs/Roomba/Roomba_SCI_manual.md).
 
 #### LiDAR
 
