@@ -56,6 +56,19 @@ h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
 .lidar-ruler { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; font-family: 'JetBrains Mono', monospace; color: var(--gray-300); font-size: 10px; background: #0b121ccc; padding: 5px 10px; border-radius: 5px; }
 .ruler-line { width: 50px; height: 6px; border: 1px solid var(--gray-500); border-bottom: 0; }
 .sensor-body { padding: 20px; }
+.effects-body { padding: 18px 20px; }
+.effect-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.effect-heading h3, .song-form h3 { margin: 0; color: var(--gray-300); font-size: 11px; font-weight: 600; }
+.led-preview { width: 22px; height: 22px; border: 1px solid #ffffff55; border-radius: 50%; box-shadow: 0 0 14px currentColor; }
+.effect-control { display: grid; gap: 7px; margin: 12px 0; color: var(--gray-300); font-size: 10px; }
+.effect-control > span { color: var(--gray-500); font-family: 'JetBrains Mono', monospace; }
+.effect-control input[type="range"] { width: 100%; accent-color: var(--orange); }
+.effect-control input[type="number"], .effect-control input[type="text"] { width: 100%; border: 1px solid #344351; border-radius: 5px; padding: 8px; color: var(--soft-white); background: #0c131c; font: 11px 'JetBrains Mono', monospace; }
+.effect-button { border: 1px solid #815738; border-radius: 6px; padding: 8px 12px; color: var(--warm-orange); background: #35261e; font-size: 10px; font-weight: 700; }
+.effect-button:disabled { opacity: .55; cursor: wait; }
+.song-form { display: grid; gap: 2px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.song-form .panel-note { margin-top: 2px; }
+.effect-status { margin-bottom: 0; }
 .battery-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .metric-label { display: block; color: var(--gray-500); font-size: 10px; margin-bottom: 6px; }
 .battery-heading strong { display: block; font-size: 36px; letter-spacing: -1.6px; font-weight: 600; }
