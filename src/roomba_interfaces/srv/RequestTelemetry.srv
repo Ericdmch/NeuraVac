@@ -1,3 +1,4 @@
 ---
 bool accepted
 string message
+uint8[] data

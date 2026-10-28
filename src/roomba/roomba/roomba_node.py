@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import math
+import threading
 
 import rclpy
 from rclpy.node import Node
@@ -21,6 +22,7 @@ class Roomba(Node):
 
         serial_port = self.get_parameter('serial_port').value
         baudrate = self.get_parameter('baudrate').value
+        self._serial_lock = threading.Lock()
         
         try:
             self.serial = serial.Serial(
@@ -60,6 +62,9 @@ class Roomba(Node):
             RequestTelemetry, 'request_telemetry', self.request_telemetry
         )
         self._sensor_buffer = bytearray()
+        self._sensor_condition = threading.Condition()
+        self._sensor_sequence = 0
+        self._latest_group_zero = None
         self._odom_x = 0.0
         self._odom_y = 0.0
         self._odom_yaw = 0.0
@@ -85,6 +90,10 @@ class Roomba(Node):
                 del self._sensor_buffer[0]
                 continue
             del self._sensor_buffer[:26]
+            with self._sensor_condition:
+                self._latest_group_zero = packet
+                self._sensor_sequence += 1
+                self._sensor_condition.notify_all()
             self.publish_odometry(packet)
         # self.get_logger().info(f'Read {len(data)} bytes from serial: {data}')
 
@@ -101,7 +110,8 @@ class Roomba(Node):
 
         try:
             payload = bytes(data.data)
-            self.serial.write(payload)
+            with self._serial_lock:
+                self.serial.write(payload)
             self.get_logger().info(
                 f'Wrote {len(payload)} bytes to serial: {payload}'
             )
@@ -113,20 +123,33 @@ class Roomba(Node):
         self._write_bytes(bytes((142, 0)))
 
     def request_telemetry(self, _request, response):
-        """Trigger an immediate group 0 reading through the ROS service."""
-        try:
-            self._write_bytes(bytes((142, 0)))
-            response.accepted = True
-            response.message = 'Requested Roomba sensor group 0 (26 bytes).'
-        except SerialException as error:
-            response.accepted = False
-            response.message = str(error)
+        """Request group 0 and return the complete 26-byte sensor packet."""
+        with self._sensor_condition:
+            sequence = self._sensor_sequence
+            try:
+                self._write_bytes(bytes((142, 0)))
+            except SerialException as error:
+                response.accepted = False
+                response.message = str(error)
+                response.data = []
+                return response
+            received = self._sensor_condition.wait_for(
+                lambda: self._sensor_sequence > sequence,
+                timeout=1.0,
+            )
+            response.accepted = received
+            response.message = (
+                'Received OI sensor group 0.' if received
+                else 'Timed out waiting for the 26-byte sensor packet.'
+            )
+            response.data = list(self._latest_group_zero) if received else []
         return response
 
     def _write_bytes(self, payload):
         if not self.serial.is_open:
             raise SerialException('Roomba serial port is not open')
-        self.serial.write(payload)
+        with self._serial_lock:
+            self.serial.write(payload)
 
     def publish_odometry(self, packet):
         distance_m = int.from_bytes(packet[12:14], 'big', signed=True) / 1000.0
@@ -188,7 +211,11 @@ def main(args=None):
 
 
 
-        rclpy.spin(node)
+        from rclpy.executors import MultiThreadedExecutor
+
+        executor = MultiThreadedExecutor(num_threads=2)
+        executor.add_node(node)
+        executor.spin()
 
     except (SerialException, KeyboardInterrupt):
         pass
