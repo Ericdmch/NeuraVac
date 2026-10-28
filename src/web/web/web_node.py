@@ -345,8 +345,8 @@ def build_camera(bridge):
 
     return CameraCapture(
         device=os.environ.get('NEURAVAC_CAMERA_DEVICE', '/dev/neuravac_camera'),
-        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1920')),
-        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '1080')),
+        width=int(os.environ.get('NEURAVAC_CAMERA_WIDTH', '1280')),
+        height=int(os.environ.get('NEURAVAC_CAMERA_HEIGHT', '720')),
     )
 
 

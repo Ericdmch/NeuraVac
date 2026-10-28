@@ -64,8 +64,8 @@ class VisionNode(Node):
         self.declare_parameter('camera_index', 0)
         self.declare_parameter('camera_device', '')
         self.declare_parameter('camera_fourcc', 'MJPG')
-        self.declare_parameter('camera_width', 1920)
-        self.declare_parameter('camera_height', 1080)
+        self.declare_parameter('camera_width', 1280)
+        self.declare_parameter('camera_height', 720)
         self.declare_parameter('camera_frame_id', 'camera_optical_frame')
         self.declare_parameter('flip_code', -1)  # Added safely without duplicating width
         self.declare_parameter('device', 'cpu')
@@ -112,9 +112,8 @@ class VisionNode(Node):
         # replug picks up the new /dev/videoN. Empty means use camera_index.
         camera_device = str(self.get_parameter('camera_device').value).strip()
 
-        # Most USB webcams cannot stream uncompressed video at 1080p and then
-        # time out with "select() timeout". Ask for MJPEG, the format the
-        # dashboard's own capture uses. Empty keeps the driver default.
+        # Ask for MJPEG to avoid uncompressed USB bandwidth limits and camera
+        # read timeouts. Empty keeps the driver default.
         camera_fourcc = str(self.get_parameter('camera_fourcc').value).strip()
         if camera_fourcc and len(camera_fourcc) != 4:
             raise ValueError('camera_fourcc must be four characters, e.g. MJPG')

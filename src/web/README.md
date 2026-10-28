@@ -38,7 +38,7 @@ source install/setup.bash
 ~/neuravac-web-venv/bin/python -c 'from web.web_node import main; main()'
 ```
 
-Camera defaults: `/dev/neuravac_camera` (see `src/bringup/README.md`), 1920×1080, MJPEG capture. Override with
+Camera defaults: `/dev/neuravac_camera` (see `src/bringup/README.md`), 1280×720, MJPEG capture. Override with
 `NEURAVAC_CAMERA_DEVICE`, `NEURAVAC_CAMERA_WIDTH`, and
 `NEURAVAC_CAMERA_HEIGHT` environment variables before starting the node.
 Only one process should own the camera device. Set `NEURAVAC_CAMERA_SOURCE=ros`

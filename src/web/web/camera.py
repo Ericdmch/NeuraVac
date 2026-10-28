@@ -38,7 +38,7 @@ class LatestJpeg:
 
 
 class CameraCapture:
-    def __init__(self, device='/dev/neuravac_camera', width=1920, height=1080):
+    def __init__(self, device='/dev/neuravac_camera', width=1280, height=720):
         self.device = device
         self.width = width
         self.height = height

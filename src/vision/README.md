@@ -103,8 +103,8 @@ do not prove an object is on the floor and must not directly control the robot.
 | `camera_index` | `0` | OpenCV camera device index |
 | `camera_device` | empty | Camera path such as `/dev/neuravac_camera`; empty uses `camera_index` |
 | `camera_fourcc` | `MJPG` | Camera pixel format; empty keeps the driver default |
-| `camera_width` | `1920` | Requested USB camera width |
-| `camera_height` | `1080` | Requested USB camera height |
+| `camera_width` | `1280` | Requested USB camera width |
+| `camera_height` | `720` | Requested USB camera height |
 | `camera_frame_id` | `camera_optical_frame` | ROS image frame identifier |
 | `device` | `cpu` | Ultralytics inference device |
 | `threads` | `3` | CPU thread limit |
