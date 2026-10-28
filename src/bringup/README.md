@@ -35,7 +35,10 @@ How each device is recognised is printed by the tool:
   after setup. Re-run the tool if you move one.
 
 If `ls -l /dev/neuravac_*` shows a link missing, unplug and replug that device.
-Without `--install` the tool only prints the rules.
+To configure only missing or moved devices, pass their names with `--only`,
+for example `ros2 run bringup neuravac_udev_setup --only lidar camera --install`;
+existing rules for the other devices are preserved. Without `--install` the
+tool only prints the rules.
 
 ## Run everything
 

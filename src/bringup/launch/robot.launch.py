@@ -16,6 +16,7 @@ itself.
 """
 
 import os
+import sys
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -32,6 +33,24 @@ def package_config(package, filename):
 
 def enabled(context, name):
     return LaunchConfiguration(name).perform(context).strip().lower() in TRUE_VALUES
+
+
+def ros_python_environment():
+    """Expose active venv packages to ROS nodes while keeping ROS's Python."""
+    virtual_env = os.environ.get('VIRTUAL_ENV')
+    if not virtual_env:
+        return {}
+
+    version = f'python{sys.version_info.major}.{sys.version_info.minor}'
+    site_packages = os.path.join(virtual_env, 'lib', version, 'site-packages')
+    if not os.path.isdir(site_packages):
+        return {}
+
+    inherited_pythonpath = os.environ.get('PYTHONPATH', '')
+    pythonpath = os.pathsep.join(
+        path for path in (site_packages, inherited_pythonpath) if path
+    )
+    return {'PYTHONPATH': pythonpath}
 
 
 def launch_setup(context):
@@ -60,6 +79,7 @@ def launch_setup(context):
             package='vision', executable='vision_node', name='vision_node',
             parameters=[package_config('vision', 'vision_params.yaml')],
             output='screen',
+            additional_env=ros_python_environment(),
         ))
 
     if enabled(context, 'use_web'):

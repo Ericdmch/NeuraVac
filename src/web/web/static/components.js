@@ -295,7 +295,7 @@ function LidarView() {
     }
 
     updateLidar();
-    const interval = window.setInterval(updateLidar, 50);
+    const interval = window.setInterval(updateLidar, 25);
     return () => {
       isMounted = false;
       window.clearInterval(interval);
