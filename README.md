@@ -58,7 +58,9 @@ The `roomba_node` requests OI sensor group 0 twice per second and publishes
 incremental wheel odometry on `/odom`. `neuravac_slam` uses that as a motion
 prediction, then corrects the pose against LiDAR scans before updating
 `/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
-odometry. The camera is not used for mapping. The dashboard's **Room map**
+odometry. The COIN-D6 reports clockwise angles, so SLAM reverses the angular
+sign when converting returns to ROS coordinates; this keeps mapped walls
+aligned as the robot rotates. The camera is not used for mapping. The dashboard's **Room map**
 panel shows the growing map; stronger wall returns appear brighter. The map
 is held in memory and starts fresh when the node restarts. Use **Reset & Remap**
 in the Room map panel to clear the occupancy grid and scan-matching pose; the

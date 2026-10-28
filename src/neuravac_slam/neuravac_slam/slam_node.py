@@ -12,6 +12,13 @@ from roomba_interfaces.msg import LidarPoint
 from std_srvs.srv import Trigger
 
 
+def scan_to_cartesian(scan):
+    """Convert COIN-D6 clockwise angles into ROS counter-clockwise points."""
+    angles = -scan[:, 0]
+    ranges = scan[:, 1]
+    return np.column_stack((ranges * np.cos(angles), ranges * np.sin(angles)))
+
+
 class LidarMapper(Node):
     """Accumulate full revolutions, align them against the map, and map rays."""
 
@@ -125,12 +132,11 @@ class LidarMapper(Node):
             self._scan.append((angle, distance))
 
     def _local_points(self, scan):
-        angles, ranges = scan[:, 0], scan[:, 1]
         # Bound CPU while retaining evenly spaced angular coverage.
-        if len(ranges) > 360:
-            take = np.linspace(0, len(ranges) - 1, 360).astype(np.int32)
-            angles, ranges = angles[take], ranges[take]
-        return np.column_stack((ranges * np.cos(angles), ranges * np.sin(angles)))
+        if len(scan) > 360:
+            take = np.linspace(0, len(scan) - 1, 360).astype(np.int32)
+            scan = scan[take]
+        return scan_to_cartesian(scan)
 
     def _match_scan(self, points):
         occupied = self.grid > 2
