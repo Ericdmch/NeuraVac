@@ -124,7 +124,7 @@ class SerialBridge:
         self.bridge.publish(self.topic, message)
 
 class LidarBridge:
-    RECENT_POINT_MAX_AGE_SECONDS = 0.5
+    RECENT_POINT_MAX_AGE_SECONDS = 0.25
 
     def __init__(self, topic, data_type = LidarPoint):
         self.bridge = WebBridge(name='web_lidar_node')
@@ -132,7 +132,7 @@ class LidarBridge:
 
         self.topic = topic
         self._lock = threading.Lock()
-        self._points = deque(maxlen=720)
+        self._points = deque(maxlen=1440)
 
     def lidar_callback(self, msg):
         point = {
