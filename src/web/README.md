@@ -20,7 +20,8 @@ HTTP poll. The display
 keeps points from the preceding 250 ms, up to the latest 1,440 buffered points.
 The polar scan uses a fixed 8 m display scale so nearby returns remain visibly
 close to the robot marker. The **Room map** panel displays `/slam/map`, the
-occupancy grid published by `neuravac_slam`.
+occupancy grid published by `neuravac_slam`. Its blue marker follows the
+scan-matched position from `/slam/pose`, rather than staying at the map origin.
 
 The Roomba node samples OI sensor group 0 (`142 0`) at 2 Hz for wheel
 odometry. The dashboard reads its cached sensor data every five seconds;

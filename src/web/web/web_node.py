@@ -8,6 +8,7 @@ import time
 
 from ament_index_python.packages import get_package_share_directory
 from flask import Flask, Response, jsonify, render_template, request
+from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
@@ -169,7 +170,10 @@ class LidarBridge:
         self._map_condition = threading.Condition()
         self._map_sequence = 0
         self._map = None
+        self._pose_lock = threading.Lock()
+        self._slam_pose = None
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
+        self.bridge.add_subscriber(PoseStamped, 'slam/pose', self.pose_callback, 10)
         self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
 
     def reset_slam(self):
@@ -262,10 +266,29 @@ class LidarBridge:
             'origin_y': float(message.info.origin.position.y),
             'data': encoded,
         }
+        with self._pose_lock:
+            pose = self._slam_pose
+        if pose is not None:
+            payload['robot_x'] = pose['x']
+            payload['robot_y'] = pose['y']
+            payload['robot_yaw'] = pose['yaw']
         with self._map_condition:
             self._map = payload
             self._map_sequence += 1
             self._map_condition.notify_all()
+
+    def pose_callback(self, message):
+        q = message.pose.orientation
+        pose = {
+            'x': float(message.pose.position.x),
+            'y': float(message.pose.position.y),
+            'yaw': math.atan2(
+                2.0 * (q.w * q.z + q.x * q.y),
+                1.0 - 2.0 * (q.y * q.y + q.z * q.z),
+            ),
+        }
+        with self._pose_lock:
+            self._slam_pose = pose
 
     def wait_for_map(self, after_sequence, timeout):
         with self._map_condition:

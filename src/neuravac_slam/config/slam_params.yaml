@@ -6,4 +6,7 @@ slam_node:
     max_range_m: 8.0
     scan_match_window_m: 0.20
     scan_match_window_deg: 12.0
+    scan_match_fallback_window_deg: 45.0
+    scan_match_fallback_steps: 19
+    odom_stale_sec: 1.5
     map_publish_hz: 2.0

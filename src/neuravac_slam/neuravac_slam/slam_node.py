@@ -2,9 +2,11 @@
 
 import math
 import threading
+import time
 
 import numpy as np
 import rclpy
+from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -19,6 +21,13 @@ def scan_to_cartesian(scan):
     return np.column_stack((ranges * np.cos(angles), ranges * np.sin(angles)))
 
 
+def rotation_search_angles(odom_fresh, odom_window, fallback_window, fallback_steps):
+    """Broaden rotation matching when no recent wheel-odometry prior exists."""
+    if odom_fresh:
+        return np.linspace(-odom_window, odom_window, 9)
+    return np.linspace(-fallback_window, fallback_window, fallback_steps)
+
+
 class LidarMapper(Node):
     """Accumulate full revolutions, align them against the map, and map rays."""
 
@@ -30,6 +39,9 @@ class LidarMapper(Node):
         self.declare_parameter('max_range_m', 8.0)
         self.declare_parameter('scan_match_window_m', 0.20)
         self.declare_parameter('scan_match_window_deg', 12.0)
+        self.declare_parameter('scan_match_fallback_window_deg', 45.0)
+        self.declare_parameter('scan_match_fallback_steps', 19)
+        self.declare_parameter('odom_stale_sec', 1.5)
         self.declare_parameter('map_publish_hz', 2.0)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
@@ -39,12 +51,18 @@ class LidarMapper(Node):
         self.max_range = float(value('max_range_m'))
         self.match_window = float(value('scan_match_window_m'))
         self.match_angle = math.radians(float(value('scan_match_window_deg')))
+        self.fallback_match_angle = math.radians(
+            float(value('scan_match_fallback_window_deg'))
+        )
+        self.fallback_match_steps = max(9, int(value('scan_match_fallback_steps')))
+        self.odom_stale_sec = max(0.1, float(value('odom_stale_sec')))
         self.grid = np.zeros((self.size, self.size), dtype=np.int8)
         self._scan = []
         self._last_angle = None
         self._last_scan = None
         self._pose = np.zeros(3, dtype=np.float64)
         self._odom_pose = None
+        self._odom_received_at = None
         self._odom_at_last_scan = None
         self._lock = threading.Lock()
         self._map_version = 0
@@ -52,8 +70,10 @@ class LidarMapper(Node):
         self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 50)
         self.create_subscription(Odometry, 'odom', self.on_odometry, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
+        self.pose_pub = self.create_publisher(PoseStamped, 'slam/pose', 10)
         self.create_service(Trigger, 'slam/reset', self.reset_map)
         self.create_timer(1.0 / max(0.2, float(value('map_publish_hz'))), self.publish_map)
+        self._publish_pose()
         self.get_logger().info(
             f'LiDAR-only SLAM ready: {self.size}x{self.size}, '
             f'{self.resolution:.2f} m/cell; wheel odometry is a scan-matching prior'
@@ -71,6 +91,7 @@ class LidarMapper(Node):
                 self._odom_pose.copy() if self._odom_pose is not None else None
             )
             self._map_version += 1
+        self._publish_pose()
         response.success = True
         response.message = 'SLAM map and pose reset; mapping resumes with the next LiDAR scans.'
         self.get_logger().info(response.message)
@@ -87,6 +108,7 @@ class LidarMapper(Node):
             message.pose.pose.position.y,
             yaw,
         ), dtype=np.float64)
+        self._odom_received_at = time.monotonic()
 
     def _predict_from_odometry(self):
         if self._odom_pose is None:
@@ -146,7 +168,16 @@ class LidarMapper(Node):
         best_score = -1.0
         step = max(self.resolution, self.match_window / 4.0)
         translations = np.arange(-self.match_window, self.match_window + step / 2, step)
-        rotations = np.linspace(-self.match_angle, self.match_angle, 9)
+        odom_fresh = (
+            self._odom_received_at is not None
+            and time.monotonic() - self._odom_received_at <= self.odom_stale_sec
+        )
+        rotations = rotation_search_angles(
+            odom_fresh,
+            self.match_angle,
+            self.fallback_match_angle,
+            self.fallback_match_steps,
+        )
         # Search around the last LiDAR-derived pose. Free cells are ignored;
         # this makes sparse and short-range returns less likely to pull the pose.
         for dyaw in rotations:
@@ -190,6 +221,19 @@ class LidarMapper(Node):
                 self._trace_ray(scanner, endpoint)
             self._last_scan = points
             self._map_version += 1
+        self._publish_pose()
+
+    def _publish_pose(self):
+        with self._lock:
+            pose = self._pose.copy()
+        message = PoseStamped()
+        message.header.stamp = self.get_clock().now().to_msg()
+        message.header.frame_id = 'map'
+        message.pose.position.x = float(pose[0])
+        message.pose.position.y = float(pose[1])
+        message.pose.orientation.z = math.sin(float(pose[2]) / 2.0)
+        message.pose.orientation.w = math.cos(float(pose[2]) / 2.0)
+        self.pose_pub.publish(message)
 
     def _trace_ray(self, start, end):
         start_cell = np.rint((start - self.origin) / self.resolution).astype(np.int32)

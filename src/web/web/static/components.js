@@ -501,6 +501,22 @@ function SlamMapView() {
           maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
         }
       }
+      let robotX = ((map.robot_x ?? 0) - map.origin_x) / map.resolution;
+      let robotY = ((map.robot_y ?? 0) - map.origin_y) / map.resolution;
+      const hasRobotPose = robotX >= 0 && robotY >= 0 && robotX < map.width && robotY < map.height;
+      if (hasRobotPose) {
+        if (maxX < 0) {
+          minX = Math.max(0, Math.floor(robotX) - 20);
+          maxX = Math.min(map.width - 1, Math.ceil(robotX) + 20);
+          minY = Math.max(0, Math.floor(robotY) - 20);
+          maxY = Math.min(map.height - 1, Math.ceil(robotY) + 20);
+        } else {
+          minX = Math.min(minX, Math.floor(robotX));
+          maxX = Math.max(maxX, Math.ceil(robotX));
+          minY = Math.min(minY, Math.floor(robotY));
+          maxY = Math.max(maxY, Math.ceil(robotY));
+        }
+      }
       if (maxX < 0) return false;
       const margin = 12;
       minX = Math.max(0, minX - margin); minY = Math.max(0, minY - margin);
@@ -525,9 +541,7 @@ function SlamMapView() {
       layer.getContext('2d').putImageData(image, 0, 0);
       context.imageSmoothingEnabled = false;
       context.drawImage(layer, left, top, drawWidth, drawHeight);
-      const robotX = (0 - map.origin_x) / map.resolution;
-      const robotY = (0 - map.origin_y) / map.resolution;
-      if (robotX >= minX && robotX <= maxX && robotY >= minY && robotY <= maxY) {
+      if (hasRobotPose && robotX >= minX && robotX <= maxX && robotY >= minY && robotY <= maxY) {
         context.fillStyle = '#63b3ff'; context.beginPath();
         context.arc(left + (robotX - minX) * fit, top + (robotY - minY) * fit, 5 * devicePixelRatio, 0, Math.PI * 2);
         context.fill();
@@ -557,7 +571,7 @@ function SlamMapView() {
       </div>
     </div>
     <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
-    <p className="panel-note slam-map-note">{resetError || 'Orange = persistent wall returns · Blue = map origin · Reset clears the map and pose; fresh scans rebuild it.'}</p>
+    <p className="panel-note slam-map-note">{resetError || 'Orange = persistent wall returns · Blue = estimated robot pose · Reset clears the map and pose; fresh scans rebuild it.'}</p>
   </section>;
 }
 

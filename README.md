@@ -60,7 +60,9 @@ prediction, then corrects the pose against LiDAR scans before updating
 `/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
 odometry. The COIN-D6 reports clockwise angles, so SLAM reverses the angular
 sign when converting returns to ROS coordinates; this keeps mapped walls
-aligned as the robot rotates. The camera is not used for mapping. The dashboard's **Room map**
+aligned as the robot rotates. When wheel odometry stops arriving, scan matching
+widens its rotation search to track turns without the odometry prior. The
+camera is not used for mapping. The dashboard's **Room map**
 panel shows the growing map; stronger wall returns appear brighter. The map
 is held in memory and starts fresh when the node restarts. Use **Reset & Remap**
 in the Room map panel to clear the occupancy grid and scan-matching pose; the
@@ -119,6 +121,7 @@ prior because wheel slip can make it drift. See
 | --- | --- | --- |
 | `lidar_points` | `roomba_interfaces/msg/LidarPoint` | Decoded points containing `angle_deg`, `distance_mm`, and `intensity`. |
 | `slam/map` | `nav_msgs/msg/OccupancyGrid` | LiDAR-only 2D room map in the `map` frame. |
+| `slam/pose` | `geometry_msgs/msg/PoseStamped` | Scan-matched robot position and heading in the map frame. |
 | `slam/reset` | `std_srvs/srv/Trigger` | Clears map and pose; fresh LiDAR scans recalculate the map. |
 
 The dashboard's **Reset & Remap** button calls this service. To reset from a
