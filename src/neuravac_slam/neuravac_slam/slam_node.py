@@ -1,11 +1,8 @@
 """Small-room 2D SLAM using LiDAR scans with wheel odometry as a prior."""
 
 import math
-import queue
 import threading
 import time
-from bisect import bisect_left
-from collections import deque
 
 import numpy as np
 import rclpy
@@ -24,67 +21,11 @@ def scan_to_cartesian(scan):
     return np.column_stack((ranges * np.cos(angles), ranges * np.sin(angles)))
 
 
-def neighbor_support_mask(points, max_neighbor_gap):
-    if len(points) < 3 or max_neighbor_gap <= 0.0:
-        return np.ones(len(points), dtype=bool)
-    previous = np.roll(points, 1, axis=0)
-    following = np.roll(points, -1, axis=0)
-    previous_gap = np.linalg.norm(points - previous, axis=1)
-    following_gap = np.linalg.norm(points - following, axis=1)
-    return (
-        (previous_gap <= max_neighbor_gap)
-        | (following_gap <= max_neighbor_gap)
-    )
-
-
 def rotation_search_angles(odom_fresh, odom_window, fallback_window, fallback_steps):
     """Broaden rotation matching when no recent wheel-odometry prior exists."""
     if odom_fresh:
         return np.linspace(-odom_window, odom_window, 9)
     return np.linspace(-fallback_window, fallback_window, fallback_steps)
-
-
-def deskew_points_to_reference(points, timestamps, odom_samples, reference):
-    """Transform timestamped LiDAR points into one reference robot pose."""
-    if len(odom_samples) < 2:
-        return points
-    sample_times = [sample[0] for sample in odom_samples]
-    reference_yaw = reference[2]
-    c_ref, s_ref = math.cos(reference_yaw), math.sin(reference_yaw)
-    deskewed = points.copy()
-    for index, timestamp in enumerate(timestamps):
-        right = bisect_left(sample_times, float(timestamp))
-        if right <= 0:
-            odom = odom_samples[0][1]
-        elif right >= len(odom_samples):
-            odom = odom_samples[-1][1]
-        else:
-            before_time, before = odom_samples[right - 1]
-            after_time, after = odom_samples[right]
-            fraction = (timestamp - before_time) / max(
-                1e-9, after_time - before_time
-            )
-            yaw_delta = math.atan2(
-                math.sin(after[2] - before[2]),
-                math.cos(after[2] - before[2]),
-            )
-            odom = np.array((
-                before[0] + fraction * (after[0] - before[0]),
-                before[1] + fraction * (after[1] - before[1]),
-                before[2] + fraction * yaw_delta,
-            ))
-
-        dx, dy = odom[0] - reference[0], odom[1] - reference[1]
-        local_x = c_ref * dx + s_ref * dy
-        local_y = -s_ref * dx + c_ref * dy
-        yaw_delta = odom[2] - reference_yaw
-        c, s = math.cos(yaw_delta), math.sin(yaw_delta)
-        point = points[index]
-        deskewed[index] = (
-            local_x + c * point[0] - s * point[1],
-            local_y + s * point[0] + c * point[1],
-        )
-    return deskewed
 
 
 class LidarMapper(Node):
@@ -96,20 +37,11 @@ class LidarMapper(Node):
         self.declare_parameter('map_size_m', 20.0)
         self.declare_parameter('min_range_m', 0.12)
         self.declare_parameter('max_range_m', 8.0)
-        self.declare_parameter('max_neighbor_gap_m', 0.35)
-        self.declare_parameter('hit_increment', 5)
-        self.declare_parameter('miss_decrement', 4)
-        self.declare_parameter('occupied_threshold', 6)
         self.declare_parameter('scan_match_window_m', 0.20)
         self.declare_parameter('scan_match_window_deg', 12.0)
-        self.declare_parameter('scan_match_fallback_window_deg', 24.0)
-        self.declare_parameter('scan_match_fallback_steps', 13)
-        self.declare_parameter('scan_match_correction_weight', 0.35)
-        self.declare_parameter('scan_match_max_translation_correction_m', 0.10)
-        self.declare_parameter('scan_match_max_rotation_correction_deg', 10.0)
+        self.declare_parameter('scan_match_fallback_window_deg', 45.0)
+        self.declare_parameter('scan_match_fallback_steps', 19)
         self.declare_parameter('odom_stale_sec', 1.5)
-        self.declare_parameter('odom_history_sec', 3.0)
-        self.declare_parameter('active_return_sec', 2.0)
         self.declare_parameter('map_publish_hz', 2.0)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
@@ -117,30 +49,14 @@ class LidarMapper(Node):
         self.origin = -(self.size * self.resolution) / 2.0
         self.min_range = float(value('min_range_m'))
         self.max_range = float(value('max_range_m'))
-        self.max_neighbor_gap = max(0.0, float(value('max_neighbor_gap_m')))
-        self.hit_increment = max(1, int(value('hit_increment')))
-        self.miss_decrement = max(1, int(value('miss_decrement')))
-        self.occupied_threshold = max(1, int(value('occupied_threshold')))
         self.match_window = float(value('scan_match_window_m'))
         self.match_angle = math.radians(float(value('scan_match_window_deg')))
         self.fallback_match_angle = math.radians(
             float(value('scan_match_fallback_window_deg'))
         )
         self.fallback_match_steps = max(9, int(value('scan_match_fallback_steps')))
-        self.match_correction_weight = min(
-            1.0, max(0.0, float(value('scan_match_correction_weight')))
-        )
-        self.match_max_translation = max(
-            0.0, float(value('scan_match_max_translation_correction_m'))
-        )
-        self.match_max_rotation = math.radians(
-            max(0.0, float(value('scan_match_max_rotation_correction_deg')))
-        )
         self.odom_stale_sec = max(0.1, float(value('odom_stale_sec')))
-        self.odom_history_sec = max(0.5, float(value('odom_history_sec')))
-        self.active_return_sec = max(0.1, float(value('active_return_sec')))
         self.grid = np.zeros((self.size, self.size), dtype=np.int8)
-        self._last_hit = np.zeros((self.size, self.size), dtype=np.float64)
         self._scan = []
         self._last_angle = None
         self._last_scan = None
@@ -148,19 +64,10 @@ class LidarMapper(Node):
         self._odom_pose = None
         self._odom_received_at = None
         self._odom_at_last_scan = None
-        self._odom_history = deque(maxlen=400)
         self._lock = threading.Lock()
-        self._odom_lock = threading.Lock()
-        self._scan_queue = queue.Queue(maxsize=1)
-        self._stop_worker = threading.Event()
-        self._reset_generation = 0
-        self._scan_worker_thread = threading.Thread(
-            target=self._scan_worker, name='slam-scan-worker', daemon=True
-        )
-        self._scan_worker_thread.start()
         self._map_version = 0
         self._published_version = -1
-        self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 1000)
+        self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 50)
         self.create_subscription(Odometry, 'odom', self.on_odometry, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
         self.pose_pub = self.create_publisher(PoseStamped, 'slam/pose', 10)
@@ -175,17 +82,14 @@ class LidarMapper(Node):
     def reset_map(self, _request, response):
         """Clear accumulated state; subsequent scans build a fresh map."""
         with self._lock:
-            self._reset_generation += 1
             self.grid.fill(0)
-            self._last_hit.fill(0.0)
             self._scan.clear()
             self._last_angle = None
             self._last_scan = None
             self._pose.fill(0.0)
-            with self._odom_lock:
-                self._odom_at_last_scan = (
-                    self._odom_pose.copy() if self._odom_pose is not None else None
-                )
+            self._odom_at_last_scan = (
+                self._odom_pose.copy() if self._odom_pose is not None else None
+            )
             self._map_version += 1
         self._publish_pose()
         response.success = True
@@ -199,27 +103,17 @@ class LidarMapper(Node):
             2.0 * (q.w * q.z + q.x * q.y),
             1.0 - 2.0 * (q.y * q.y + q.z * q.z),
         )
-        pose = np.array((
+        self._odom_pose = np.array((
             message.pose.pose.position.x,
             message.pose.pose.position.y,
             yaw,
         ), dtype=np.float64)
-        received_at = time.monotonic()
-        with self._odom_lock:
-            self._odom_pose = pose
-            self._odom_received_at = received_at
-            self._odom_history.append((received_at, pose.copy()))
-            oldest_allowed = received_at - self.odom_history_sec
-            while len(self._odom_history) > 2 and self._odom_history[1][0] < oldest_allowed:
-                self._odom_history.popleft()
+        self._odom_received_at = time.monotonic()
 
     def _predict_from_odometry(self):
-        with self._odom_lock:
-            current = (
-                self._odom_pose.copy() if self._odom_pose is not None else None
-            )
-        if current is None:
+        if self._odom_pose is None:
             return
+        current = self._odom_pose.copy()
         if self._odom_at_last_scan is None:
             self._odom_at_last_scan = current
             return
@@ -251,82 +145,32 @@ class LidarMapper(Node):
                 if len(self._scan) >= 40:
                     scan = np.asarray(self._scan, dtype=np.float64)
                     self._scan = []
-                    self._enqueue_scan(scan)
+                    self._process_scan(scan)
                 else:
                     self._scan.clear()
         self._last_angle = angle
         distance = float(message.distance_mm) / 1000.0
         if self.min_range <= distance <= self.max_range:
-            self._scan.append((angle, distance, time.monotonic()))
-
-    def _enqueue_scan(self, scan):
-        generation = self._reset_generation
-        try:
-            self._scan_queue.put_nowait((generation, scan))
-        except queue.Full:
-            # Never let scan matching build a stale backlog. Keep the newest
-            # complete revolution when processing takes longer than a sweep.
-            try:
-                self._scan_queue.get_nowait()
-                self._scan_queue.task_done()
-            except queue.Empty:
-                pass
-            try:
-                self._scan_queue.put_nowait((generation, scan))
-            except queue.Full:
-                self.get_logger().warning('Dropping LiDAR scan; mapper is busy.')
-
-    def _scan_worker(self):
-        while not self._stop_worker.is_set():
-            try:
-                item = self._scan_queue.get(timeout=0.2)
-            except queue.Empty:
-                continue
-            try:
-                if item is None:
-                    return
-                generation, scan = item
-                self._process_scan(scan, generation)
-            except Exception as error:  # Keep the scan consumer alive on bad input.
-                self.get_logger().error(f'Unable to process LiDAR scan: {error}')
-            finally:
-                self._scan_queue.task_done()
+            self._scan.append((angle, distance))
 
     def _local_points(self, scan):
         # Bound CPU while retaining evenly spaced angular coverage.
         if len(scan) > 360:
             take = np.linspace(0, len(scan) - 1, 360).astype(np.int32)
             scan = scan[take]
-        points = scan_to_cartesian(scan[:, :2])
-        timestamps = scan[:, 2]
-        supported = neighbor_support_mask(points, self.max_neighbor_gap)
-        return points[supported], timestamps[supported]
-
-    def _deskew_scan(self, points, timestamps):
-        """Express each return at its capture pose in the scan reference frame."""
-        with self._odom_lock:
-            if self._odom_at_last_scan is None or self._odom_received_at is None:
-                return points
-            reference = self._odom_at_last_scan.copy()
-            received_at = self._odom_received_at
-            samples = list(self._odom_history)
-        if time.monotonic() - received_at > self.odom_stale_sec or len(samples) < 2:
-            return points
-        return deskew_points_to_reference(points, timestamps, samples, reference)
+        return scan_to_cartesian(scan)
 
     def _match_scan(self, points):
-        occupied = self.grid >= self.occupied_threshold
+        occupied = self.grid > 2
         if not occupied.any():
             return self._pose.copy()
         best_pose = self._pose.copy()
         best_score = -1.0
         step = max(self.resolution, self.match_window / 4.0)
         translations = np.arange(-self.match_window, self.match_window + step / 2, step)
-        with self._odom_lock:
-            received_at = self._odom_received_at
         odom_fresh = (
-            received_at is not None
-            and time.monotonic() - received_at <= self.odom_stale_sec
+            self._odom_received_at is not None
+            and time.monotonic() - self._odom_received_at <= self.odom_stale_sec
         )
         rotations = rotation_search_angles(
             odom_fresh,
@@ -358,44 +202,16 @@ class LidarMapper(Node):
             return self._pose.copy()
         return best_pose
 
-    def _process_scan(self, scan, generation):
-        points, timestamps = self._local_points(scan)
+    def _process_scan(self, scan):
+        points = self._local_points(scan)
         if len(points) < 30:
             return
         with self._lock:
-            has_previous_scan = self._last_scan is not None
-            if has_previous_scan:
+            if self._last_scan is not None:
                 self._predict_from_odometry()
-            else:
-                with self._odom_lock:
-                    if self._odom_pose is not None:
-                        self._odom_at_last_scan = self._odom_pose.copy()
-            if generation != self._reset_generation:
-                return
-            points = self._deskew_scan(points, timestamps)
-            if has_previous_scan:
-                prior = self._pose.copy()
-                matched = self._match_scan(points)
-                correction = matched[:2] - prior[:2]
-                correction_length = float(np.linalg.norm(correction))
-                if correction_length > self.match_max_translation > 0.0:
-                    correction *= self.match_max_translation / correction_length
-                elif self.match_max_translation == 0.0:
-                    correction.fill(0.0)
-                yaw_correction = math.atan2(
-                    math.sin(matched[2] - prior[2]),
-                    math.cos(matched[2] - prior[2]),
-                )
-                yaw_correction = min(
-                    self.match_max_rotation,
-                    max(-self.match_max_rotation, yaw_correction),
-                )
-                weight = self.match_correction_weight
-                self._pose[:2] = prior[:2] + correction * weight
-                self._pose[2] = math.atan2(
-                    math.sin(prior[2] + yaw_correction * weight),
-                    math.cos(prior[2] + yaw_correction * weight),
-                )
+                self._pose = self._match_scan(points)
+            elif self._odom_pose is not None:
+                self._odom_at_last_scan = self._odom_pose.copy()
             theta = self._pose[2]
             c, s = math.cos(theta), math.sin(theta)
             rotation = np.array(((c, -s), (s, c)))
@@ -406,20 +222,6 @@ class LidarMapper(Node):
             self._last_scan = points
             self._map_version += 1
         self._publish_pose()
-
-    def destroy_node(self):
-        self._stop_worker.set()
-        try:
-            self._scan_queue.put_nowait(None)
-        except queue.Full:
-            try:
-                self._scan_queue.get_nowait()
-                self._scan_queue.task_done()
-            except queue.Empty:
-                pass
-            self._scan_queue.put_nowait(None)
-        self._scan_worker_thread.join(timeout=2.0)
-        super().destroy_node()
 
     def _publish_pose(self):
         with self._lock:
@@ -446,18 +248,12 @@ class LidarMapper(Node):
         xs, ys = xs[inside], ys[inside]
         if not len(xs):
             return
-        # Accumulate repeated hits, but remove stale occupancy quickly when
-        # a later ray passes through the old endpoint.
-        self.grid[ys[:-1], xs[:-1]] = np.maximum(
-            -12,
-            self.grid[ys[:-1], xs[:-1]] - self.miss_decrement,
-        )
+        # Slow accumulation and clamp keep walls persistent while allowing a
+        # previously observed wall to clear when a new scan sees through it.
+        self.grid[ys[:-1], xs[:-1]] = np.maximum(-8, self.grid[ys[:-1], xs[:-1]] - 1)
         x, y = int(end_cell[0]), int(end_cell[1])
         if 0 <= x < self.size and 0 <= y < self.size:
-            self.grid[y, x] = min(
-                20, int(self.grid[y, x]) + self.hit_increment
-            )
-            self._last_hit[y, x] = time.monotonic()
+            self.grid[y, x] = min(16, int(self.grid[y, x]) + 3)
 
     def publish_map(self):
         with self._lock:
@@ -475,14 +271,10 @@ class LidarMapper(Node):
             values = np.full(self.grid.shape, -1, dtype=np.int8)
             seen = self.grid != 0
             values[seen] = 0
-            occupied = self.grid >= self.occupied_threshold
+            occupied = self.grid > 0
             values[occupied] = np.clip(
-                self.grid[occupied].astype(np.int16) * 2 + 40, 50, 82
+                self.grid[occupied].astype(np.int16) * 8 + 40, 40, 100
             ).astype(np.int8)
-            active = occupied & (
-                (time.monotonic() - self._last_hit) <= self.active_return_sec
-            )
-            values[active] = 100
             message.data = values.reshape(-1).tolist()
             self._published_version = self._map_version
         self.map_pub.publish(message)

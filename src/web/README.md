@@ -80,16 +80,12 @@ installed asset directory.
 ## LiDAR-only mapping
 
 `neuravac_slam` consumes `lidar_points`, groups full rotations, estimates pose
-by scan matching against its occupancy grid, deskews returns using interpolated
-Roomba `/odom`, and publishes `slam/map` at 2 Hz. The dashboard draws recent
-returns bright orange and older, persistent wall evidence in muted orange.
-Repeated hits are required to add a wall; rays crossing an old return clear its
-evidence. Launch it by default with
+by scan matching against its occupancy grid, and publishes `slam/map` at 2
+Hz. It does not use camera or Roomba odometry. Launch it by default with
 `ros2 launch bringup robot.launch.py`; use `use_slam:=false` to turn mapping
 off. Maps persist for the life of the node and reset on restart. Run the robot
-slowly in a room with relatively stationary walls; the COIN-D6 ROS message has
-arrival timestamps rather than sensor capture timestamps, and this mapper has
-no loop closure, so long or repeated paths can still drift.
+slowly in a room with relatively stationary walls; this initial mapper has no
+loop closure, so accumulated pose drift can distort large or repeated paths.
 
 The telemetry deployment runs from `~/neuravac-dashboard/20261024-telemetry`
 to avoid concurrent checkout edits replacing the running version. The Pi's

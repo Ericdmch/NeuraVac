@@ -58,26 +58,14 @@ ros2 launch bringup robot.launch.py
 
 Example without the model running: `ros2 launch bringup robot.launch.py use_vision:=false`.
 
-For a short diagnostic recording while testing motion and SLAM:
-
-```bash
-ros2 launch bringup robot.launch.py use_diagnostics:=true
-```
-
-The rosbag is saved under `~/Neuravac/logs/` and contains LiDAR points,
-odometry, scan-matched pose, and Roomba serial transmit/receive topics. Stop
-the launch with Ctrl+C to finish the recording. See the root README for how to
-inspect and share the bag.
-
-Parameters live in each package's `config/` YAML files, including
-`roomba_params.yaml`, `lidar_params.yaml`, `vision_params.yaml`, and
-`web_params.yaml`; launch loads the hardware configs, while the web node loads
-its dashboard settings. Camera overrides also support `NEURAVAC_*` environment
+Parameters still live in each package's `config/` YAML
+(`roomba_params.yaml`, `lidar_params.yaml`, `vision_params.yaml`); the launch
+file loads them. The web dashboard is configured with `NEURAVAC_*` environment
 variables as described in `src/web/README.md`.
 
-`roomba_node` requests sensor group 0 ten times per second by default and
-publishes incremental wheel odometry on `/odom`. The web dashboard only
-refreshes its telemetry display every five seconds; **Request now** or
+`roomba_node` requests sensor group 0 twice per second and publishes
+incremental wheel odometry on `/odom`. The web dashboard only refreshes its
+telemetry display every five seconds; **Request now** or
 `ros2 service call /request_telemetry roomba_interfaces/srv/RequestTelemetry "{}"`
 triggers an immediate sample. The SLAM matcher uses `/odom` as a prediction
 and aligns each LiDAR scan against the map to correct wheel slip.

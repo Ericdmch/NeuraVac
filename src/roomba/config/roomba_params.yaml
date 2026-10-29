@@ -3,8 +3,3 @@ roomba_node:
     # Stable name created by `ros2 run bringup neuravac_udev_setup`
     serial_port: /dev/neuravac_roomba
     baudrate: 115200
-    # Group 0 is 26 bytes; 10 Hz supports pose interpolation over a ~0.1 s scan.
-    sensor_query_hz: 10.0
-    # Distance between the left/right wheel contact centers. SCI angle data
-    # assumes 0.258 m; change after measuring the effective wheel track.
-    wheel_track_m: 0.258

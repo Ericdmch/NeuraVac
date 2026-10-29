@@ -20,18 +20,9 @@ class Roomba(Node):
         # Serial connection
         self.declare_parameter('serial_port', '/dev/neuravac_roomba')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('sensor_query_hz', 10.0)
-        # The OI angle sensor assumes 258 mm between the wheel contact lines.
-        self.declare_parameter('wheel_track_m', 0.258)
 
         serial_port = self.get_parameter('serial_port').value
         baudrate = self.get_parameter('baudrate').value
-        sensor_query_hz = max(
-            0.5, float(self.get_parameter('sensor_query_hz').value)
-        )
-        self.wheel_track_m = float(self.get_parameter('wheel_track_m').value)
-        if self.wheel_track_m <= 0.0:
-            raise ValueError('wheel_track_m must be greater than zero')
         self._serial_lock = threading.Lock()
         
         try:
@@ -67,9 +58,7 @@ class Roomba(Node):
             10
         )
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        self._sensor_query_timer = self.create_timer(
-            1.0 / sensor_query_hz, self.request_group_zero
-        )
+        self._sensor_query_timer = self.create_timer(0.5, self.request_group_zero)
         self._sensor_service = self.create_service(
             RequestTelemetry, 'request_telemetry', self.request_telemetry,
             callback_group=ReentrantCallbackGroup(),
@@ -166,12 +155,7 @@ class Roomba(Node):
 
     def publish_odometry(self, packet):
         distance_m = int.from_bytes(packet[12:14], 'big', signed=True) / 1000.0
-        reported_yaw = math.radians(
-            int.from_bytes(packet[14:16], 'big', signed=True)
-        )
-        # Rescale the OI angle if the measured effective wheel track differs
-        # from the 258 mm value used by the Roomba SCI angle calculation.
-        delta_yaw = reported_yaw * (0.258 / self.wheel_track_m)
+        delta_yaw = math.radians(int.from_bytes(packet[14:16], 'big', signed=True))
         mid_yaw = self._odom_yaw + delta_yaw / 2.0
         self._odom_x += distance_m * math.cos(mid_yaw)
         self._odom_y += distance_m * math.sin(mid_yaw)
