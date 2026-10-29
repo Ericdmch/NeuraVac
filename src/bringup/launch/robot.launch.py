@@ -68,6 +68,7 @@ def launch_setup(context):
             cmd=[
                 'ros2', 'bag', 'record', '-o', bag_path,
                 '/lidar_points', '/odom', '/slam/pose', '/serial_rx', '/serial_tx',
+                '/slam/status', '/slam/diagnostics',
             ],
             output='screen',
         ))

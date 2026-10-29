@@ -112,6 +112,7 @@ class MapProtectionTests(unittest.TestCase):
 
     def test_recovery_requires_three_consistent_scans(self):
         mapper = self.mapper
+        mapper.recovery_scans = 3
         mapper.grid[10, :40] = 12
         mapper._last_scan = np.zeros((40, 2))
         mapper._recovering = True
@@ -126,6 +127,7 @@ class MapProtectionTests(unittest.TestCase):
         scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
         with patch('neuravac_slam.slam_node.refine_icp',
                    side_effect=[(np.zeros(3), 0.0, float('inf')),
+                                (np.zeros(3), 0.0, float('inf')),
                                 (np.array((0.45, 0.0, 0.5)), 1.0, 0.01)] * 3):
             for _ in range(2):
                 mapper._process_scan(scan)
@@ -134,6 +136,42 @@ class MapProtectionTests(unittest.TestCase):
             mapper._process_scan(scan)
         self.assertFalse(mapper._recovering)
         np.testing.assert_allclose(mapper._pose, (0.45, 0.0, 0.5))
+
+    def test_recovery_can_confirm_while_robot_moves_and_turns(self):
+        mapper = self.mapper
+        mapper.grid[10, :40] = 12
+        mapper._last_scan = np.zeros((40, 2))
+        mapper._recovering = True
+        mapper._recovery_count = 1
+        mapper._recovery_pose = np.array((0.1, 0.0, 0.1))
+        mapper._recovery_odom = np.zeros(3)
+        mapper._odom_pose = np.array((0.12, 0.0, 0.15))
+        mapper._odom_received_at = time.monotonic()
+        expected = project_odometry(mapper._recovery_pose,
+                                    mapper._recovery_odom, mapper._odom_pose)
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        with patch('neuravac_slam.slam_node.refine_icp',
+                   side_effect=lambda points, target, seed, distance: (seed.copy(), 1.0, 0.01)):
+            mapper._process_scan(scan)
+        self.assertFalse(mapper._recovering)
+        np.testing.assert_allclose(mapper._pose, expected)
+
+    def test_large_direct_icp_correction_can_retry_coarse_search(self):
+        mapper = self.mapper
+        mapper.grid[10, :40] = 12
+        mapper._last_scan = np.zeros((40, 2))
+        mapper._recovering = True
+        mapper._recovery_count = 1
+        candidate = np.array((0.4, 0.0, 0.0))
+        mapper._recovery_pose = candidate.copy()
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        with patch.object(mapper, '_match_scan', return_value=candidate) as coarse:
+            with patch('neuravac_slam.slam_node.refine_icp',
+                       return_value=(candidate.copy(), 1.0, 0.01)):
+                mapper._process_scan(scan)
+        coarse.assert_called_once()
+        self.assertFalse(mapper._recovering)
+        np.testing.assert_allclose(mapper._pose, candidate)
 
     def test_saved_checkpoint_restores_grid_and_pose(self):
         mapper = self.mapper

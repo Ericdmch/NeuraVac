@@ -12,11 +12,11 @@ slam_node:
     map_publish_hz: 2.0
     # Reject whole scans instead of adding inconsistent geometry to the map.
     min_scan_overlap: 0.15
-    collision_pause_sec: 1.0
+    collision_pause_sec: 0.35
     map_file: ~/Neuravac/maps/room.npz
     icp_max_distance_m: 0.20
     icp_min_inlier_ratio: 0.40
     icp_max_rmse_m: 0.10
-    recovery_scans: 3
+    recovery_scans: 2
     recovery_window_m: 0.60
     recovery_window_deg: 60.0

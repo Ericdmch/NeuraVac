@@ -4,6 +4,7 @@ import math
 import threading
 import time
 import queue
+import json
 from pathlib import Path
 import os
 
@@ -109,12 +110,12 @@ class LidarMapper(Node):
         self.declare_parameter('odom_stale_sec', 1.5)
         self.declare_parameter('map_publish_hz', 2.0)
         self.declare_parameter('min_scan_overlap', 0.15)
-        self.declare_parameter('collision_pause_sec', 1.0)
+        self.declare_parameter('collision_pause_sec', 0.35)
         self.declare_parameter('map_file', '~/Neuravac/maps/room.npz')
         self.declare_parameter('icp_max_distance_m', 0.20)
         self.declare_parameter('icp_min_inlier_ratio', 0.40)
         self.declare_parameter('icp_max_rmse_m', 0.10)
-        self.declare_parameter('recovery_scans', 3)
+        self.declare_parameter('recovery_scans', 2)
         self.declare_parameter('recovery_window_m', 0.60)
         self.declare_parameter('recovery_window_deg', 60.0)
         value = lambda name: self.get_parameter(name).value
@@ -141,6 +142,7 @@ class LidarMapper(Node):
         self.recovery_angle = math.radians(float(value('recovery_window_deg')))
         self._recovering = False
         self._recovery_pose = None
+        self._recovery_odom = None
         self._recovery_count = 0
         self._collision_until = 0.0
         self._serial_buffer = bytearray()
@@ -156,6 +158,10 @@ class LidarMapper(Node):
         self._display_anchor = None
         self._lock = threading.Lock()
         self._generation = 0
+        self._icp_stats = (None, None)
+        self._received_scans = 0
+        self._dropped_scans = 0
+        self._processed_scans = 0
         self._pending = queue.Queue(maxsize=1)
         self._stopping = threading.Event()
         self._map_version = 0
@@ -166,6 +172,7 @@ class LidarMapper(Node):
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
         self.pose_pub = self.create_publisher(PoseStamped, 'slam/pose', 10)
         self.status_pub = self.create_publisher(String, 'slam/status', 1)
+        self.diagnostics_pub = self.create_publisher(String, 'slam/diagnostics', 1)
         self.create_timer(1.0, self.publish_status)
         self.create_service(Trigger, 'slam/reset', self.reset_map)
         self.create_service(Trigger, 'slam/save', self.save_map)
@@ -334,11 +341,13 @@ class LidarMapper(Node):
                 if len(self._scan) >= 40:
                     scan = np.asarray(self._scan, dtype=np.float64)
                     self._scan = []
+                    self._received_scans += 1
                     try:
                         self._pending.put_nowait((self._generation, scan))
                     except queue.Full:
                         try:
                             self._pending.get_nowait()
+                            self._dropped_scans += 1
                         except queue.Empty:
                             pass
                         try:
@@ -423,6 +432,7 @@ class LidarMapper(Node):
                 continue
             try:
                 self._process_scan(scan, generation)
+                self._processed_scans += 1
             except Exception as error:
                 self.get_logger().error(f'Scan processing failed: {error}')
 
@@ -436,6 +446,17 @@ class LidarMapper(Node):
         if time.monotonic() < self._collision_until:
             status = 'COLLISION — MAP PAUSED'
         self.status_pub.publish(String(data=status))
+        self.diagnostics_pub.publish(String(data=json.dumps({
+            'recovering': self._recovering,
+            'confirmation_count': self._recovery_count,
+            'required_confirmations': self.recovery_scans,
+            'inlier_ratio': self._icp_stats[0],
+            'rmse_m': self._icp_stats[1],
+            'received_scans': self._received_scans,
+            'processed_scans': self._processed_scans,
+            'dropped_pending_scans': self._dropped_scans,
+            'map_version': self._map_version,
+        })))
 
     def _process_scan(self, scan, generation=None):
         points = self._local_points(scan)
@@ -457,45 +478,80 @@ class LidarMapper(Node):
                     self._odom_at_last_scan = (
                         self._odom_pose.copy() if self._odom_pose is not None else None
                     )
+                    # Follow a moving recovery hypothesis instead of repeatedly
+                    # searching around the old, frozen map pose.
+                    if (self._recovery_count and self._recovery_pose is not None
+                            and self._recovery_odom is not None
+                            and self._odom_at_last_scan is not None
+                            and self._odom_received_at is not None
+                            and time.monotonic() - self._odom_received_at <= self.odom_stale_sec):
+                        self._pose = project_odometry(
+                            self._recovery_pose, self._recovery_odom,
+                            self._odom_at_last_scan)
+                    elif self._odom_at_last_scan is not None:
+                        self._pose = self._live_pose()
+                search_pose = self._pose.copy()
                 # Exact grid hits are only a seed score. ICP's geometric
                 # correspondence checks decide whether this scan is usable.
                 ys, xs = np.nonzero(self.grid > 2)
                 target = np.column_stack((xs, ys)) * self.resolution + self.origin
                 if len(target) > 2500:
                     target = target[np.linspace(0, len(target) - 1, 2500).astype(int)]
+
+                def fit_ok(seed, fit, inliers, residual):
+                    angle = abs(math.atan2(math.sin(fit[2] - seed[2]),
+                                           math.cos(fit[2] - seed[2])))
+                    return (inliers >= max(self.icp_ratio, self.min_scan_overlap)
+                            and residual <= self.icp_rmse
+                            and np.linalg.norm(fit[:2] - seed[:2]) <= 0.25
+                            and angle <= math.radians(15))
+
                 candidate = self._pose.copy()
                 refined, ratio, error = refine_icp(points, target, candidate, self.icp_distance)
-                if ratio < self.icp_ratio or error > self.icp_rmse:
+                if self._recovering and not fit_ok(candidate, refined, ratio, error):
+                    # Wheel slip can corrupt the motion hypothesis. Also try
+                    # the last trusted pose before paying for a coarse search.
+                    alternative, alt_ratio, alt_error = refine_icp(
+                        points, target, previous_pose, self.icp_distance)
+                    if fit_ok(previous_pose, alternative, alt_ratio, alt_error):
+                        candidate, refined, ratio, error = (
+                            previous_pose.copy(), alternative, alt_ratio, alt_error)
+                if not fit_ok(candidate, refined, ratio, error):
                     candidate = self._match_scan(points)
                     refined, ratio, error = refine_icp(points, target, candidate, self.icp_distance)
-                correction_angle = abs(math.atan2(
-                    math.sin(refined[2] - candidate[2]),
-                    math.cos(refined[2] - candidate[2])))
-                if (ratio < max(self.icp_ratio, self.min_scan_overlap) or error > self.icp_rmse
-                        or np.linalg.norm(refined[:2] - candidate[:2]) > 0.25
-                        or correction_angle > math.radians(15)):
+                self._icp_stats = (float(ratio), float(error) if math.isfinite(error) else None)
+                if not fit_ok(candidate, refined, ratio, error):
                     self._pose = previous_pose
                     self._recovering = True
                     self._recovery_count = 0
                     return
                 candidate = refined
-                jump = abs(math.atan2(math.sin(candidate[2] - previous_pose[2]),
-                                      math.cos(candidate[2] - previous_pose[2])))
+                jump_origin = search_pose if self._recovering else previous_pose
+                jump = abs(math.atan2(math.sin(candidate[2] - jump_origin[2]),
+                                      math.cos(candidate[2] - jump_origin[2])))
                 angle_limit = self.recovery_angle if self._recovering else math.radians(20)
                 distance_limit = self.recovery_window if self._recovering else 0.35
                 if (jump > angle_limit
-                        or np.linalg.norm(candidate[:2] - previous_pose[:2]) > distance_limit):
+                        or np.linalg.norm(candidate[:2] - jump_origin[:2]) > distance_limit):
                     self._pose = previous_pose
                     self._recovering = True
                     self._recovery_count = 0
                     return
                 if self._recovering:
+                    expected = self._recovery_pose
+                    if (expected is not None and self._recovery_odom is not None
+                            and self._odom_at_last_scan is not None):
+                        expected = project_odometry(
+                            expected, self._recovery_odom, self._odom_at_last_scan)
                     consistent = self._recovery_pose is not None and (
-                        np.linalg.norm(candidate[:2] - self._recovery_pose[:2]) < 0.08
-                        and abs(math.atan2(math.sin(candidate[2] - self._recovery_pose[2]),
-                                           math.cos(candidate[2] - self._recovery_pose[2]))) < math.radians(5))
+                        np.linalg.norm(candidate[:2] - expected[:2]) < 0.08
+                        and abs(math.atan2(math.sin(candidate[2] - expected[2]),
+                                           math.cos(candidate[2] - expected[2]))) < math.radians(5))
                     self._recovery_count = self._recovery_count + 1 if consistent else 1
                     self._recovery_pose = candidate.copy()
+                    self._recovery_odom = (
+                        self._odom_at_last_scan.copy() if self._odom_at_last_scan is not None else None
+                    )
                     self._pose = previous_pose
                     if self._recovery_count < self.recovery_scans:
                         return
