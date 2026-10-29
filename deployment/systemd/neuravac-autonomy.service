@@ -1,0 +1,16 @@
+[Unit]
+Description=NeuraVac autonomous mapping (motion disabled)
+After=neuravac-toolbox.service neuravac-roomba.service
+Wants=neuravac-toolbox.service neuravac-roomba.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Neuravac
+Environment=NEURAVAC_AUTONOMY_HOST=100.106.145.39
+ExecStartPre=/bin/bash -c "for i in {1..30}; do ip -4 addr show tailscale0 | grep -q 100.106.145.39/ && exit 0; sleep 1; done; exit 1"
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash; source %h/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh; source %h/Neuravac/install/setup.bash; exec ros2 launch neuravac_mapping autonomy.launch.py enable_motion:=false"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,5 +1,5 @@
 lidar_node:
   ros__parameters:
-    # Stable name created by `ros2 run bringup neuravac_udev_setup`
-    serial_port: /dev/neuravac_lidar
+    # Physical USB port path for the LiDAR cable on the Pi (or /dev/neuravac_lidar after re-running udev setup)
+    serial_port: /dev/serial/by-path/platform-xhci-hcd.1-usb-0:2:1.0-port0
     baudrate: 230400

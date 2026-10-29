@@ -5,17 +5,23 @@
 </p>
 
 NeuraVac is a ROS 2 robot platform built around an iRobot Roomba. It combines
-direct Roomba control, USB LiDAR, camera-based floor-object detection, and a
-browser dashboard into one ROS 2 workspace.
+direct Roomba control, USB LiDAR, SLAM Toolbox 2D mapping, Nav2 autonomous
+frontier exploration, camera-based floor-object detection, and a browser
+dashboard into one ROS 2 workspace.
 
 The project is designed so that hardware drivers publish and consume ROS
 topics instead of depending on each other directly:
 
-- The Roomba node owns the Roomba's Open Interface serial connection.
-- The LiDAR node parses scan packets and publishes individual range points.
+- The Roomba node owns the Roomba's Open Interface serial connection, publishes
+  wheel encoder odometry (`/odom`), and runs the safety watchdog (`driver_watchdog`).
+- The LiDAR node parses scan packets and publishes individual range points (`/lidar_points`).
+- The mapping package (`neuravac_mapping`) deskews 360° LiDAR revolutions against
+  `/odom`, runs SLAM Toolbox (`async_slam_toolbox_node`), bridges `/slam/map` and
+  `/slam/pose` for the dashboard, and coordinates Nav2 autonomous frontier mapping.
 - The vision node publishes camera frames and object detections.
 - The web node bridges ROS topics to a Flask dashboard for monitoring and
-  manual control.
+  manual control (`:5000`), while `autonomy_dashboard` serves the autonomous
+  mapping operator page (`:5050`).
 - The bringup package starts the complete robot with one launch command and
   provides stable USB device names.
 - The interfaces package contains the messages shared by those nodes.
@@ -24,26 +30,24 @@ topics instead of depending on each other directly:
 
 ```mermaid
 flowchart LR
-    Roomba[ iRobot Roomba ] <-->|USB serial<br/>115200 baud| R[roomba_node]
+    Roomba[ iRobot Roomba ] <-->|USB serial<br/>115200 baud| R[roomba_node +<br/>driver_watchdog]
     Lidar[USB LiDAR] -->|USB serial<br/>230400 baud| L[lidar_node]
-    L -->|lidar_points| S[neuravac_slam]
+    L -->|lidar_points| SB[scan_bridge]
+    R -->|odom + roomba/sensors| SB
+    SB -->|/scan + TF<br/>base_link to lidar_link| ST[slam_toolbox]
+    ST -->|/map + TF<br/>map to odom| DB[dashboard_bridge]
     Camera[USB camera] --> V[vision_node]
     Bundle[(floor-vision-pi<br/>inference bundle)] --> V
 
-    R -->|serial_rx / roomba/sensors| W[web_node]
-    R -->|odom from encoder packets 43 and 44| S
-    R -->|roomba/encoder_counts| E[Encoder diagnostics]
-    W -->|RequestTelemetry service| R
-    W -->|slam/reset service| S
+    R -->|serial_rx / roomba/sensors| W[web_node :5000]
+    DB -->|slam/map + slam/pose| W
+    DB -->|slam/map + slam/pose| AN[autonomy_node + Nav2]
+    AN -->|autonomy/cmd_vel| R
+    AN <-->|autonomy/state + request| AD[autonomy_dashboard :5050]
     L -->|lidar_points<br/>20 ms incremental batches| W
-    S -->|slam/map<br/>OccupancyGrid| W
     V -->|camera frames<br/>detections| W
     W --> Browser[Web browser<br/>:5000]
-    B[bringup<br/>robot.launch.py] -. starts .-> R
-    B -. starts .-> L
-    B -. starts .-> S
-    B -. starts .-> V
-    B -. starts .-> W
+    AD --> Operator[Autonomy UI<br/>:5050]
 ```
 
 The hardware nodes can run independently. ROS 2 provides the transport and
@@ -58,33 +62,22 @@ on its next frame and keeps a rolling 250 ms visible.
 
 The `roomba_node` requests `[149, 3, 0, 43, 44]` at 10 Hz and calculates
 `/odom` from wheel encoder changes. Its 30-byte response contains 26 bytes of
-group-0 telemetry followed by two bytes per wheel. `neuravac_slam` uses this motion
-prediction, then corrects the pose against LiDAR scans before updating
-`/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
-odometry. The COIN-D6 reports clockwise angles, so SLAM reverses the angular
-sign when converting returns to ROS coordinates; this keeps mapped walls
-aligned as the robot rotates. When wheel odometry stops arriving, scan matching
-widens its rotation search to track turns without the odometry prior. The
-camera is not used for mapping. The dashboard's **Room map**
-panel shows the growing map; stronger wall returns appear brighter. The map
-is held in memory and starts fresh when the node restarts. Use **Reset & Remap**
-in the Room map panel to clear the occupancy grid and scan-matching pose; the
-next LiDAR revolutions build a fresh map from the robot's current position.
-This calls `/slam/reset` (`std_srvs/srv/Trigger`). This initial scan matcher
-is intended for slow mapping in small rooms; without loop closure,
-long drives can drift, and moving objects can leave temporary marks.
+group-0 telemetry followed by two bytes per wheel. `scan_bridge` deskews each
+complete 360° LiDAR scan against `/odom` (using the physical mounting offset
+`lidar_yaw_rad = +pi/2`, since `-90°` in `lidar_link` points forward along
+`+X` of `base_link`) and publishes `/scan` to `slam_toolbox`. `dashboard_bridge`
+republishes the resulting occupancy grid on `/slam/map` and the localized
+`map -> base_link` transform on `/slam/pose`. Use **Reset & Remap** in the Room
+map panel (or call `/slam/reset`) to clear the occupancy grid and restart mapping
+from the robot's current position.
 
-Collision handling discards partial, queued, and in-flight contact scans and
-pauses mapping until two consistent LiDAR alignments confirm recovery. Encoder
-counts received with bumper or wheel-drop flags are consumed without advancing
-the pose, because spinning wheels need not mean chassis motion. Rapid pose
-changes also hold map insertion. These checks reduce smearing; wheel slip without
-a contact flag and ambiguous room geometry still require physical validation.
-The map arrow calibrates from straight W/S travel and points along motion,
-including backward for S; releasing the key retains its last travel direction.
+Collision handling discards partial, queued, and in-flight contact scans before
+map insertion. Encoder counts received with bumper or wheel-drop flags are
+consumed without advancing the pose, because spinning wheels need not mean
+chassis motion.
 
 The dashboard reads cached telemetry every five seconds and has a **Request
-now** button. The `request_telemetry` ROS service requests and returns an
+now** button. The `request_telemetry` ROS service requests and returns
 fresh group-0 telemetry from the same serialized encoder query. The service
 joins an outstanding query instead of inserting another serial transaction.
 Only `roomba/sensors` carries the extracted 26-byte telemetry payload;
@@ -94,9 +87,10 @@ Only `roomba/sensors` carries the extracted 26-byte telemetry payload;
 
 | Package | Type | Responsibility |
 | --- | --- | --- |
-| [`roomba`](src/roomba) | `ament_python` | Owns the Roomba serial port, publishes raw serial bytes and wheel odometry, and serves on-demand telemetry requests. See [`src/roomba/README.md`](src/roomba/README.md). |
+| [`roomba`](src/roomba) | `ament_python` | Owns the Roomba serial port, publishes raw serial bytes and wheel odometry, runs the `driver_watchdog`, and serves on-demand telemetry requests. See [`src/roomba/README.md`](src/roomba/README.md). |
 | [`lidar`](src/lidar) | `ament_python` | Reads the LiDAR serial stream, validates packets, decodes angle/distance/intensity, and publishes points. |
-| [`neuravac_slam`](src/neuravac_slam) | `ament_python` | Uses Roomba wheel odometry as a pose prior, corrects it against LiDAR scans, and publishes a 2D occupancy grid. |
+| [`neuravac_mapping`](src/neuravac_mapping) | `ament_python` | Deskews LiDAR scans (`scan_bridge`), runs SLAM Toolbox (`mapping.launch.py`), bridges `/slam/map` and `/slam/pose` (`dashboard_bridge`), and runs Nav2 autonomous frontier exploration (`autonomy.launch.py`). |
+| [`neuravac_slam`](src/neuravac_slam) | `ament_python` | Legacy scan matcher (`slam_backend:=legacy`). Replaced by `neuravac_mapping` (`slam_backend:=toolbox`) by default. |
 | [`roomba_interfaces`](src/roomba_interfaces) | `ament_cmake` | Builds the custom ROS 2 messages shared by the nodes. |
 | [`vision`](src/vision) | `ament_python` | Captures camera frames, runs the deployed floor-vision model, and publishes detections. |
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
@@ -111,6 +105,7 @@ Only `roomba/sensors` carries the extracted 26-byte telemetry payload;
 | `serial_rx` | `roomba_interfaces/msg/SerialData` | Roomba -> ROS | Raw bytes received from the Roomba. |
 | `serial_tx` | `roomba_interfaces/msg/SerialData` | ROS -> Roomba | Raw bytes sent to the Roomba. |
 | `odom` | `nav_msgs/msg/Odometry` | Roomba -> ROS | Pose and velocity from encoder packets 43 and 44. |
+| `roomba/sensors` | `roomba_interfaces/msg/SerialData` | Roomba -> ROS | Extracted 26-byte OI sensor group-0 packet. |
 | `request_telemetry` | `roomba_interfaces/srv/RequestTelemetry` | ROS -> Roomba | Requests and returns a fresh 26-byte OI sensor group 0 response. |
 
 `SerialData` contains a `uint8[] data` field. The Roomba node starts the
@@ -125,20 +120,21 @@ ros2 service call /request_telemetry roomba_interfaces/srv/RequestTelemetry "{}"
 
 The SCI manual documents opcode 142 as the sensor request, packet code 0 as
 the 26-byte all-sensor packet, and the distance/angle values as signed,
-big-endian increments. The mapper treats wheel odometry as a scan-matching
-prior because wheel slip can make it drift. See
+big-endian increments. See
 [`docs/Roomba/Roomba_SCI_manual.md`](docs/Roomba/Roomba_SCI_manual.md).
 
-#### LiDAR
+#### LiDAR and SLAM mapping
 
 | Topic or service | Type | Purpose |
 | --- | --- | --- |
 | `lidar_points` | `roomba_interfaces/msg/LidarPoint` | Decoded points containing `angle_deg`, `distance_mm`, and `intensity`. |
-| `slam/map` | `nav_msgs/msg/OccupancyGrid` | LiDAR-only 2D room map in the `map` frame. |
-| `slam/pose` | `geometry_msgs/msg/PoseStamped` | Scan-matched robot position and heading in the map frame. |
-| `slam/reset` | `std_srvs/srv/Trigger` | Clears map and pose; fresh LiDAR scans recalculate the map. |
+| `scan` | `sensor_msgs/msg/LaserScan` | Deskewed 360° scan in `lidar_link` published by `scan_bridge`. |
+| `slam/map` | `nav_msgs/msg/OccupancyGrid` | 2D room occupancy grid in the `map` frame (`0` free, `100` occupied, `-1` unknown). |
+| `slam/pose` | `geometry_msgs/msg/PoseStamped` | Localized robot position and heading in the `map` frame. |
+| `slam/status` | `std_msgs/msg/String` | Mapping status (`TRACKING` or `WAITING FOR SCANS`). |
+| `slam/reset` | `std_srvs/srv/Trigger` | Clears the SLAM Toolbox map and pose graph so fresh scans start a new map. |
 
-The dashboard's **Reset & Remap** button calls this service. To reset from a
+The dashboard's **Reset & Remap** button calls `/slam/reset`. To reset from a
 terminal:
 
 ```bash
@@ -147,6 +143,17 @@ ros2 service call /slam/reset std_srvs/srv/Trigger "{}"
 
 The LiDAR node expects the D6 packet format described in the source and uses
 230400 baud by default.
+
+#### Autonomous mapping (`neuravac_mapping`)
+
+| Topic, action, or service | Type | Purpose |
+| --- | --- | --- |
+| `autonomy/request` | `std_msgs/msg/String` | JSON mission commands (`start` with `return_goal`, `return`, `stop`). |
+| `autonomy/state` | `std_msgs/msg/String` | JSON mission state (`idle`, `exploring`, `returning`, `complete`, `stopped`). |
+| `autonomy/cmd_vel` | `geometry_msgs/msg/Twist` | Coordinator velocity commands forwarded to `driver_watchdog`. |
+| `autonomy/driver_status` | `std_msgs/msg/String` | Watchdog state (`ARMED`, `DISARMED`, or latched stop reason). |
+| `autonomy/arm` / `autonomy/disarm` | `std_srvs/srv/Trigger` | Arms or disarms autonomous motor output in `roomba_node`. |
+| `navigate_to_pose` | `nav2_msgs/action/NavigateToPose` | Nav2 action server used for frontier and return navigation. |
 
 #### Vision
 
@@ -164,6 +171,7 @@ parameters, detection labels, and deployment notes.
 - Ubuntu/Linux with ROS 2 (the deployment documentation targets ROS 2 Jazzy)
 - Python 3.10 or newer
 - `colcon`, `rosdep`, and the ROS 2 packages required by the package manifests
+  (including `ros-jazzy-slam-toolbox` and `ros-jazzy-navigation2` / `ros-jazzy-nav2-bringup`)
 - `pyserial` for the USB serial devices
 - Flask and OpenCV for the dashboard/camera features
 - A deployed `floor-vision-pi` bundle for the vision node
@@ -186,10 +194,10 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-When only one package is being developed, a focused build is faster:
+When only core robot and mapping packages are needed:
 
 ```bash
-colcon build --packages-select roomba_interfaces roomba lidar neuravac_slam vision web bringup --symlink-install
+colcon build --packages-select roomba_interfaces roomba lidar neuravac_mapping neuravac_slam vision web bringup --symlink-install
 ```
 
 Build `vision` after its model bundle dependencies are installed:
@@ -227,51 +235,146 @@ The serial ports and baud rates are configured in:
 - [`src/roomba/config/roomba_params.yaml`](src/roomba/config/roomba_params.yaml)
 - [`src/lidar/config/lidar_params.yaml`](src/lidar/config/lidar_params.yaml)
 
-The YAML files use the stable names created by the udev setup tool. If the
-rules are not installed, use `/dev/serial/by-path/...` or another stable udev
-symlink instead of `/dev/ttyUSB0` and `/dev/ttyUSB1`. Cheap USB-serial
-adapters without unique serial numbers are identified by their physical USB
-port, so keep each adapter in the same port after setup.
+The YAML files default to the physical USB port paths currently wired on the Pi
+(`/dev/serial/by-path/platform-xhci-hcd.0-usb-0:1:1.0-port0` for the Roomba and
+`/dev/serial/by-path/platform-xhci-hcd.1-usb-0:2:1.0-port0` for the LiDAR) so
+that both `systemctl --user` and `ros2 launch bringup robot.launch.py` open the
+correct serial ports even if `/etc/udev/rules.d/99-neuravac.rules` was generated
+when the cables were in different USB sockets. Because CH340 (`1a86:7523`)
+USB-serial adapters do not have unique serial numbers, they are identified by
+their physical USB port — keep each adapter in the same USB port, or re-run
+`ros2 run bringup neuravac_udev_setup --install` if you move a cable.
 
-## Start the robot
+## Start the robot (with SLAM mapping and all nodes running)
 
-After building and sourcing the workspace, start the complete robot with:
+Before starting, wake the Roomba by pressing **CLEAN** on the robot if it is
+asleep. Make sure you only run **one** startup method at a time (either the
+`systemd --user` services or manual `ros2 launch` terminals) so duplicate nodes
+do not compete for the USB serial ports.
+
+### Option A: Start all nodes via `systemd --user` services (recommended on the Pi)
+
+On the Raspberry Pi, five user services manage the hardware drivers, SLAM
+Toolbox mapping, web dashboard (`:5000`), and Nav2 autonomous mapping stack
+(`:5050`):
+
+| Service | Nodes started | Purpose |
+| --- | --- | --- |
+| `neuravac-roomba.service` | `roomba_node` | Roomba serial owner, `/odom` encoder odometry, `/roomba/sensors`, and `driver_watchdog`. |
+| `neuravac-lidar.service` | `lidar_node` | D6 USB LiDAR driver publishing `/lidar_points`. |
+| `neuravac-toolbox.service` | `scan_bridge`, `slam_toolbox`, `dashboard_bridge` | Deskews `/lidar_points` into `/scan`, runs SLAM Toolbox, and publishes `/slam/map`, `/slam/pose`, and TF (`map -> odom -> base_link -> lidar_link`). |
+| `neuravac-dashboard.service` | `web_node` | Main Flask dashboard on `http://<pi-ip>:5000`. |
+| `neuravac-autonomy.service` | `controller_server`, `planner_server`, `bt_navigator`, `lifecycle_manager_autonomy`, `autonomy_node`, `autonomy_dashboard` | Nav2 stack, autonomous frontier explorer (starts with `enable_motion:=false`), and operator UI on `http://<tailscale-ip>:5050`. |
+
+Start all five services together:
+
+```bash
+systemctl --user start \
+  neuravac-roomba.service \
+  neuravac-lidar.service \
+  neuravac-toolbox.service \
+  neuravac-dashboard.service \
+  neuravac-autonomy.service
+```
+
+Check that all services are `active (running)`:
+
+```bash
+systemctl --user status 'neuravac-*' --no-pager
+```
+
+Stop all services cleanly:
+
+```bash
+systemctl --user stop \
+  neuravac-autonomy.service \
+  neuravac-toolbox.service \
+  neuravac-dashboard.service \
+  neuravac-lidar.service \
+  neuravac-roomba.service
+```
+
+#### Running a supervised autonomous mapping mission
+
+By default, `neuravac-autonomy.service` launches with `enable_motion:=false` so
+the robot cannot move autonomously until explicitly enabled.
+
+1. Open the main dashboard at `http://<pi-ip>:5000` and the autonomy operator
+   page at `http://<tailscale-ip>:5050` (e.g., `http://100.106.145.39:5050`).
+2. Confirm `/slam/status` is `TRACKING` and the initial room scan is visible.
+3. Enable autonomous motion for your supervised session:
+   ```bash
+   source /opt/ros/jazzy/setup.bash
+   source ~/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh
+   source ~/Neuravac/install/setup.bash
+   ros2 param set /autonomous_mapping enable_motion true
+   ```
+4. In the `:5050` operator UI:
+   - Click a green known-free cell on the map to set the **return point**.
+   - Click **Start mapping** to arm the watchdog and explore reachable frontiers.
+   - Click **End & return** at any time to cancel frontier exploration and
+     navigate back to the selected return point, or click **Stop & wait** for an
+     immediate halt and disarm.
+5. When finished, lock autonomous motion and disarm the watchdog:
+   ```bash
+   ros2 param set /autonomous_mapping enable_motion false
+   ros2 service call /autonomy/disarm std_srvs/srv/Trigger "{}"
+   ```
+
+### Option B: Start all nodes manually via `ros2 launch`
+
+If you prefer to run the nodes interactively in terminals (including
+`vision_node`), first ensure the background systemd services are stopped:
+
+```bash
+systemctl --user stop \
+  neuravac-autonomy.service \
+  neuravac-toolbox.service \
+  neuravac-dashboard.service \
+  neuravac-lidar.service \
+  neuravac-roomba.service
+```
+
+**Terminal 1 — Hardware drivers, SLAM Toolbox mapping, vision, and main dashboard (`:5000`):**
 
 ```bash
 source /opt/ros/jazzy/setup.bash
+source ~/neuravac-web-venv/bin/activate
+source ~/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh
 source ~/Neuravac/install/setup.bash
-ros2 launch bringup robot.launch.py
+ros2 launch bringup robot.launch.py slam_backend:=toolbox
 ```
 
-This launch file starts `roomba_node`, `lidar_node`, `neuravac_slam`,
-`vision_node`, and `web_node` together. Set `use_slam:=false` to disable
-mapping while leaving the LiDAR view active. The Roomba and LiDAR nodes automatically retry every
-three seconds if a serial device is temporarily unplugged. Open
-<http://localhost:5000> from a browser on the robot or forward port 5000 over
-SSH to use the dashboard.
+This single launch command starts:
+- `roomba_node` (Roomba serial bridge, encoder `/odom`, `driver_watchdog`)
+- `lidar_node` (USB LiDAR driver)
+- `neuravac_mapping/mapping.launch.py` (`scan_bridge`, `slam_toolbox`, `dashboard_bridge`)
+- `vision_node` (floor-vision camera model)
+- `web_node` (main dashboard at `http://localhost:5000`)
 
-The launch file also supports these arguments:
+Useful `robot.launch.py` arguments:
 
 ```bash
-ros2 launch bringup robot.launch.py use_vision:=false
-ros2 launch bringup robot.launch.py use_slam:=false
-ros2 launch bringup robot.launch.py use_lidar:=false use_roomba:=false
-ros2 launch bringup robot.launch.py use_web:=false
+# Run without the floor-vision model (web_node captures /dev/neuravac_camera directly)
+ros2 launch bringup robot.launch.py slam_backend:=toolbox use_vision:=false camera_device:=/dev/neuravac_camera
+
+# Record diagnostic rosbags to ~/Neuravac/logs/
+ros2 launch bringup robot.launch.py slam_backend:=toolbox use_diagnostics:=true
+
+# Use the legacy scan matcher instead of SLAM Toolbox
+ros2 launch bringup robot.launch.py slam_backend:=legacy
 ```
 
-With `use_vision:=false`, the dashboard captures the webcam directly using
-`camera_device`:
+**Terminal 2 (optional) — Nav2 autonomous mapping coordinator and operator UI (`:5050`):**
 
 ```bash
-ros2 launch bringup robot.launch.py \
-  use_vision:=false camera_device:=/dev/neuravac_camera
+source /opt/ros/jazzy/setup.bash
+source ~/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh
+source ~/Neuravac/install/setup.bash
+NEURAVAC_AUTONOMY_HOST=0.0.0.0 ros2 launch neuravac_mapping autonomy.launch.py enable_motion:=false
 ```
 
-Only one process can own the webcam. When vision is enabled, `vision_node`
-owns the camera and the dashboard displays the frames published on
-`camera/image/compressed`.
-
-### Start vision
+### Start vision standalone
 
 Deploy the inference bundle as described in
 [`src/vision/README.md`](src/vision/README.md), then start the node with its
@@ -285,20 +388,24 @@ ros2 run vision vision_node --ros-args \
 ```
 
 The vision node publishes detections and annotated images, but it does not
-publish Roomba drive commands. Run it with the robot stationary during initial
-integration and model validation.
+publish Roomba drive commands.
 
 ## Inspect the ROS graph
 
 Useful commands while the system is running:
 
 ```bash
+source /opt/ros/jazzy/setup.bash
+source ~/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh
+source ~/Neuravac/install/setup.bash
+
 ros2 node list
 ros2 topic list
-ros2 topic echo /lidar_points
-ros2 topic echo /camera/detections
-ros2 topic echo /serial_rx
-ros2 topic hz /camera/detections
+ros2 topic echo /slam/status --once
+ros2 topic echo /slam/pose --once
+ros2 topic echo /autonomy/state --once
+ros2 topic echo /autonomy/driver_status --once
+ros2 topic hz /scan
 ```
 
 To confirm which nodes own a topic:
@@ -306,6 +413,7 @@ To confirm which nodes own a topic:
 ```bash
 ros2 topic info /serial_tx
 ros2 topic info /lidar_points
+ros2 topic info /slam/map
 ```
 
 ## Testing
@@ -315,6 +423,15 @@ Run the package tests after sourcing ROS:
 ```bash
 colcon test --event-handlers console_direct+
 colcon test-result --verbose
+```
+
+Run the `neuravac_mapping` unit and isolated ROS test suite (`61` tests):
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/Neuravac/install/setup.bash
+cd ~/Neuravac/src/neuravac_mapping
+ROS_DOMAIN_ID=55 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 The web package also has focused unit tests:
@@ -327,18 +444,19 @@ PYTHONPATH=src/web:$PYTHONPATH python3 -m unittest discover -s src/web/tests
 
 ```text
 .
-├── docs/                 Hardware manuals and NeuraVac logo assets
+├── docs/                   Hardware manuals, architecture plans, and NeuraVac logo assets
 ├── src/
-│   ├── bringup/          Full-robot launch file and USB udev setup
-│   ├── lidar/            LiDAR ROS 2 node and configuration
-│   ├── neuravac_slam/    LiDAR scan matching and 2D occupancy mapping
-│   ├── roomba/           Roomba serial ROS 2 node and configuration
-│   ├── roomba_interfaces/Custom ROS 2 messages
-│   ├── vision/           Camera and floor-object detection node
-│   └── web/              Flask dashboard and ROS bridge
-├── build/                Colcon build output (generated)
-├── install/              Colcon install output (generated)
-└── pyproject.toml        Python project metadata and dependencies
+│   ├── bringup/            Full-robot launch file and USB udev setup
+│   ├── lidar/              LiDAR ROS 2 node and configuration
+│   ├── neuravac_mapping/   SLAM Toolbox bridge, Nav2 config, frontier planner, and watchdog
+│   ├── neuravac_slam/      Legacy LiDAR scan matcher and 2D occupancy mapper
+│   ├── roomba/             Roomba serial ROS 2 node, encoder odometry, and configuration
+│   ├── roomba_interfaces/  Custom ROS 2 messages and services
+│   ├── vision/             Camera and floor-object detection node
+│   └── web/                Flask dashboard and ROS bridge
+├── build/                  Colcon build output (generated)
+├── install/                Colcon install output (generated)
+└── pyproject.toml          Python project metadata and dependencies
 ```
 
 ## Hardware and protocol references
@@ -350,41 +468,28 @@ in the [SCI manual](docs/Roomba/Roomba_SCI_manual.md).
 
 - [Roomba SCI manual](docs/Roomba/Roomba_SCI_manual.md)
 - [LiDAR documentation](docs/Lidar)
+- [Autonomous mapping status](docs/plans/autonomous-mapping-status.md)
+- [SLAM Toolbox migration](docs/plans/slam-toolbox-migration.md)
 - [Vision package guide](src/vision/README.md)
 - [Web dashboard guide](src/web/README.md)
 - [Bringup package guide](src/bringup/README.md)
 
-## Diagnostic recordings and speed configuration
-
-This branch starts from `codex/slam-odometry-telemetry` and adds direct encoder odometry. The coarse mapper is used by default; ICP recovery is disabled. A worker keeps the newest complete revolution to avoid stale scan backlogs.
-
-Record a diagnostic run with `ros2 launch bringup robot.launch.py use_diagnostics:=true`. Bags are stored in `~/Neuravac/logs/` and ignored by Git. Release drive controls before stopping the launch with Ctrl+C.
-
-Dashboard drive speeds remain configurable in `src/web/config/web_params.yaml` (mm/s). Rebuild and restart after editing configuration.
-
-## Protecting and saving a room map
-
-SLAM waits for a complete initial revolution and verifies endpoint agreement against existing walls before inserting a scan. Rapid turns or large pose changes pause insertion for that scan; the next clean scan resumes immediately. Limits are editable in the SLAM YAML. The live marker follows encoder odometry during map holds and remains an estimate when wheels slip. Reset an already smeared map before evaluating this branch; these checks cannot repair previously incorrect walls.
-
-The arrow uses the travel calibration from `codex/slam-collision-icp`: about 2 cm of straight W/S movement aligns it with travel, with reverse handled so it points toward the robot front. This is display calibration, not an independent physical heading measurement.
-
-Save a good checkpoint, then reload it after a restart:
-
-```bash
-ros2 service call /slam/save std_srvs/srv/Trigger "{}"
-ros2 service call /slam/load std_srvs/srv/Trigger "{}"
-```
-
-The file defaults to `~/Neuravac/maps/room.npz` (`map_file` in the SLAM YAML). It contains occupancy evidence, map geometry, and robot pose, and is written atomically. Load only with the robot at the position and heading where it was saved. This mapper does not yet perform global relocalization; saving a map preserves work but does not by itself eliminate drift. Loading is explicit so a poor run cannot automatically replace a good checkpoint. Reset clears the in-memory map and leaves the saved checkpoint intact. Map files are ignored by Git.
-
-Ctrl+C closes node executors and serial connections; the Roomba driver sends a zero-speed command before closing its port. Saving remains explicit via `/slam/save`; quitting does not automatically overwrite a checkpoint. The `.npz` file is a compressed NumPy ZIP archive containing `grid`, `pose`, `resolution`, and `origin` arrays, loaded without pickle.
-
 ## Encoder positioning configuration
 
-`src/roomba/config/roomba_params.yaml` contains nominal wheel diameter (0.072 m), encoder counts per revolution (508.8), wheel track (0.235 m), left/right scale factors, polling rate, query timeout, and startup delay. Wheel track is the distance between wheel contact centers across the robot. Calibrate these against measured travel; the old SCI manual's 258 mm spacing should not automatically be applied to the 650.
+`src/roomba/config/roomba_params.yaml` contains nominal wheel diameter (0.072 m),
+encoder counts per revolution (508.8), wheel track (0.235 m), left/right scale
+factors, polling rate, query timeout, and startup delay. Wheel track is the
+distance between wheel contact centers across the robot.
 
-`roomba/encoder_counts` is `std_msgs/UInt16MultiArray`, ordered `[left, right]`, preserving raw 16-bit patterns. Signed modular differences handle rollover in both directions; the first sample establishes a baseline. Implausible jumps and gaps over two seconds rebaseline without moving the estimated pose. Group-0 distance and angle are not used for positioning.
+`roomba/encoder_counts` is `std_msgs/UInt16MultiArray`, ordered `[left, right]`,
+preserving raw 16-bit patterns. Signed modular differences handle rollover in
+both directions; the first sample establishes a baseline. Implausible jumps and
+gaps over two seconds rebaseline without moving the estimated pose. Group-0
+distance and angle are not used for positioning.
 
-`roomba/sensors` contains exactly the extracted 26-byte group-0 payload for web telemetry and SLAM bumper detection. Diagnostic bags include it, encoder counts, odometry, raw serial, and SLAM status/quality. The service and poller share one outstanding query. Partial replies are accumulated; timeout or invalid replies trigger a quiet drain before retrying.
-
-Wake the robot with CLEAN if asleep before launching. Startup sends Start, waits two seconds, then enters Safe mode and sends stop. Avoid injecting sensor queries or stream commands through the manual serial console while the driver owns the port. Firmware encoder direction depends on commanded motor direction: manually pushing a wheel opposite that direction can produce incorrect motion. Spinning/slipping wheels still require LiDAR correction.
+`roomba/sensors` contains the extracted 26-byte group-0 payload for web
+telemetry, `scan_bridge` contact rejection, and `driver_watchdog` hazard checks.
+Wake the robot with CLEAN if asleep before launching. Startup sends Start,
+waits two seconds, then enters Safe mode and sends stop. Avoid injecting sensor
+queries or stream commands through the manual serial console while the driver
+owns the port.

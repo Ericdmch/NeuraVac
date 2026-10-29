@@ -17,6 +17,7 @@ import serial
 from serial import SerialException
 
 from .encoder_odometry import EncoderOdometry, QUERY, REPLY_BYTES, decode_reply
+from neuravac_mapping.driver_watchdog import DriverWatchdog
 
 
 class Roomba(Node):
@@ -81,6 +82,7 @@ class Roomba(Node):
             RequestTelemetry, 'request_telemetry', self.request_telemetry,
             callback_group=ReentrantCallbackGroup(),
         )
+        self.autonomous_watchdog = DriverWatchdog(self)
         self.get_logger().info(
             f'Encoder odometry: opcode 149, packets [0,43,44], {hz:g} Hz; '
             f'track={self.encoder.track:g} m'
@@ -157,6 +159,8 @@ class Roomba(Node):
             self._warn('Use request_telemetry; raw sensor queries are owned by the driver.')
             return
         with self._serial_lock:
+            if payload:
+                self.autonomous_watchdog.manual_preempt()
             if not self.serial.is_open:
                 return
             if len(payload) == 5 and payload[0] == 137 and int.from_bytes(payload[1:3], 'big', signed=True) != 0:

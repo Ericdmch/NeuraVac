@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NeuraVac autonomous mapping</title>
+<style>
+:root {color-scheme: dark; font-family: system-ui, sans-serif; background:#101821;color:#eaf2f5}
+body {max-width:1050px;margin:2rem auto;padding:0 1rem} h1 {margin-bottom:.3rem} p {color:#b9cbd5}
+.panel {background:#1b2934;border:1px solid #344953;border-radius:12px;padding:1rem;margin:1rem 0}
+canvas {display:block;width:100%;max-width:720px;height:auto;image-rendering:pixelated;background:#46515a;cursor:crosshair}
+button {padding:.7rem 1rem;border:0;border-radius:7px;margin:.2rem;background:#91e0ce;color:#10251f;font-weight:700;cursor:pointer}
+button.stop {background:#ff9393;color:#361616} button:disabled {opacity:.45;cursor:not-allowed}
+#state {font-weight:700} #reason {color:#ffc68e}
+</style></head><body><h1>Autonomous mapping</h1>
+<p>Select a reachable point on the map for the robot to return to. Start only when the robot and its surroundings are ready for supervised operation.</p>
+<div class="panel"><span id="state">Waiting for coordinator</span><p id="reason"></p><p id="selection">No return point selected.</p>
+<button id="start" disabled>Start mapping</button><button id="return">End mapping and return</button><button id="stop" class="stop">Stop and wait</button></div>
+<div class="panel"><canvas id="map" aria-label="Room map; click to select the return point"></canvas><p>Dark = unknown, light = free, black = obstacle, blue = robot, orange = return point. Coordinates are in the map frame.</p></div>
+<script>
+const canvas = document.getElementById('map'), ctx = canvas.getContext('2d');
+let grid = null, pose = null, selected = null, state = null;
+function cellWorld(col,row) { const a=grid.origin_yaw,c=Math.cos(a),s=Math.sin(a),x=(col+.5)*grid.resolution,y=(row+.5)*grid.resolution;
+  return [grid.origin_x+c*x-s*y,grid.origin_y+s*x+c*y]; }
+function worldCell(x,y) { const a=grid.origin_yaw,c=Math.cos(a),s=Math.sin(a),dx=x-grid.origin_x,dy=y-grid.origin_y;
+  return [(c*dx+s*dy)/grid.resolution,(-s*dx+c*dy)/grid.resolution]; }
+function draw() { if (!grid) return; canvas.width=grid.width; canvas.height=grid.height;
+  const img=ctx.createImageData(grid.width,grid.height);
+  for(let row=0;row<grid.height;row++) for(let col=0;col<grid.width;col++) {
+    const v=grid.data[row*grid.width+col], shade=v<0?70:Math.round(235*(100-v)/100), i=((grid.height-1-row)*grid.width+col)*4;
+    img.data[i]=img.data[i+1]=img.data[i+2]=shade;img.data[i+3]=255;
+  } ctx.putImageData(img,0,0);
+  function dot(point,color) { if(!point)return;const [x,y]=worldCell(...point);ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,grid.height-y,Math.max(2,grid.width/100),0,Math.PI*2);ctx.fill(); }
+  dot(pose,'#40aaff'); dot(selected,'#ff9b32'); }
+canvas.addEventListener('click', e=>{if(!grid)return; const rect=canvas.getBoundingClientRect();
+ const col=Math.floor((e.clientX-rect.left)*grid.width/rect.width), row=grid.height-1-Math.floor((e.clientY-rect.top)*grid.height/rect.height);
+ if(col<0||row<0||col>=grid.width||row>=grid.height)return;
+ if(grid.data[row*grid.width+col]!==0){document.getElementById('selection').textContent='Choose a known free cell.';return;}
+ selected=cellWorld(col,row);document.getElementById('selection').textContent=`Return point: ${selected[0].toFixed(2)}, ${selected[1].toFixed(2)} m`;
+ document.getElementById('start').disabled=false;draw(); });
+async function command(command) {const body={command};if(command==='start')body.return_goal=selected;
+ try {const r=await fetch('/api/mission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await r.json();document.getElementById('reason').textContent=data.error||data.message;}
+ catch(e){document.getElementById('reason').textContent='Request failed; check the connection.';} }
+document.getElementById('start').onclick=()=>command('start');document.getElementById('return').onclick=()=>command('return');document.getElementById('stop').onclick=()=>command('stop');
+async function refresh(){try{const r=await fetch('/api/state',{cache:'no-store'}),d=await r.json();grid=d.map;pose=d.pose;state=d.state;
+ document.getElementById('state').textContent=state ? state.state.toUpperCase() : 'Waiting for coordinator';
+ document.getElementById('start').disabled=!(selected && grid && pose && state && !['exploring','returning'].includes(state.state));
+ if(state?.reason)document.getElementById('reason').textContent=state.reason;draw();}catch(e){document.getElementById('state').textContent='Dashboard disconnected';} }
+setInterval(refresh,1000);refresh();
+</script></body></html>

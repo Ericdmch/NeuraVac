@@ -1,7 +1,7 @@
 roomba_node:
   ros__parameters:
-    # Stable name created by `ros2 run bringup neuravac_udev_setup`
-    serial_port: /dev/neuravac_roomba
+    # Physical USB port path for the Roomba cable on the Pi (or /dev/neuravac_roomba after re-running udev setup)
+    serial_port: /dev/serial/by-path/platform-xhci-hcd.0-usb-0:1:1.0-port0
     baudrate: 115200
     sensor_query_hz: 10.0
     # Nominal Roomba 650/Create 2 geometry; calibrate against measured travel.

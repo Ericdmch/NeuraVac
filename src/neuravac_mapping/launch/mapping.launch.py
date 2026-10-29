@@ -14,7 +14,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('lidar_x_m', default_value='0.0'),
         DeclareLaunchArgument('lidar_y_m', default_value='0.0'),
-        DeclareLaunchArgument('lidar_yaw_rad', default_value='0.0'),
+        # Physical calibration: -90 deg in lidar_link points along +X of base_link.
+        DeclareLaunchArgument('lidar_yaw_rad', default_value='1.5707963267948966'),
         Node(package='neuravac_mapping', executable='scan_bridge', output='screen',
              respawn=True, respawn_delay=2., parameters=[{
                  key: ParameterValue(LaunchConfiguration(key), value_type=float)

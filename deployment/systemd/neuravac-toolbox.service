@@ -1,0 +1,14 @@
+[Unit]
+Description=NeuraVac SLAM Toolbox mapping
+After=neuravac-lidar.service neuravac-roomba.service
+Wants=neuravac-lidar.service neuravac-roomba.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Neuravac
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash; source %h/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh; source %h/Neuravac/install/setup.bash; exec ros2 launch neuravac_mapping mapping.launch.py"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
