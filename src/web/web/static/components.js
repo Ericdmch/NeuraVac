@@ -656,7 +656,7 @@ function CameraView() {
         if (currentUrl) URL.revokeObjectURL(currentUrl);
         currentUrl = null;
       }
-      if (!stopped) timer = window.setTimeout(updateFrame, 200);
+      if (!stopped) timer = window.setTimeout(updateFrame, 100);
     }
 
     updateFrame();
@@ -798,7 +798,7 @@ function App() {
         <Status online={!!telemetry?.online}>{telemetry?.online ? 'ROOMBA CONNECTED' : 'WAITING FOR ROOMBA'}</Status>
       </header>
       <div className="dashboard-grid">
-        <div className="visual-column"><CameraView /><LidarView /><SlamMapView /></div>
+        <div className="visual-column"><CameraView /><SlamMapView /><LidarView /></div>
         <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><PiDiagnostics /><RemoteOverride /><RoombaEffects /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />
