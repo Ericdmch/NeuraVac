@@ -1,4 +1,5 @@
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 import serial
 from serial import SerialException
@@ -198,9 +199,11 @@ def main(args=None):
 
         rclpy.spin(node)
 
-    except (SerialException, KeyboardInterrupt):
+    except (SerialException, KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         if 'node' in locals():
+            if node.serial.is_open:
+                node.serial.close()
             node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()

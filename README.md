@@ -362,3 +362,5 @@ ros2 service call /slam/load std_srvs/srv/Trigger "{}"
 ```
 
 The file defaults to `~/Neuravac/maps/room.npz` (`map_file` in the SLAM YAML). It contains occupancy evidence, map geometry, and robot pose, and is written atomically. Load only with the robot at the position and heading where it was saved. This mapper does not yet perform global relocalization; saving a map preserves work but does not by itself eliminate drift. Loading is explicit so a poor run cannot automatically replace a good checkpoint. Reset clears the in-memory map and leaves the saved checkpoint intact. Map files are ignored by Git.
+
+The heading arrow uses the dashboard mounting convention: 90 degrees clockwise offset with the heading direction reversed. Ctrl+C closes node executors and serial connections; the Roomba driver sends a zero-speed command before closing its port. Saving remains explicit via `/slam/save`; quitting does not automatically overwrite a checkpoint. The `.npz` file is a compressed NumPy ZIP archive containing `grid`, `pose`, `resolution`, and `origin` arrays, loaded without pickle.

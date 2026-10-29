@@ -5,6 +5,7 @@ import math
 import os
 import threading
 import time
+import signal
 
 import yaml
 from ament_index_python.packages import get_package_share_directory
@@ -12,7 +13,8 @@ from flask import Flask, Response, jsonify, render_template, request
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 import rclpy
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import MultiThreadedExecutor, ExternalShutdownException
+from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 from roomba_interfaces.srv import RequestTelemetry
@@ -549,7 +551,12 @@ def build_camera(bridge):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, interrupt)
 
     serial_bridge = SerialBridge('serial_tx', SerialData)
     lidar_bridge = LidarBridge('lidar_points', LidarPoint)
@@ -558,7 +565,14 @@ def main(args=None):
     executor = MultiThreadedExecutor()
     executor.add_node(serial_bridge.bridge)
     executor.add_node(lidar_bridge.bridge)
-    threading.Thread(target=executor.spin, daemon=True).start()
+    def spin_ros():
+        try:
+            executor.spin()
+        except ExternalShutdownException:
+            pass
+
+    ros_thread = threading.Thread(target=spin_ros, daemon=True)
+    ros_thread.start()
 
     web_root = os.environ.get('NEURAVAC_WEB_ROOT') or get_package_share_directory('web')
     template_dir = os.path.join(web_root, 'templates')
@@ -580,7 +594,8 @@ def main(args=None):
     finally:
         camera.close()
         executor.shutdown()
+        ros_thread.join(timeout=2.0)
         serial_bridge.bridge.destroy_node()
         lidar_bridge.bridge.destroy_node()
         if rclpy.ok():
-            rclpy.shutdown()
+            rclpy.try_shutdown()

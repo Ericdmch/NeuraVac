@@ -8,6 +8,7 @@ import os
 
 import numpy as np
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
@@ -372,9 +373,9 @@ def main(args=None):
     node = LidarMapper()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
         if rclpy.ok():
-            rclpy.shutdown()
+            rclpy.try_shutdown()

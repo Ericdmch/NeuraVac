@@ -3,6 +3,7 @@ import math
 import threading
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
@@ -179,6 +180,10 @@ class Roomba(Node):
 
     def destroy_node(self):
         if hasattr(self, 'serial') and self.serial.is_open:
+            try:
+                self.serial.write(bytes((137, 0, 0, 128, 0)))
+            except (SerialException, OSError):
+                pass
             self.serial.close()
         super().destroy_node()
 
@@ -219,12 +224,14 @@ def main(args=None):
         executor.add_node(node)
         executor.spin()
 
-    except (SerialException, KeyboardInterrupt):
+    except (SerialException, KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        if 'executor' in locals():
+            executor.shutdown()
         if 'node' in locals():
             node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':
