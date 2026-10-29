@@ -23,3 +23,8 @@ slam_node:
 
     # Earlier coarse scan matcher: no multi-scan ICP recovery lock.
     use_icp_recovery: false
+    # Map insertion checks are independent of live marker updates.
+    min_mapping_agreement: 0.55
+    mapping_tolerance_m: 0.12
+    max_mapping_turn_deg: 2.5
+    max_mapping_translation_m: 0.10

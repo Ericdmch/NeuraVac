@@ -45,6 +45,20 @@ def project_odometry(anchor_pose, anchor_odom, current):
                      math.atan2(math.sin(yaw), math.cos(yaw))))
 
 
+def scan_map_agreement(points, target, pose, tolerance=0.12):
+    """Measure endpoint support against existing walls, allowing sensor noise."""
+    if len(target) < 30:
+        return 1.0
+    c, s = math.cos(pose[2]), math.sin(pose[2])
+    world = points @ np.array(((c, -s), (s, c))).T + pose[:2]
+    supported = 0
+    for start in range(0, len(world), 60):
+        delta = world[start:start + 60, None, :] - target[None, :, :]
+        squared = np.sum(delta * delta, axis=2)
+        supported += int(np.count_nonzero(np.min(squared, axis=1) <= tolerance ** 2))
+    return supported / max(1, len(points))
+
+
 def refine_icp(points, target, seed, max_distance=0.20, iterations=8):
     """Refine a pose with trimmed nearest-neighbor rigid alignment."""
     pose = np.asarray(seed, dtype=float).copy()
@@ -119,6 +133,10 @@ class LidarMapper(Node):
         self.declare_parameter('recovery_window_m', 0.60)
         self.declare_parameter('recovery_window_deg', 60.0)
         self.declare_parameter('use_icp_recovery', False)
+        self.declare_parameter('min_mapping_agreement', 0.55)
+        self.declare_parameter('mapping_tolerance_m', 0.12)
+        self.declare_parameter('max_mapping_turn_deg', 2.5)
+        self.declare_parameter('max_mapping_translation_m', 0.10)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
         self.size = max(100, int(float(value('map_size_m')) / self.resolution))
@@ -142,6 +160,11 @@ class LidarMapper(Node):
         self.recovery_window = float(value('recovery_window_m'))
         self.recovery_angle = math.radians(float(value('recovery_window_deg')))
         self.use_icp_recovery = bool(value('use_icp_recovery'))
+        self.min_mapping_agreement = float(value('min_mapping_agreement'))
+        self.mapping_tolerance = float(value('mapping_tolerance_m'))
+        self.max_mapping_turn = math.radians(float(value('max_mapping_turn_deg')))
+        self.max_mapping_translation = float(value('max_mapping_translation_m'))
+        self._map_hold_reason = None
         self._recovering = False
         self._recovery_pose = None
         self._recovery_odom = None
@@ -152,6 +175,7 @@ class LidarMapper(Node):
         self.grid = np.zeros((self.size, self.size), dtype=np.int8)
         self._scan = []
         self._last_angle = None
+        self._have_scan_seam = False
         self._last_scan = None
         self._pose = np.zeros(3, dtype=np.float64)
         self._odom_pose = None
@@ -243,6 +267,7 @@ class LidarMapper(Node):
                 self._recovery_count = 0
                 self._scan.clear()
                 self._last_angle = None
+                self._have_scan_seam = False
                 self._odom_at_last_scan = (
                     self._odom_pose.copy() if self._odom_pose is not None else None
                 )
@@ -263,6 +288,7 @@ class LidarMapper(Node):
             self.grid.fill(0)
             self._scan.clear()
             self._last_angle = None
+            self._have_scan_seam = False
             self._last_scan = None
             self._pose.fill(0.0)
             self._recovering = False
@@ -340,7 +366,7 @@ class LidarMapper(Node):
             # LiDAR packet order normally advances monotonically. A large
             # discontinuity marks the seam between revolutions.
             if abs(delta) > math.pi:
-                if len(self._scan) >= 40:
+                if self._have_scan_seam and len(self._scan) >= 40:
                     scan = np.asarray(self._scan, dtype=np.float64)
                     self._scan = []
                     self._received_scans += 1
@@ -358,6 +384,7 @@ class LidarMapper(Node):
                             pass
                 else:
                     self._scan.clear()
+                self._have_scan_seam = True
         self._last_angle = angle
         distance = float(message.distance_mm) / 1000.0
         if self.min_range <= distance <= self.max_range:
@@ -375,13 +402,12 @@ class LidarMapper(Node):
         self._match_score = 1.0
         if not occupied.any():
             return self._pose.copy()
-        if self.use_icp_recovery:
-            # Allow one cell of sensor/rasterization error when finding an ICP seed.
-            padded = np.pad(occupied, 1)
-            occupied = np.logical_or.reduce([
-                padded[y:y + self.size, x:x + self.size]
-                for y in range(3) for x in range(3)
-            ])
+        # Allow one cell of sensor/rasterization error when finding an ICP seed.
+        padded = np.pad(occupied, 1)
+        occupied = np.logical_or.reduce([
+            padded[y:y + self.size, x:x + self.size]
+            for y in range(3) for x in range(3)
+        ])
         best_pose = self._pose.copy()
         best_score = -1.0
         best_cost = float('inf')
@@ -416,7 +442,7 @@ class LidarMapper(Node):
                         continue
                     score = float(np.count_nonzero(occupied[iy[valid], ix[valid]])) / len(points)
                     cost = dx * dx + dy * dy + dyaw * dyaw
-                    if score > best_score + 1e-9 or (self.use_icp_recovery and abs(score - best_score) < 1e-9 and cost < best_cost):
+                    if score > best_score + 1e-9 or (abs(score - best_score) < 1e-9 and cost < best_cost):
                         best_score = score
                         best_cost = cost
                         best_pose = np.array((self._pose[0] + dx,
@@ -446,6 +472,8 @@ class LidarMapper(Node):
 
     def publish_status(self):
         status = 'ODOMETRY ESTIMATE · MAP RECOVERING' if self.use_icp_recovery and self._recovering else 'TRACKING'
+        if not self.use_icp_recovery and self._map_hold_reason:
+            status = self._map_hold_reason
         if time.monotonic() < self._collision_until:
             status = 'COLLISION — MAP PAUSED'
         self.status_pub.publish(String(data=status))
@@ -468,6 +496,7 @@ class LidarMapper(Node):
         with self._lock:
             if generation is not None and generation != self._generation:
                 return
+            self._map_hold_reason = None
             if time.monotonic() < self._collision_until:
                 self._odom_at_last_scan = (
                     self._odom_pose.copy() if self._odom_pose is not None else None
@@ -565,12 +594,29 @@ class LidarMapper(Node):
                 previous_pose = self._pose.copy()
                 self._predict_from_odometry()
                 candidate = self._match_scan(points)
-                if self._match_score < self.min_scan_overlap:
+                ys, xs = np.nonzero(self.grid > 2)
+                target = np.column_stack((xs, ys)) * self.resolution + self.origin
+                if len(target) > 4000:
+                    target = target[np.linspace(0, len(target) - 1, 4000).astype(int)]
+                agreement = scan_map_agreement(points, target, candidate, self.mapping_tolerance)
+                self._icp_stats = (agreement, None)
+                if agreement < self.min_mapping_agreement:
                     self._pose = previous_pose
+                    self._map_hold_reason = 'SCAN DISAGREES · MAP HELD'
                     return
                 self._pose = candidate
                 self._recovering = False
                 self._recovery_count = 0
+                turn = abs(math.atan2(math.sin(candidate[2] - previous_pose[2]),
+                                      math.cos(candidate[2] - previous_pose[2])))
+                if (turn > self.max_mapping_turn
+                        or np.linalg.norm(candidate[:2] - previous_pose[:2]) > self.max_mapping_translation):
+                    # Keep tracking, but do not paint a scan acquired across
+                    # a rapid turn/pose correction as if it were instantaneous.
+                    self._last_scan = points
+                    self._anchor_display()
+                    self._map_hold_reason = 'MOVING QUICKLY · MAP HELD'
+                    return
             elif self._odom_pose is not None:
                 self._odom_at_last_scan = self._odom_pose.copy()
             theta = self._pose[2]

@@ -8,6 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import rclpy
 from std_srvs.srv import Trigger
+from roomba_interfaces.msg import LidarPoint
 
 from neuravac_slam.slam_node import LidarMapper, project_odometry, refine_icp, rotation_search_angles, scan_to_cartesian
 
@@ -116,6 +117,48 @@ class MapProtectionTests(unittest.TestCase):
         icp.assert_not_called()
         self.assertFalse(mapper._recovering)
         np.testing.assert_allclose(mapper._pose, (0.1, 0, 0))
+
+    def test_rapid_turn_does_not_paint_and_next_clean_scan_resumes(self):
+        mapper = self.mapper
+        mapper.use_icp_recovery = False
+        mapper._last_scan = np.zeros((40, 2))
+        mapper._match_score = 1.0
+        candidate = np.array((0.0, 0.0, 0.15))
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        with patch.object(mapper, '_match_scan', return_value=candidate):
+            mapper._process_scan(scan)
+            self.assertFalse(mapper.grid.any())
+            np.testing.assert_allclose(mapper._pose, candidate)
+            mapper._process_scan(scan)
+        self.assertTrue(mapper.grid.any())
+        self.assertIsNone(mapper._map_hold_reason)
+
+    def test_false_coarse_match_cannot_paint_unrelated_walls(self):
+        mapper = self.mapper
+        mapper.use_icp_recovery = False
+        mapper.grid[10, :40] = 12
+        mapper._last_scan = np.zeros((40, 2))
+        mapper._match_score = 1.0
+        original = mapper.grid.copy()
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        with patch.object(mapper, '_match_scan', return_value=np.array((0.1, 0.0, 0.0))):
+            mapper._process_scan(scan)
+        np.testing.assert_array_equal(mapper.grid, original)
+        np.testing.assert_allclose(mapper._pose, np.zeros(3))
+
+    def test_startup_discards_partial_revolution_before_mapping(self):
+        mapper = self.mapper
+        mapper._stopping.set()
+        mapper._worker.join()
+        for angle in range(90, 360):
+            mapper.on_point(LidarPoint(angle_deg=float(angle), distance_mm=1000))
+        mapper.on_point(LidarPoint(angle_deg=0.0, distance_mm=1000))
+        self.assertTrue(mapper._pending.empty())
+        for angle in range(1, 360):
+            mapper.on_point(LidarPoint(angle_deg=float(angle), distance_mm=1000))
+        mapper.on_point(LidarPoint(angle_deg=0.0, distance_mm=1000))
+        _, scan = mapper._pending.get_nowait()
+        self.assertEqual(len(scan), 360)
 
     def test_queued_scan_from_before_reset_cannot_repopulate_map(self):
         mapper = self.mapper
