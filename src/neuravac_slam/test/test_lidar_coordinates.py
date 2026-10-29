@@ -103,20 +103,21 @@ class MapProtectionTests(unittest.TestCase):
         original = mapper.grid.copy()
 
         def good_match(points):
-            mapper._match_score = 1.0
-            return np.array((0.01, 0.0, 0.01))
+            # A poor exact-cell seed must not prevent successful ICP recovery.
+            mapper._match_score = 0.01
+            return np.array((0.45, 0.0, 0.5))
 
         mapper._match_scan = good_match
         scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
         with patch('neuravac_slam.slam_node.refine_icp',
-                   return_value=(np.array((0.01, 0.0, 0.01)), 1.0, 0.01)):
+                   return_value=(np.array((0.45, 0.0, 0.5)), 1.0, 0.01)):
             for _ in range(2):
                 mapper._process_scan(scan)
                 np.testing.assert_array_equal(mapper.grid, original)
                 np.testing.assert_array_equal(mapper._pose, np.zeros(3))
             mapper._process_scan(scan)
         self.assertFalse(mapper._recovering)
-        np.testing.assert_allclose(mapper._pose, (0.01, 0.0, 0.01))
+        np.testing.assert_allclose(mapper._pose, (0.45, 0.0, 0.5))
 
     def test_saved_checkpoint_restores_grid_and_pose(self):
         mapper = self.mapper

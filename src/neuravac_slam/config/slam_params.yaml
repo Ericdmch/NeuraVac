@@ -18,3 +18,5 @@ slam_node:
     icp_min_inlier_ratio: 0.40
     icp_max_rmse_m: 0.10
     recovery_scans: 3
+    recovery_window_m: 0.60
+    recovery_window_deg: 60.0

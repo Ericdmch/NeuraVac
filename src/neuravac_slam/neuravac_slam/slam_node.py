@@ -102,6 +102,8 @@ class LidarMapper(Node):
         self.declare_parameter('icp_min_inlier_ratio', 0.40)
         self.declare_parameter('icp_max_rmse_m', 0.10)
         self.declare_parameter('recovery_scans', 3)
+        self.declare_parameter('recovery_window_m', 0.60)
+        self.declare_parameter('recovery_window_deg', 60.0)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
         self.size = max(100, int(float(value('map_size_m')) / self.resolution))
@@ -122,6 +124,8 @@ class LidarMapper(Node):
         self.icp_ratio = float(value('icp_min_inlier_ratio'))
         self.icp_rmse = float(value('icp_max_rmse_m'))
         self.recovery_scans = max(2, int(value('recovery_scans')))
+        self.recovery_window = float(value('recovery_window_m'))
+        self.recovery_angle = math.radians(float(value('recovery_window_deg')))
         self._recovering = False
         self._recovery_pose = None
         self._recovery_count = 0
@@ -309,11 +313,18 @@ class LidarMapper(Node):
         self._match_score = 1.0
         if not occupied.any():
             return self._pose.copy()
+        # Allow one cell of sensor/rasterization error when finding an ICP seed.
+        padded = np.pad(occupied, 1)
+        occupied = np.logical_or.reduce([
+            padded[y:y + self.size, x:x + self.size]
+            for y in range(3) for x in range(3)
+        ])
         best_pose = self._pose.copy()
         best_score = -1.0
         best_cost = float('inf')
-        step = max(self.resolution, self.match_window / 4.0)
-        translations = np.arange(-self.match_window, self.match_window + step / 2, step)
+        window = self.recovery_window if self._recovering else self.match_window
+        step = max(self.resolution, window / 4.0)
+        translations = np.arange(-window, window + step / 2, step)
         odom_fresh = (
             self._odom_received_at is not None
             and time.monotonic() - self._odom_received_at <= self.odom_stale_sec
@@ -324,6 +335,8 @@ class LidarMapper(Node):
             self.fallback_match_angle,
             self.fallback_match_steps,
         )
+        if self._recovering:
+            rotations = np.linspace(-self.recovery_angle, self.recovery_angle, 25)
         # Search around the last LiDAR-derived pose. Free cells are ignored;
         # this makes sparse and short-range returns less likely to pull the pose.
         for dyaw in rotations:
@@ -370,12 +383,8 @@ class LidarMapper(Node):
                         self._odom_pose.copy() if self._odom_pose is not None else None
                     )
                 candidate = self._match_scan(points)
-                if self._match_score < self.min_scan_overlap:
-                    self._pose = previous_pose
-                    self._recovering = True
-                    self._recovery_count = 0
-                    self.get_logger().warning('Rejected scan: insufficient overlap; map held.')
-                    return
+                # Exact grid hits are only a seed score. ICP's geometric
+                # correspondence checks decide whether this scan is usable.
                 ys, xs = np.nonzero(self.grid > 2)
                 target = np.column_stack((xs, ys)) * self.resolution + self.origin
                 if len(target) > 2500:
@@ -384,7 +393,7 @@ class LidarMapper(Node):
                 correction_angle = abs(math.atan2(
                     math.sin(refined[2] - candidate[2]),
                     math.cos(refined[2] - candidate[2])))
-                if (ratio < self.icp_ratio or error > self.icp_rmse
+                if (ratio < max(self.icp_ratio, self.min_scan_overlap) or error > self.icp_rmse
                         or np.linalg.norm(refined[:2] - candidate[:2]) > 0.25
                         or correction_angle > math.radians(15)):
                     self._pose = previous_pose
@@ -394,8 +403,10 @@ class LidarMapper(Node):
                 candidate = refined
                 jump = abs(math.atan2(math.sin(candidate[2] - previous_pose[2]),
                                       math.cos(candidate[2] - previous_pose[2])))
-                if (jump > math.radians(20)
-                        or np.linalg.norm(candidate[:2] - previous_pose[:2]) > 0.35):
+                angle_limit = self.recovery_angle if self._recovering else math.radians(20)
+                distance_limit = self.recovery_window if self._recovering else 0.35
+                if (jump > angle_limit
+                        or np.linalg.norm(candidate[:2] - previous_pose[:2]) > distance_limit):
                     self._pose = previous_pose
                     self._recovering = True
                     self._recovery_count = 0
