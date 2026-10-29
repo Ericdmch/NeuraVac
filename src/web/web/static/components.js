@@ -767,6 +767,28 @@ function RoombaEffects() {
   </section>;
 }
 
+function PiDiagnostics() {
+  const [data, setData] = React.useState(null);
+  React.useEffect(() => {
+    let stopped = false, timer;
+    async function poll() {
+      try { const response = await fetch('/pi/diagnostics', { cache: 'no-store' }); if (!response.ok) throw new Error(); const result = await response.json(); if (!stopped) setData(result); }
+      catch (_) { if (!stopped) setData(null); }
+      if (!stopped) timer = setTimeout(poll, 2000);
+    }
+    poll(); return () => { stopped = true; clearTimeout(timer); };
+  }, []);
+  const flags = data?.throttled;
+  return <section className="panel sensor-panel"><div className="panel-header"><div><p className="console-label">SYSTEM / DIAGNOSTICS</p><h2>Raspberry Pi</h2></div><Status online={!!data}>{data ? 'LIVE' : 'UNAVAILABLE'}</Status></div>
+    <div className="sensor-body"><div className="metric-grid">
+      <div><span className="metric-label">CPU temperature</span><span>{data?.temperature_c == null ? '—' : `${data.temperature_c} °C`}</span></div>
+      <div><span className="metric-label">CPU usage</span><span>{data?.cpu_percent == null ? '—' : `${data.cpu_percent}%`}</span></div>
+      <div><span className="metric-label">Throttling now</span><span>{flags ? (flags.current.includes('Throttling') ? 'Yes' : 'No') : '—'}</span></div>
+      <div><span className="metric-label">Flags since boot</span><span>{flags ? (flags.history.join(', ') || 'Clear') : '—'}</span></div>
+    </div><h3 className="section-label">USB devices</h3><div className="sensor-flags">{data?.usb_devices == null ? 'Unavailable' : data.usb_devices.length ? data.usb_devices.map((device, i) => <div className="sensor-flag" key={i}>{device}</div>) : 'No USB peripherals detected'}</div>
+    <p className="panel-note">Updates every 2 seconds.</p></div></section>;
+}
+
 function App() {
   const { telemetry, requestTelemetry } = useTelemetry();
   return (
@@ -777,7 +799,7 @@ function App() {
       </header>
       <div className="dashboard-grid">
         <div className="visual-column"><CameraView /><LidarView /><SlamMapView /></div>
-        <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><RemoteOverride /><RoombaEffects /></aside>
+        <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><PiDiagnostics /><RemoteOverride /><RoombaEffects /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />
       <footer>NeuraVac · Live readings from the Raspberry Pi</footer>
