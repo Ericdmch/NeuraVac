@@ -24,6 +24,7 @@ from std_msgs.msg import String
 from .override import roomba_drive
 from .camera import CameraCapture, LatestJpeg
 from .telemetry import SensorState
+from .travel_heading import TravelHeading
 
 
 app = Flask(__name__)
@@ -178,6 +179,8 @@ class LidarBridge:
         self._map = None
         self._pose_lock = threading.Lock()
         self._slam_pose = None
+        self._travel_heading = TravelHeading()
+        self.bridge.add_subscriber(SerialData, 'serial_tx', self.drive_callback, 10)
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
         self.bridge.add_subscriber(PoseStamped, 'slam/pose', self.pose_callback, 10)
         self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 1)
@@ -195,6 +198,9 @@ class LidarBridge:
             response = future.result()
         except Exception as error:
             return False, f'SLAM reset failed: {error}'
+        if response.success:
+            with self._pose_lock:
+                self._travel_heading = TravelHeading()
         return response.success, response.message
 
     def lidar_callback(self, msg):
@@ -293,6 +299,10 @@ class LidarBridge:
                 self._map_sequence += 1
                 self._map_condition.notify_all()
 
+    def drive_callback(self, message):
+        with self._pose_lock:
+            self._travel_heading.command(message.data)
+
     def pose_callback(self, message):
         q = message.pose.orientation
         pose = {
@@ -304,6 +314,9 @@ class LidarBridge:
             ),
         }
         with self._pose_lock:
+            if hasattr(self, '_travel_heading'):
+                pose['yaw'] = self._travel_heading.update(
+                    pose['x'], pose['y'], pose['yaw'], time.monotonic())
             self._slam_pose = pose
         with self._map_condition:
             if self._map is not None:
