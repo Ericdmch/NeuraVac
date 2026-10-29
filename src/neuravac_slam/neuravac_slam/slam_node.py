@@ -3,6 +3,7 @@
 import math
 import threading
 import time
+import queue
 from pathlib import Path
 import os
 
@@ -15,6 +16,7 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 from std_srvs.srv import Trigger
+from std_msgs.msg import String
 
 
 def scan_to_cartesian(scan):
@@ -141,18 +143,25 @@ class LidarMapper(Node):
         self._odom_received_at = None
         self._odom_at_last_scan = None
         self._lock = threading.Lock()
+        self._generation = 0
+        self._pending = queue.Queue(maxsize=1)
+        self._stopping = threading.Event()
         self._map_version = 0
         self._published_version = -1
-        self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 50)
+        self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 1000)
         self.create_subscription(Odometry, 'odom', self.on_odometry, 10)
         self.create_subscription(SerialData, 'serial_rx', self.on_serial, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
         self.pose_pub = self.create_publisher(PoseStamped, 'slam/pose', 10)
+        self.status_pub = self.create_publisher(String, 'slam/status', 1)
+        self.create_timer(1.0, self.publish_status)
         self.create_service(Trigger, 'slam/reset', self.reset_map)
         self.create_service(Trigger, 'slam/save', self.save_map)
         self.create_service(Trigger, 'slam/load', self.load_map)
         self.create_timer(1.0 / max(0.2, float(value('map_publish_hz'))), self.publish_map)
         self._publish_pose()
+        self._worker = threading.Thread(target=self.scan_worker, daemon=True)
+        self._worker.start()
         self.get_logger().info(
             f'LiDAR-only SLAM ready: {self.size}x{self.size}, '
             f'{self.resolution:.2f} m/cell; wheel odometry is a scan-matching prior'
@@ -204,6 +213,7 @@ class LidarMapper(Node):
                         or not np.isclose(float(saved['origin']), self.origin)):
                     raise ValueError('Saved map geometry is incompatible.')
             with self._lock:
+                self._generation += 1
                 self.grid[:] = grid
                 self._pose[:] = pose
                 self._last_scan = np.empty((0, 2))
@@ -227,6 +237,7 @@ class LidarMapper(Node):
     def reset_map(self, _request, response):
         """Clear accumulated state; subsequent scans build a fresh map."""
         with self._lock:
+            self._generation += 1
             self.grid.fill(0)
             self._scan.clear()
             self._last_angle = None
@@ -293,7 +304,17 @@ class LidarMapper(Node):
                 if len(self._scan) >= 40:
                     scan = np.asarray(self._scan, dtype=np.float64)
                     self._scan = []
-                    self._process_scan(scan)
+                    try:
+                        self._pending.put_nowait((self._generation, scan))
+                    except queue.Full:
+                        try:
+                            self._pending.get_nowait()
+                        except queue.Empty:
+                            pass
+                        try:
+                            self._pending.put_nowait((self._generation, scan))
+                        except queue.Full:
+                            pass
                 else:
                     self._scan.clear()
         self._last_angle = angle
@@ -364,11 +385,35 @@ class LidarMapper(Node):
             return self._pose.copy()
         return best_pose
 
-    def _process_scan(self, scan):
+    def scan_worker(self):
+        while not self._stopping.is_set():
+            try:
+                generation, scan = self._pending.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            try:
+                self._process_scan(scan, generation)
+            except Exception as error:
+                self.get_logger().error(f'Scan processing failed: {error}')
+
+    def destroy_node(self):
+        self._stopping.set()
+        self._worker.join()
+        return super().destroy_node()
+
+    def publish_status(self):
+        status = 'RECOVERING — STOP BRIEFLY' if self._recovering else 'TRACKING'
+        if time.monotonic() < self._collision_until:
+            status = 'COLLISION — MAP PAUSED'
+        self.status_pub.publish(String(data=status))
+
+    def _process_scan(self, scan, generation=None):
         points = self._local_points(scan)
         if len(points) < 30:
             return
         with self._lock:
+            if generation is not None and generation != self._generation:
+                return
             if time.monotonic() < self._collision_until:
                 self._odom_at_last_scan = (
                     self._odom_pose.copy() if self._odom_pose is not None else None
@@ -382,14 +427,17 @@ class LidarMapper(Node):
                     self._odom_at_last_scan = (
                         self._odom_pose.copy() if self._odom_pose is not None else None
                     )
-                candidate = self._match_scan(points)
                 # Exact grid hits are only a seed score. ICP's geometric
                 # correspondence checks decide whether this scan is usable.
                 ys, xs = np.nonzero(self.grid > 2)
                 target = np.column_stack((xs, ys)) * self.resolution + self.origin
                 if len(target) > 2500:
                     target = target[np.linspace(0, len(target) - 1, 2500).astype(int)]
+                candidate = self._pose.copy()
                 refined, ratio, error = refine_icp(points, target, candidate, self.icp_distance)
+                if ratio < self.icp_ratio or error > self.icp_rmse:
+                    candidate = self._match_scan(points)
+                    refined, ratio, error = refine_icp(points, target, candidate, self.icp_distance)
                 correction_angle = abs(math.atan2(
                     math.sin(refined[2] - candidate[2]),
                     math.cos(refined[2] - candidate[2])))
@@ -427,6 +475,11 @@ class LidarMapper(Node):
             elif self._odom_pose is not None:
                 self._odom_at_last_scan = self._odom_pose.copy()
             theta = self._pose[2]
+            if time.monotonic() < self._collision_until:
+                if self._last_scan is not None:
+                    self._pose = previous_pose
+                self._recovering = True
+                return
             c, s = math.cos(theta), math.sin(theta)
             rotation = np.array(((c, -s), (s, c)))
             world = points @ rotation.T + self._pose[:2]
@@ -470,7 +523,9 @@ class LidarMapper(Node):
             self.grid[y, x] = min(16, int(self.grid[y, x]) + 3)
 
     def publish_map(self):
-        with self._lock:
+        if not self._lock.acquire(blocking=False):
+            return
+        try:
             if self._map_version == self._published_version:
                 return
             message = OccupancyGrid()
@@ -491,6 +546,8 @@ class LidarMapper(Node):
             ).astype(np.int8)
             message.data = values.reshape(-1).tolist()
             self._published_version = self._map_version
+        finally:
+            self._lock.release()
         self.map_pub.publish(message)
 
 

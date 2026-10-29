@@ -568,7 +568,7 @@ function SlamMapView() {
     stream.onmessage = event => {
       try {
         latestMap = JSON.parse(event.data);
-        setStatus(drawMap(latestMap) ? 'MAPPING · LIDAR ONLY' : 'WAITING FOR SCANS');
+        setStatus(drawMap(latestMap) ? (latestMap.tracking_status || 'TRACKING') : 'WAITING FOR SCANS');
       }
       catch (error) { console.error('Unable to decode LiDAR map.', error); }
     };

@@ -19,6 +19,7 @@ from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 from roomba_interfaces.srv import RequestTelemetry
 from std_srvs.srv import Trigger
+from std_msgs.msg import String
 
 from .override import roomba_drive
 from .camera import CameraCapture, LatestJpeg
@@ -179,6 +180,7 @@ class LidarBridge:
         self._slam_pose = None
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
         self.bridge.add_subscriber(PoseStamped, 'slam/pose', self.pose_callback, 10)
+        self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 1)
         self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
 
     def reset_slam(self):
@@ -264,6 +266,7 @@ class LidarBridge:
     def map_callback(self, message):
         encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
         payload = {
+            'tracking_status': getattr(self, '_tracking_status', 'TRACKING'),
             'width': int(message.info.width),
             'height': int(message.info.height),
             'resolution': float(message.info.resolution),
@@ -281,6 +284,14 @@ class LidarBridge:
             self._map = payload
             self._map_sequence += 1
             self._map_condition.notify_all()
+
+    def status_callback(self, message):
+        self._tracking_status = message.data
+        with self._map_condition:
+            if self._map is not None:
+                self._map = {**self._map, 'tracking_status': message.data}
+                self._map_sequence += 1
+                self._map_condition.notify_all()
 
     def pose_callback(self, message):
         q = message.pose.orientation

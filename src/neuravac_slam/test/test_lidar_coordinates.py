@@ -95,6 +95,14 @@ class MapProtectionTests(unittest.TestCase):
         mapper._process_scan(scan)
         self.assertFalse(mapper.grid.any())
 
+    def test_queued_scan_from_before_reset_cannot_repopulate_map(self):
+        mapper = self.mapper
+        generation = mapper._generation
+        mapper.reset_map(None, Trigger.Response())
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        mapper._process_scan(scan, generation)
+        self.assertFalse(mapper.grid.any())
+
     def test_recovery_requires_three_consistent_scans(self):
         mapper = self.mapper
         mapper.grid[10, :40] = 12
@@ -110,7 +118,8 @@ class MapProtectionTests(unittest.TestCase):
         mapper._match_scan = good_match
         scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
         with patch('neuravac_slam.slam_node.refine_icp',
-                   return_value=(np.array((0.45, 0.0, 0.5)), 1.0, 0.01)):
+                   side_effect=[(np.zeros(3), 0.0, float('inf')),
+                                (np.array((0.45, 0.0, 0.5)), 1.0, 0.01)] * 3):
             for _ in range(2):
                 mapper._process_scan(scan)
                 np.testing.assert_array_equal(mapper.grid, original)
