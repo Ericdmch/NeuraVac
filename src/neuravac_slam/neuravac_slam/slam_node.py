@@ -3,6 +3,8 @@
 import math
 import threading
 import time
+from pathlib import Path
+import os
 
 import numpy as np
 import rclpy
@@ -10,7 +12,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from roomba_interfaces.msg import LidarPoint
+from roomba_interfaces.msg import LidarPoint, SerialData
 from std_srvs.srv import Trigger
 
 
@@ -43,6 +45,9 @@ class LidarMapper(Node):
         self.declare_parameter('scan_match_fallback_steps', 19)
         self.declare_parameter('odom_stale_sec', 1.5)
         self.declare_parameter('map_publish_hz', 2.0)
+        self.declare_parameter('min_scan_overlap', 0.15)
+        self.declare_parameter('collision_pause_sec', 1.0)
+        self.declare_parameter('map_file', '~/Neuravac/maps/room.npz')
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
         self.size = max(100, int(float(value('map_size_m')) / self.resolution))
@@ -56,6 +61,12 @@ class LidarMapper(Node):
         )
         self.fallback_match_steps = max(9, int(value('scan_match_fallback_steps')))
         self.odom_stale_sec = max(0.1, float(value('odom_stale_sec')))
+        self.min_scan_overlap = float(value('min_scan_overlap'))
+        self.collision_pause = float(value('collision_pause_sec'))
+        self.map_file = Path(str(value('map_file'))).expanduser()
+        self._collision_until = 0.0
+        self._serial_buffer = bytearray()
+        self._match_score = 1.0
         self.grid = np.zeros((self.size, self.size), dtype=np.int8)
         self._scan = []
         self._last_angle = None
@@ -69,15 +80,78 @@ class LidarMapper(Node):
         self._published_version = -1
         self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 50)
         self.create_subscription(Odometry, 'odom', self.on_odometry, 10)
+        self.create_subscription(SerialData, 'serial_rx', self.on_serial, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, 'slam/map', 1)
         self.pose_pub = self.create_publisher(PoseStamped, 'slam/pose', 10)
         self.create_service(Trigger, 'slam/reset', self.reset_map)
+        self.create_service(Trigger, 'slam/save', self.save_map)
+        self.create_service(Trigger, 'slam/load', self.load_map)
         self.create_timer(1.0 / max(0.2, float(value('map_publish_hz'))), self.publish_map)
         self._publish_pose()
         self.get_logger().info(
             f'LiDAR-only SLAM ready: {self.size}x{self.size}, '
             f'{self.resolution:.2f} m/cell; wheel odometry is a scan-matching prior'
         )
+
+    def on_serial(self, message):
+        """Pause map integration after reported bumps or wheel drops."""
+        self._serial_buffer.extend(message.data)
+        while len(self._serial_buffer) >= 26:
+            packet = self._serial_buffer[:26]
+            if any(v not in (0, 1) for v in packet[1:7]) or packet[16] > 5:
+                del self._serial_buffer[0]
+                continue
+            del self._serial_buffer[:26]
+            if packet[0] & 31:
+                self._collision_until = time.monotonic() + self.collision_pause
+
+    def save_map(self, _request, response):
+        """Atomically save map evidence and its associated robot pose."""
+        try:
+            self.map_file.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.map_file.with_suffix('.tmp')
+            with self._lock:
+                with temporary.open('wb') as output:
+                    np.savez_compressed(output, grid=self.grid, pose=self._pose,
+                                        resolution=self.resolution, origin=self.origin)
+            os.replace(temporary, self.map_file)
+            response.success = True
+            response.message = f'Saved map to {self.map_file}'
+        except (OSError, ValueError) as error:
+            response.success = False
+            response.message = str(error)
+        return response
+
+    def load_map(self, _request, response):
+        """Restore a saved map when the robot is at its saved physical pose."""
+        try:
+            with np.load(self.map_file, allow_pickle=False) as saved:
+                grid = saved['grid'].copy()
+                pose = saved['pose'].copy()
+                if (grid.shape != self.grid.shape or pose.shape != (3,)
+                        or grid.dtype != np.int8
+                        or np.any(grid < -8) or np.any(grid > 16)
+                        or not np.isfinite(pose).all()
+                        or not np.isclose(float(saved['resolution']), self.resolution)
+                        or not np.isclose(float(saved['origin']), self.origin)):
+                    raise ValueError('Saved map geometry is incompatible.')
+            with self._lock:
+                self.grid[:] = grid
+                self._pose[:] = pose
+                self._last_scan = np.empty((0, 2))
+                self._scan.clear()
+                self._last_angle = None
+                self._odom_at_last_scan = (
+                    self._odom_pose.copy() if self._odom_pose is not None else None
+                )
+                self._map_version += 1
+            self._publish_pose()
+            response.success = True
+            response.message = 'Loaded map. Robot must be at the saved position and heading.'
+        except (OSError, ValueError, KeyError) as error:
+            response.success = False
+            response.message = str(error)
+        return response
 
     def reset_map(self, _request, response):
         """Clear accumulated state; subsequent scans build a fresh map."""
@@ -162,6 +236,7 @@ class LidarMapper(Node):
 
     def _match_scan(self, points):
         occupied = self.grid > 2
+        self._match_score = 1.0
         if not occupied.any():
             return self._pose.copy()
         best_pose = self._pose.copy()
@@ -198,6 +273,7 @@ class LidarMapper(Node):
                         best_pose = np.array((self._pose[0] + dx,
                                               self._pose[1] + dy, theta))
         # If the scan has almost no overlap, do not invent a large correction.
+        self._match_score = best_score
         if best_score < 0.04:
             return self._pose.copy()
         return best_pose
@@ -207,9 +283,20 @@ class LidarMapper(Node):
         if len(points) < 30:
             return
         with self._lock:
+            if time.monotonic() < self._collision_until:
+                self._odom_at_last_scan = (
+                    self._odom_pose.copy() if self._odom_pose is not None else None
+                )
+                return
             if self._last_scan is not None:
+                previous_pose = self._pose.copy()
                 self._predict_from_odometry()
-                self._pose = self._match_scan(points)
+                candidate = self._match_scan(points)
+                if self._match_score < self.min_scan_overlap:
+                    self._pose = previous_pose
+                    self.get_logger().warning('Rejected scan: insufficient overlap; map held.')
+                    return
+                self._pose = candidate
             elif self._odom_pose is not None:
                 self._odom_at_last_scan = self._odom_pose.copy()
             theta = self._pose[2]

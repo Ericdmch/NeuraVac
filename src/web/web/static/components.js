@@ -545,6 +545,23 @@ function SlamMapView() {
         context.fillStyle = '#63b3ff'; context.beginPath();
         context.arc(left + (robotX - minX) * fit, top + (robotY - minY) * fit, 5 * devicePixelRatio, 0, Math.PI * 2);
         context.fill();
+        const heading = map.robot_yaw ?? 0;
+        const markerX = left + (robotX - minX) * fit;
+        const markerY = top + (robotY - minY) * fit;
+        const length = 19 * devicePixelRatio;
+        context.save();
+        context.translate(markerX, markerY);
+        // Occupancy grid rows increase downward in this canvas.
+        context.rotate(heading);
+        context.strokeStyle = '#63b3ff';
+        context.lineWidth = 2.5 * devicePixelRatio;
+        context.beginPath();
+        context.moveTo(0, 0); context.lineTo(length, 0);
+        context.moveTo(length - 6 * devicePixelRatio, -5 * devicePixelRatio);
+        context.lineTo(length, 0);
+        context.lineTo(length - 6 * devicePixelRatio, 5 * devicePixelRatio);
+        context.stroke();
+        context.restore();
       }
       return true;
     }

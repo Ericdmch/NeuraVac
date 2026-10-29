@@ -347,3 +347,18 @@ The experimental motion deskew and map tuning were rolled back after a rotation 
 Record a diagnostic run with `ros2 launch bringup robot.launch.py use_diagnostics:=true`. Bags are stored in `~/Neuravac/logs/` and ignored by Git. Release drive controls before stopping the launch with Ctrl+C.
 
 Dashboard drive speeds remain configurable in `src/web/config/web_params.yaml` (mm/s). Rebuild and restart after editing configuration.
+
+## Protecting and saving a room map
+
+SLAM pauses integration for one second after a reported Roomba bump or wheel drop. It also rejects scans with less than `min_scan_overlap` (default 0.15) endpoint agreement with the accumulated map. Rejected scans do not paint walls or clear existing cells. This compares against the established map, including initial observations, rather than treating only the previous scan as ground truth. If tracking is lost, the map stays held; move back to a recognizable view or use Reset & Remap. Collision detection depends on valid Roomba sensor replies and cannot detect every physical impact.
+
+The blue marker now includes a heading arrow. Its direction follows the estimated SLAM heading.
+
+Save a good checkpoint, then reload it after a restart:
+
+```bash
+ros2 service call /slam/save std_srvs/srv/Trigger "{}"
+ros2 service call /slam/load std_srvs/srv/Trigger "{}"
+```
+
+The file defaults to `~/Neuravac/maps/room.npz` (`map_file` in the SLAM YAML). It contains occupancy evidence, map geometry, and robot pose, and is written atomically. Load only with the robot at the position and heading where it was saved. This mapper does not yet perform global relocalization; saving a map preserves work but does not by itself eliminate drift. Loading is explicit so a poor run cannot automatically replace a good checkpoint. Reset clears the in-memory map and leaves the saved checkpoint intact. Map files are ignored by Git.

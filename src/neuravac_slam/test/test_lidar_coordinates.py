@@ -1,9 +1,14 @@
 """Verify the COIN-D6 clockwise angle convention maps into ROS coordinates."""
 import unittest
+import tempfile
+import time
+from pathlib import Path
 
 import numpy as np
+import rclpy
+from std_srvs.srv import Trigger
 
-from neuravac_slam.slam_node import rotation_search_angles, scan_to_cartesian
+from neuravac_slam.slam_node import LidarMapper, rotation_search_angles, scan_to_cartesian
 
 
 class ScanCoordinateTests(unittest.TestCase):
@@ -36,6 +41,52 @@ class ScanCoordinateTests(unittest.TestCase):
         self.assertEqual(len(odom_guided), 9)
         self.assertAlmostEqual(odom_guided[0], -0.2)
         self.assertAlmostEqual(odom_guided[-1], 0.2)
+
+
+class MapProtectionTests(unittest.TestCase):
+    def setUp(self):
+        rclpy.init()
+        self.mapper = LidarMapper()
+
+    def tearDown(self):
+        self.mapper.destroy_node()
+        rclpy.shutdown()
+
+    def test_rejected_alignment_cannot_modify_map(self):
+        mapper = self.mapper
+        mapper.grid[10, 10] = 12
+        mapper._last_scan = np.zeros((40, 2))
+        original = mapper.grid.copy()
+
+        def poor_match(points):
+            mapper._match_score = 0.01
+            return np.array((1.0, 1.0, 1.0))
+
+        mapper._match_scan = poor_match
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        mapper._process_scan(scan)
+        np.testing.assert_array_equal(mapper.grid, original)
+        np.testing.assert_array_equal(mapper._pose, np.zeros(3))
+
+    def test_collision_pause_cannot_modify_map(self):
+        mapper = self.mapper
+        mapper._collision_until = time.monotonic() + 10
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        mapper._process_scan(scan)
+        self.assertFalse(mapper.grid.any())
+
+    def test_saved_checkpoint_restores_grid_and_pose(self):
+        mapper = self.mapper
+        with tempfile.TemporaryDirectory() as directory:
+            mapper.map_file = Path(directory) / 'room.npz'
+            mapper.grid[10, 10] = 12
+            mapper._pose[:] = (1.0, 2.0, 0.3)
+            self.assertTrue(mapper.save_map(None, Trigger.Response()).success)
+            mapper.grid.fill(0)
+            mapper._pose.fill(0)
+            self.assertTrue(mapper.load_map(None, Trigger.Response()).success)
+            self.assertEqual(mapper.grid[10, 10], 12)
+            np.testing.assert_allclose(mapper._pose, (1.0, 2.0, 0.3))
 
 
 if __name__ == '__main__':

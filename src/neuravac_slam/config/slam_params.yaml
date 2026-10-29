@@ -10,3 +10,7 @@ slam_node:
     scan_match_fallback_steps: 19
     odom_stale_sec: 1.5
     map_publish_hz: 2.0
+    # Reject whole scans instead of adding inconsistent geometry to the map.
+    min_scan_overlap: 0.15
+    collision_pause_sec: 1.0
+    map_file: ~/Neuravac/maps/room.npz
