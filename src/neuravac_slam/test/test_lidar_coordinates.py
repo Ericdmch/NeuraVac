@@ -74,6 +74,7 @@ class MapProtectionTests(unittest.TestCase):
     def setUp(self):
         rclpy.init()
         self.mapper = LidarMapper()
+        self.mapper.use_icp_recovery = True
 
     def tearDown(self):
         self.mapper.destroy_node()
@@ -101,6 +102,20 @@ class MapProtectionTests(unittest.TestCase):
         scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
         mapper._process_scan(scan)
         self.assertFalse(mapper.grid.any())
+
+    def test_default_matcher_resumes_without_icp_confirmation(self):
+        mapper = self.mapper
+        mapper.use_icp_recovery = False
+        mapper._recovering = True
+        mapper._last_scan = np.zeros((40, 2))
+        mapper._match_score = 1.0
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        with patch.object(mapper, '_match_scan', return_value=np.array((0.1, 0, 0))):
+            with patch('neuravac_slam.slam_node.refine_icp') as icp:
+                mapper._process_scan(scan)
+        icp.assert_not_called()
+        self.assertFalse(mapper._recovering)
+        np.testing.assert_allclose(mapper._pose, (0.1, 0, 0))
 
     def test_queued_scan_from_before_reset_cannot_repopulate_map(self):
         mapper = self.mapper

@@ -20,3 +20,6 @@ slam_node:
     recovery_scans: 2
     recovery_window_m: 0.60
     recovery_window_deg: 60.0
+
+    # Earlier coarse scan matcher: no multi-scan ICP recovery lock.
+    use_icp_recovery: false

@@ -118,6 +118,7 @@ class LidarMapper(Node):
         self.declare_parameter('recovery_scans', 2)
         self.declare_parameter('recovery_window_m', 0.60)
         self.declare_parameter('recovery_window_deg', 60.0)
+        self.declare_parameter('use_icp_recovery', False)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
         self.size = max(100, int(float(value('map_size_m')) / self.resolution))
@@ -140,6 +141,7 @@ class LidarMapper(Node):
         self.recovery_scans = max(2, int(value('recovery_scans')))
         self.recovery_window = float(value('recovery_window_m'))
         self.recovery_angle = math.radians(float(value('recovery_window_deg')))
+        self.use_icp_recovery = bool(value('use_icp_recovery'))
         self._recovering = False
         self._recovery_pose = None
         self._recovery_odom = None
@@ -373,16 +375,17 @@ class LidarMapper(Node):
         self._match_score = 1.0
         if not occupied.any():
             return self._pose.copy()
-        # Allow one cell of sensor/rasterization error when finding an ICP seed.
-        padded = np.pad(occupied, 1)
-        occupied = np.logical_or.reduce([
-            padded[y:y + self.size, x:x + self.size]
-            for y in range(3) for x in range(3)
-        ])
+        if self.use_icp_recovery:
+            # Allow one cell of sensor/rasterization error when finding an ICP seed.
+            padded = np.pad(occupied, 1)
+            occupied = np.logical_or.reduce([
+                padded[y:y + self.size, x:x + self.size]
+                for y in range(3) for x in range(3)
+            ])
         best_pose = self._pose.copy()
         best_score = -1.0
         best_cost = float('inf')
-        window = self.recovery_window if self._recovering else self.match_window
+        window = self.recovery_window if self._recovering and self.use_icp_recovery else self.match_window
         step = max(self.resolution, window / 4.0)
         translations = np.arange(-window, window + step / 2, step)
         odom_fresh = (
@@ -395,7 +398,7 @@ class LidarMapper(Node):
             self.fallback_match_angle,
             self.fallback_match_steps,
         )
-        if self._recovering:
+        if self._recovering and self.use_icp_recovery:
             rotations = np.linspace(-self.recovery_angle, self.recovery_angle, 25)
         # Search around the last LiDAR-derived pose. Free cells are ignored;
         # this makes sparse and short-range returns less likely to pull the pose.
@@ -413,7 +416,7 @@ class LidarMapper(Node):
                         continue
                     score = float(np.count_nonzero(occupied[iy[valid], ix[valid]])) / len(points)
                     cost = dx * dx + dy * dy + dyaw * dyaw
-                    if score > best_score + 1e-9 or (abs(score - best_score) < 1e-9 and cost < best_cost):
+                    if score > best_score + 1e-9 or (self.use_icp_recovery and abs(score - best_score) < 1e-9 and cost < best_cost):
                         best_score = score
                         best_cost = cost
                         best_pose = np.array((self._pose[0] + dx,
@@ -442,7 +445,7 @@ class LidarMapper(Node):
         return super().destroy_node()
 
     def publish_status(self):
-        status = 'ODOMETRY ESTIMATE · MAP RECOVERING' if self._recovering else 'TRACKING'
+        status = 'ODOMETRY ESTIMATE · MAP RECOVERING' if self.use_icp_recovery and self._recovering else 'TRACKING'
         if time.monotonic() < self._collision_until:
             status = 'COLLISION — MAP PAUSED'
         self.status_pub.publish(String(data=status))
@@ -470,7 +473,7 @@ class LidarMapper(Node):
                     self._odom_pose.copy() if self._odom_pose is not None else None
                 )
                 return
-            if self._last_scan is not None:
+            if self._last_scan is not None and self.use_icp_recovery:
                 previous_pose = self._pose.copy()
                 if not self._recovering:
                     self._predict_from_odometry()
@@ -558,6 +561,16 @@ class LidarMapper(Node):
                     self._recovering = False
                     self._recovery_count = 0
                 self._pose = candidate
+            elif self._last_scan is not None:
+                previous_pose = self._pose.copy()
+                self._predict_from_odometry()
+                candidate = self._match_scan(points)
+                if self._match_score < self.min_scan_overlap:
+                    self._pose = previous_pose
+                    return
+                self._pose = candidate
+                self._recovering = False
+                self._recovery_count = 0
             elif self._odom_pose is not None:
                 self._odom_at_last_scan = self._odom_pose.copy()
             theta = self._pose[2]
