@@ -54,7 +54,7 @@ serial buffer, avoiding stale packet backlogs. The dashboard streams new
 points incrementally in timestamped batches of up to 20 ms; the browser draws
 on its next frame and keeps a rolling 250 ms visible.
 
-The `roomba_node` requests OI sensor group 0 twice per second and publishes
+The `roomba_node` requests OI sensor group 0 ten times per second and publishes
 incremental wheel odometry on `/odom`. `neuravac_slam` uses that as a motion
 prediction, then corrects the pose against LiDAR scans before updating
 `/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
@@ -73,7 +73,7 @@ long drives can drift, and moving objects can leave temporary marks.
 
 The dashboard reads cached telemetry every five seconds and has a **Request
 now** button. The `request_telemetry` ROS service requests and returns an
-immediate group 0 packet. The background 2 Hz sensor reads remain enabled for odometry;
+immediate group 0 packet. The background 10 Hz sensor reads remain enabled for odometry;
 they send only a two-byte query and receive the 26-byte group 0 packet.
 
 ## ROS 2 packages
@@ -363,14 +363,16 @@ ros2 service call /slam/load std_srvs/srv/Trigger "{}"
 
 The file defaults to `~/Neuravac/maps/room.npz` (`map_file` in the SLAM YAML). It contains occupancy evidence, map geometry, and robot pose, and is written atomically. Load only with the robot at the position and heading where it was saved. This mapper does not yet perform global relocalization; saving a map preserves work but does not by itself eliminate drift. Loading is explicit so a poor run cannot automatically replace a good checkpoint. Reset clears the in-memory map and leaves the saved checkpoint intact. Map files are ignored by Git.
 
-The heading arrow uses the dashboard mounting convention: 270 degrees clockwise offset with the heading direction reversed (including the additional 180 degree mounting correction). Ctrl+C closes node executors and serial connections; the Roomba driver sends a zero-speed command before closing its port. Saving remains explicit via `/slam/save`; quitting does not automatically overwrite a checkpoint. The `.npz` file is a compressed NumPy ZIP archive containing `grid`, `pose`, `resolution`, and `origin` arrays, loaded without pickle.
+The heading arrow uses the dashboard mounting convention: the map heading directly, matching forward travel. Ctrl+C closes node executors and serial connections; the Roomba driver sends a zero-speed command before closing its port. Saving remains explicit via `/slam/save`; quitting does not automatically overwrite a checkpoint. The `.npz` file is a compressed NumPy ZIP archive containing `grid`, `pose`, `resolution`, and `origin` arrays, loaded without pickle.
 
 ## Collision recovery and ICP test branch
 
 `codex/slam-collision-icp` refines coarse scan alignment with NumPy point-to-point ICP. It trims the worst correspondence distances and requires at least 40% inliers with at most 0.10 m RMS error. These settings, the correspondence radius, and the required recovery scan count are in the SLAM YAML. No new Python dependency is required.
 
-After a bump or rejected alignment, the map and displayed heading stay frozen while wheel-slip odometry is excluded from recovery. Three consecutive alignments must agree within 8 cm and 5 degrees before integration resumes. All candidates farther than 35 cm or 20 degrees from the last trusted pose are rejected and enter recovery. Equal coarse-match scores prefer the smallest correction to reduce arbitrary heading changes. If recovery cannot succeed, stop moving and return to a recognizable view or reset. This is local recovery, not global relocalization; ICP can still be ambiguous in symmetric or featureless rooms. Saved maps and arrow mounting offsets are unchanged.
+After a bump or rejected alignment, map integration is held while the live marker continues from odometry; wheel-slip odometry is excluded from ICP recovery. Three consecutive alignments must agree within 8 cm and 5 degrees before integration resumes. All candidates farther than 35 cm or 20 degrees from the last trusted pose are rejected and enter recovery. Equal coarse-match scores prefer the smallest correction to reduce arbitrary heading changes. If recovery cannot succeed, stop moving and return to a recognizable view or reset. This is local recovery, not global relocalization; ICP can still be ambiguous in symmetric or featureless rooms. Saved maps and arrow mounting offsets are unchanged.
 
-Recovery update: exact occupied-cell overlap is now used only to seed ICP, with a one-cell tolerance for quantization. It no longer rejects scans before ICP can refine them. Recovery searches within `recovery_window_m` (0.60 m) and `recovery_window_deg` (60 degrees); normal tracking retains its smaller jump limits. ICP inlier/error checks and three consistent recovery scans still protect the map. Stop driving briefly if tracking is lost so those scans can agree. If no reliable match exists, the marker remains at the last trusted pose; it is not a live odometry-only indicator.
+Recovery update: exact occupied-cell overlap is now used only to seed ICP, with a one-cell tolerance for quantization. It no longer rejects scans before ICP can refine them. Recovery searches within `recovery_window_m` (0.60 m) and `recovery_window_deg` (60 degrees); normal tracking retains its smaller jump limits. ICP inlier/error checks and three consistent recovery scans still protect the map. Stop driving briefly if tracking is lost so those scans can agree. If no reliable map match exists, geometry remains held while the marker follows live odometry as an estimate.
 
-Throughput fix: ICP now tries the predicted pose before running the coarse search. Scan matching runs in a dedicated worker with only the newest complete pending revolution retained. Incoming point callbacks and the map publication timer do not wait for matching. Reset/load invalidate queued old scans. The web map receives `/slam/status` once per second and displays TRACKING, RECOVERING, or COLLISION/MAP PAUSED even when the occupancy grid is held. A held pose remains the last trusted location rather than an invented position estimate.
+Throughput fix: ICP now tries the predicted pose before running the coarse search. Scan matching runs in a dedicated worker with only the newest complete pending revolution retained. Incoming point callbacks and the map publication timer do not wait for matching. Reset/load invalidate queued old scans. The web map receives `/slam/status` once per second and displays TRACKING, RECOVERING, or COLLISION/MAP PAUSED even when the occupancy grid is held. During recovery the marker follows wheel odometry and is labelled as an estimate.
+
+Live marker update: wheel odometry is now requested at configurable `sensor_query_hz` (default 10 Hz in the Roomba YAML). The dashboard streams marker positions on every pose message, independently of occupancy-map updates. The display projects wheel motion from the last scan-matched anchor; during recovery it is explicitly labelled an odometry estimate and may drift if the wheels slip. The map still waits for reliable ICP before adding geometry. The recovery message no longer repeatedly asks the operator to stop. The arrow uses the map heading directly, with no mounting-only display offset, so forward/W travel and the arrow share the same map direction. W continues to issue the straight-drive command.

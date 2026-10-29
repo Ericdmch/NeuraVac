@@ -9,10 +9,17 @@ import numpy as np
 import rclpy
 from std_srvs.srv import Trigger
 
-from neuravac_slam.slam_node import LidarMapper, refine_icp, rotation_search_angles, scan_to_cartesian
+from neuravac_slam.slam_node import LidarMapper, project_odometry, refine_icp, rotation_search_angles, scan_to_cartesian
 
 
 class ScanCoordinateTests(unittest.TestCase):
+    def test_live_forward_motion_follows_map_heading(self):
+        anchor = np.array((2.0, 3.0, np.pi / 2))
+        odom = np.array((5.0, 6.0, 0.0))
+        result = project_odometry(anchor, odom, np.array((5.2, 6.0, 0.0)))
+        np.testing.assert_allclose(result, (2.0, 3.2, np.pi / 2), atol=1e-12)
+        np.testing.assert_allclose(anchor, (2.0, 3.0, np.pi / 2))
+
     def test_icp_recovers_rigid_motion_with_distant_outliers(self):
         rng = np.random.default_rng(4)
         points = rng.uniform(-2, 2, (100, 2))

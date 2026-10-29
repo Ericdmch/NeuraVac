@@ -3,3 +3,4 @@ roomba_node:
     # Stable name created by `ros2 run bringup neuravac_udev_setup`
     serial_port: /dev/neuravac_roomba
     baudrate: 115200
+    sensor_query_hz: 10.0

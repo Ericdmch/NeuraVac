@@ -305,6 +305,12 @@ class LidarBridge:
         }
         with self._pose_lock:
             self._slam_pose = pose
+        with self._map_condition:
+            if self._map is not None:
+                self._map = {**self._map, 'robot_x': pose['x'],
+                             'robot_y': pose['y'], 'robot_yaw': pose['yaw']}
+                self._map_sequence += 1
+                self._map_condition.notify_all()
 
     def wait_for_map(self, after_sequence, timeout):
         with self._map_condition:

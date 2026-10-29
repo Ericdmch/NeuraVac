@@ -21,6 +21,7 @@ class Roomba(Node):
         # Serial connection
         self.declare_parameter('serial_port', '/dev/neuravac_roomba')
         self.declare_parameter('baudrate', 115200)
+        self.declare_parameter('sensor_query_hz', 10.0)
 
         serial_port = self.get_parameter('serial_port').value
         baudrate = self.get_parameter('baudrate').value
@@ -59,7 +60,8 @@ class Roomba(Node):
             10
         )
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        self._sensor_query_timer = self.create_timer(0.5, self.request_group_zero)
+        query_hz = max(0.5, min(20.0, float(self.get_parameter('sensor_query_hz').value)))
+        self._sensor_query_timer = self.create_timer(1.0 / query_hz, self.request_group_zero)
         self._sensor_service = self.create_service(
             RequestTelemetry, 'request_telemetry', self.request_telemetry,
             callback_group=ReentrantCallbackGroup(),

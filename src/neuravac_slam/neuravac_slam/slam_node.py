@@ -33,6 +33,17 @@ def rotation_search_angles(odom_fresh, odom_window, fallback_window, fallback_st
     return np.linspace(-fallback_window, fallback_window, fallback_steps)
 
 
+def project_odometry(anchor_pose, anchor_odom, current):
+    """Project live wheel motion into the last trusted map coordinate frame."""
+    angle = anchor_pose[2] - anchor_odom[2]
+    c, s = math.cos(angle), math.sin(angle)
+    dx, dy = current[0] - anchor_odom[0], current[1] - anchor_odom[1]
+    yaw = angle + current[2]
+    return np.array((anchor_pose[0] + c * dx - s * dy,
+                     anchor_pose[1] + s * dx + c * dy,
+                     math.atan2(math.sin(yaw), math.cos(yaw))))
+
+
 def refine_icp(points, target, seed, max_distance=0.20, iterations=8):
     """Refine a pose with trimmed nearest-neighbor rigid alignment."""
     pose = np.asarray(seed, dtype=float).copy()
@@ -142,6 +153,7 @@ class LidarMapper(Node):
         self._odom_pose = None
         self._odom_received_at = None
         self._odom_at_last_scan = None
+        self._display_anchor = None
         self._lock = threading.Lock()
         self._generation = 0
         self._pending = queue.Queue(maxsize=1)
@@ -225,6 +237,7 @@ class LidarMapper(Node):
                 self._odom_at_last_scan = (
                     self._odom_pose.copy() if self._odom_pose is not None else None
                 )
+                self._anchor_display()
                 self._map_version += 1
             self._publish_pose()
             response.success = True
@@ -249,6 +262,7 @@ class LidarMapper(Node):
             self._odom_at_last_scan = (
                 self._odom_pose.copy() if self._odom_pose is not None else None
             )
+            self._anchor_display()
             self._map_version += 1
         self._publish_pose()
         response.success = True
@@ -268,6 +282,22 @@ class LidarMapper(Node):
             yaw,
         ), dtype=np.float64)
         self._odom_received_at = time.monotonic()
+        if self._display_anchor is None:
+            self._display_anchor = (self._pose.copy(), self._odom_pose.copy())
+        self._publish_pose(self._live_pose())
+
+    def _anchor_display(self):
+        if self._odom_at_last_scan is not None:
+            self._display_anchor = (self._pose.copy(), self._odom_at_last_scan.copy())
+        else:
+            self._display_anchor = None
+
+    def _live_pose(self):
+        anchor = self._display_anchor
+        current = self._odom_pose
+        if anchor is None or current is None:
+            return self._pose.copy()
+        return project_odometry(anchor[0], anchor[1], current)
 
     def _predict_from_odometry(self):
         if self._odom_pose is None:
@@ -402,7 +432,7 @@ class LidarMapper(Node):
         return super().destroy_node()
 
     def publish_status(self):
-        status = 'RECOVERING — STOP BRIEFLY' if self._recovering else 'TRACKING'
+        status = 'ODOMETRY ESTIMATE · MAP RECOVERING' if self._recovering else 'TRACKING'
         if time.monotonic() < self._collision_until:
             status = 'COLLISION — MAP PAUSED'
         self.status_pub.publish(String(data=status))
@@ -487,12 +517,14 @@ class LidarMapper(Node):
             for endpoint in world:
                 self._trace_ray(scanner, endpoint)
             self._last_scan = points
+            self._anchor_display()
             self._map_version += 1
-        self._publish_pose()
+        self._publish_pose(self._live_pose())
 
-    def _publish_pose(self):
-        with self._lock:
-            pose = self._pose.copy()
+    def _publish_pose(self, pose=None):
+        if pose is None:
+            with self._lock:
+                pose = self._pose.copy()
         message = PoseStamped()
         message.header.stamp = self.get_clock().now().to_msg()
         message.header.frame_id = 'map'
