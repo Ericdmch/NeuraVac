@@ -1,0 +1,7 @@
+web_node:
+  ros__parameters:
+    # Roomba SCI Drive command limits are -500..500 mm/s.
+    default_drive_speed_mm_s: 200
+    min_drive_speed_mm_s: 50
+    max_drive_speed_mm_s: 500
+    drive_speed_step_mm_s: 50

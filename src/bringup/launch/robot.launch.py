@@ -17,10 +17,11 @@ itself.
 
 import os
 import sys
+from datetime import datetime
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -55,6 +56,21 @@ def ros_python_environment():
 
 def launch_setup(context):
     nodes = []
+
+    if enabled(context, 'use_diagnostics'):
+        diagnostics_dir = os.path.abspath(os.path.expanduser(
+            LaunchConfiguration('diagnostics_dir').perform(context)
+        ))
+        os.makedirs(diagnostics_dir, exist_ok=True)
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        bag_path = os.path.join(diagnostics_dir, f'neuravac_{stamp}')
+        nodes.append(ExecuteProcess(
+            cmd=[
+                'ros2', 'bag', 'record', '-o', bag_path,
+                '/lidar_points', '/odom', '/slam/pose', '/serial_rx', '/serial_tx',
+            ],
+            output='screen',
+        ))
 
     if enabled(context, 'use_roomba'):
         nodes.append(Node(
@@ -119,5 +135,10 @@ def generate_launch_description():
         DeclareLaunchArgument('camera_device', default_value='/dev/neuravac_camera',
                               description='Webcam used by the dashboard when '
                                           'use_vision:=false'),
+        DeclareLaunchArgument('use_diagnostics', default_value='false',
+                              description='Record LiDAR, odometry, SLAM pose, '
+                                          'and Roomba serial topics to a rosbag'),
+        DeclareLaunchArgument('diagnostics_dir', default_value='~/Neuravac/logs',
+                              description='Parent folder for diagnostic rosbag runs'),
     ]
     return LaunchDescription(arguments + [OpaqueFunction(function=launch_setup)])

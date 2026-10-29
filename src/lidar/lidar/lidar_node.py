@@ -37,7 +37,7 @@ class Lidar(Node):
         self.lidar_points = self.create_publisher(
             LidarPoint,
             'lidar_points',
-            10
+            1000
         )
         
         # self.send_raw = False

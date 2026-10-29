@@ -6,6 +6,7 @@ import os
 import threading
 import time
 
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from flask import Flask, Response, jsonify, render_template, request
 from geometry_msgs.msg import PoseStamped
@@ -28,10 +29,12 @@ app = Flask(__name__)
 # OVERRIDE CONSTANTS
 STRAIGHT = 32768
 
-DEFAULT_SPEED = 200
-MIN_SPEED = 50
-MAX_SPEED = 500
-SPEED_STEP = 50
+DEFAULT_DRIVE_CONFIG = {
+    'default_drive_speed_mm_s': 200,
+    'min_drive_speed_mm_s': 50,
+    'max_drive_speed_mm_s': 500,
+    'drive_speed_step_mm_s': 50,
+}
 
 OVERRIDE_MOTIONS = {
     'W': (1, STRAIGHT),
@@ -318,7 +321,8 @@ class LidarBridge:
         )
 
 
-def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camera=None):
+def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camera=None,
+               drive_config=None):
     if static_dir is None:
         static_dir = os.path.join(os.path.dirname(template_dir), 'static')
     app = Flask(
@@ -328,11 +332,29 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         static_url_path='/static',
     )
     active_override = None
-    speed = DEFAULT_SPEED
+    settings = {**DEFAULT_DRIVE_CONFIG, **(drive_config or {})}
+    min_speed = min(500, max(0, int(settings['min_drive_speed_mm_s'])))
+    max_speed = max(
+        min_speed, min(500, int(settings['max_drive_speed_mm_s']))
+    )
+    speed_step = max(1, int(settings['drive_speed_step_mm_s']))
+    default_speed = max(
+        min_speed, min(max_speed, int(settings['default_drive_speed_mm_s']))
+    )
+    speed = default_speed
 
     @app.get('/')
     def index():
         return render_template('index.html')
+
+    @app.get('/drive/config')
+    def drive_config_endpoint():
+        return jsonify(
+            default_speed_mm_s=default_speed,
+            min_speed_mm_s=min_speed,
+            max_speed_mm_s=max_speed,
+            speed_step_mm_s=speed_step,
+        )
 
     @app.get('/telemetry')
     def telemetry():
@@ -387,8 +409,8 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         if key in SPEED_KEYS:
             if pressed:
                 speed = max(
-                    MIN_SPEED,
-                    min(MAX_SPEED, speed + (SPEED_STEP if key == 'E' else -SPEED_STEP)),
+                    min_speed,
+                    min(max_speed, speed + (speed_step if key == 'E' else -speed_step)),
                 )
                 if active_override:
                     direction, radius = OVERRIDE_MOTIONS[active_override]
@@ -541,8 +563,15 @@ def main(args=None):
     web_root = os.environ.get('NEURAVAC_WEB_ROOT') or get_package_share_directory('web')
     template_dir = os.path.join(web_root, 'templates')
     static_dir = os.path.join(web_root, 'static')
+    config_path = os.path.join(web_root, 'config', 'web_params.yaml')
+    with open(config_path, encoding='utf-8') as config_file:
+        config = yaml.safe_load(config_file) or {}
+    drive_config = config.get('web_node', {}).get('ros__parameters', {})
+    app = create_app(
+        serial_bridge, lidar_bridge, template_dir, static_dir, camera,
+        drive_config=drive_config,
+    )
     camera.start()
-    app = create_app(serial_bridge, lidar_bridge, template_dir, static_dir, camera)
 
     try:
         app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)

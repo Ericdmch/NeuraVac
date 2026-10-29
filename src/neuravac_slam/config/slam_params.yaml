@@ -4,9 +4,21 @@ slam_node:
     map_size_m: 20.0
     min_range_m: 0.12
     max_range_m: 8.0
+    # Filter lone returns; a point is kept if an adjacent angular return is
+    # within this Cartesian distance. Raise to retain sparse/small objects;
+    # lower to reject more noise (but it may drop those objects).
+    max_neighbor_gap_m: 0.35
+    hit_increment: 5
+    miss_decrement: 4
+    occupied_threshold: 6
     scan_match_window_m: 0.20
     scan_match_window_deg: 12.0
-    scan_match_fallback_window_deg: 45.0
-    scan_match_fallback_steps: 19
+    scan_match_fallback_window_deg: 24.0
+    scan_match_fallback_steps: 13
+    scan_match_correction_weight: 0.35
+    scan_match_max_translation_correction_m: 0.10
+    scan_match_max_rotation_correction_deg: 10.0
     odom_stale_sec: 1.5
+    odom_history_sec: 3.0
+    active_return_sec: 2.0
     map_publish_hz: 2.0

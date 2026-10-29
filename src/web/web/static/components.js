@@ -160,6 +160,12 @@ function RemoteOverride() {
   const [error, setError] = React.useState('');
   const queue = React.useRef(Promise.resolve());
 
+  React.useEffect(() => {
+    fetch('/drive/config').then(response => response.json())
+      .then(config => setSpeed(config.default_speed_mm_s))
+      .catch(() => {});
+  }, []);
+
   function sendOverride(key, pressed) {
     if (pressed) heldKeys.current.add(key); else heldKeys.current.delete(key);
     setActiveKeys(new Set(heldKeys.current));
@@ -531,8 +537,8 @@ function SlamMapView() {
           const value = cells[(minY + y) * map.width + minX + x];
           const offset = (y * cropWidth + x) * 4;
           if (value === 255) image.data.set([17, 27, 39, 255], offset);
-          else if (value >= 75) image.data.set([255, 138, 61, 255], offset);
-          else if (value >= 40) image.data.set([186, 133, 93, 235], offset);
+          else if (value >= 90) image.data.set([255, 138, 61, 255], offset);
+          else if (value >= 40) image.data.set([156, 111, 82, 220], offset);
           else image.data.set([35, 51, 66, 255], offset);
         }
       }
@@ -571,7 +577,7 @@ function SlamMapView() {
       </div>
     </div>
     <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
-    <p className="panel-note slam-map-note">{resetError || 'Orange = persistent wall returns · Blue = estimated robot pose · Reset clears the map and pose; fresh scans rebuild it.'}</p>
+    <p className="panel-note slam-map-note">{resetError || 'Bright orange = currently detected returns · Muted orange = persistent wall returns · Blue = estimated robot pose. Reset clears the map and pose.'}</p>
   </section>;
 }
 

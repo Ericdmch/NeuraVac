@@ -54,7 +54,7 @@ serial buffer, avoiding stale packet backlogs. The dashboard streams new
 points incrementally in timestamped batches of up to 20 ms; the browser draws
 on its next frame and keeps a rolling 250 ms visible.
 
-The `roomba_node` requests OI sensor group 0 twice per second and publishes
+The `roomba_node` requests OI sensor group 0 ten times per second and publishes
 incremental wheel odometry on `/odom`. `neuravac_slam` uses that as a motion
 prediction, then corrects the pose against LiDAR scans before updating
 `/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
@@ -62,18 +62,37 @@ odometry. The COIN-D6 reports clockwise angles, so SLAM reverses the angular
 sign when converting returns to ROS coordinates; this keeps mapped walls
 aligned as the robot rotates. When wheel odometry stops arriving, scan matching
 widens its rotation search to track turns without the odometry prior. The
-camera is not used for mapping. The dashboard's **Room map**
-panel shows the growing map; stronger wall returns appear brighter. The map
-is held in memory and starts fresh when the node restarts. Use **Reset & Remap**
+camera is not used for mapping. Scan-match corrections are blended into the
+odometry motion prediction and capped per scan to reduce sudden pose jumps and
+wall smearing; the stale-odometry rotation search is narrower to discourage
+large map spins. The dashboard's **Room map** panel shows the growing map.
+Bright orange marks returns seen within the last two seconds; older occupied
+cells remain visible in muted orange. An occupied cell needs repeated hits;
+rays that now pass through it subtract evidence faster than a hit adds it, so
+walls clear after the LiDAR sees beyond them. A fully reinforced cell clears
+after several clear scans; cells that no ray passes through remain until seen
+again. Isolated scan returns are filtered using `max_neighbor_gap_m` in the
+SLAM YAML: lower it to suppress more speckle (but it may remove small objects),
+or raise it to retain sparser objects (with more noise). The map is held in
+memory and starts fresh when the node restarts. Use **Reset & Remap**
 in the Room map panel to clear the occupancy grid and scan-matching pose; the
 next LiDAR revolutions build a fresh map from the robot's current position.
 This calls `/slam/reset` (`std_srvs/srv/Trigger`). This initial scan matcher
 is intended for slow mapping in small rooms; without loop closure,
 long drives can drift, and moving objects can leave temporary marks.
 
+The LiDAR prototypes estimate about 600 RPM (roughly 0.1 seconds per
+revolution), but verify the actual speed on the installed sensor. The mapper
+timestamps point arrivals and deskews each scan against interpolated `/odom`;
+this compensates for robot motion during the sweep. `LidarPoint` has no sensor
+capture timestamp, so packet and USB delays limit deskew precision. Scan
+matching runs on a bounded worker queue, keeping incoming LiDAR callbacks
+responsive when mapping takes longer than one revolution. A diagnostic bag can
+show point arrival timing and whether `/odom` keeps up.
+
 The dashboard reads cached telemetry every five seconds and has a **Request
 now** button. The `request_telemetry` ROS service requests and returns an
-immediate group 0 packet. The background 2 Hz sensor reads remain enabled for odometry;
+immediate group 0 packet. Background 10 Hz sensor reads remain enabled for odometry;
 they send only a two-byte query and receive the 26-byte group 0 packet.
 
 ## ROS 2 packages
@@ -114,6 +133,19 @@ the 26-byte all-sensor packet, and the distance/angle values as signed,
 big-endian increments. The mapper treats wheel odometry as a scan-matching
 prior because wheel slip can make it drift. See
 [`docs/Roomba/Roomba_SCI_manual.md`](docs/Roomba/Roomba_SCI_manual.md).
+
+Roomba turn odometry uses the SCI manual's nominal 258 mm wheel spacing.
+`src/roomba/config/roomba_params.yaml` exposes this as `wheel_track_m`. Wheel
+track is the distance from the center of the left wheel's floor-contact patch
+to the center of the right wheel's floor-contact patch, measured across the
+robot. Leave it at `0.258` until measured; the node scales the reported turn
+angle by `0.258 / wheel_track_m` to account for a different effective track.
+This geometric correction cannot account for wheel slip.
+
+Manual drive speed is configured in
+[`src/web/config/web_params.yaml`](src/web/config/web_params.yaml). It sets the
+starting speed, lower/upper limits, and Q/E adjustment step in mm/s. The SCI
+Drive command limit is 500 mm/s; use a safe low maximum during initial tests.
 
 #### LiDAR
 
@@ -244,6 +276,20 @@ ros2 launch bringup robot.launch.py use_slam:=false
 ros2 launch bringup robot.launch.py use_lidar:=false use_roomba:=false
 ros2 launch bringup robot.launch.py use_web:=false
 ```
+
+To record a short drive test on the Pi:
+
+```bash
+ros2 launch bringup robot.launch.py use_diagnostics:=true
+```
+
+This records `/lidar_points`, `/odom`, `/slam/pose`, `/serial_rx`, and
+`/serial_tx` under `~/Neuravac/logs/neuravac_<timestamp>`. Drive at the speed
+that causes trouble for about 30–60 seconds, release the drive control, then
+press Ctrl+C in the launch terminal to stop the nodes and finish the bag.
+Inspect it with `ros2 bag info ~/Neuravac/logs/neuravac_<timestamp>` and share
+the complete bag folder (zip it first if convenient). Generated `logs/` data
+is ignored by Git.
 
 With `use_vision:=false`, the dashboard captures the webcam directly using
 `camera_device`:

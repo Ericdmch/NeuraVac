@@ -3,7 +3,11 @@ import unittest
 
 import numpy as np
 
-from neuravac_slam.slam_node import rotation_search_angles, scan_to_cartesian
+from neuravac_slam.slam_node import (
+    deskew_points_to_reference,
+    rotation_search_angles,
+    scan_to_cartesian,
+)
 
 
 class ScanCoordinateTests(unittest.TestCase):
@@ -36,6 +40,28 @@ class ScanCoordinateTests(unittest.TestCase):
         self.assertEqual(len(odom_guided), 9)
         self.assertAlmostEqual(odom_guided[0], -0.2)
         self.assertAlmostEqual(odom_guided[-1], 0.2)
+
+    def test_deskew_removes_robot_rotation_during_scan(self):
+        points = np.array(((2.0, 0.0),))
+        samples = (
+            (0.0, np.array((0.0, 0.0, 0.0))),
+            (1.0, np.array((0.0, 0.0, np.pi / 2))),
+        )
+        corrected = deskew_points_to_reference(
+            points, np.array((0.0,)), samples, samples[-1][1]
+        )
+        np.testing.assert_allclose(corrected, ((0.0, -2.0),), atol=1e-12)
+
+    def test_deskew_interpolates_translation_during_scan(self):
+        points = np.array(((2.0, 0.0),))
+        samples = (
+            (0.0, np.array((0.0, 0.0, 0.0))),
+            (1.0, np.array((1.0, 0.0, 0.0))),
+        )
+        corrected = deskew_points_to_reference(
+            points, np.array((0.5,)), samples, samples[-1][1]
+        )
+        np.testing.assert_allclose(corrected, ((1.5, 0.0),), atol=1e-12)
 
 
 if __name__ == '__main__':

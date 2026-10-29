@@ -19,6 +19,7 @@ dependencies = [
     "pyserial>=3.5",         # roomba and lidar serial links
     "opencv-python-headless", # webcam capture and JPEG encoding (web, vision)
     "numpy",
+    "PyYAML>=6.0",           # web dashboard tuning configuration
 ]
 
 [project.optional-dependencies]
