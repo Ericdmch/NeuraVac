@@ -552,7 +552,7 @@ function SlamMapView() {
         context.save();
         context.translate(markerX, markerY);
         // Occupancy grid rows increase downward in this canvas.
-        context.rotate(Math.PI / 2 - heading);
+        context.rotate(3 * Math.PI / 2 - heading);
         context.strokeStyle = '#63b3ff';
         context.lineWidth = 2.5 * devicePixelRatio;
         context.beginPath();
