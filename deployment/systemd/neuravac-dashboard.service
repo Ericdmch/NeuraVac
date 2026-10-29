@@ -1,0 +1,13 @@
+[Unit]
+Description=NeuraVac dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Neuravac
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash; source %h/neuravac-web-venv/bin/activate; source %h/Neuravac/install/setup.bash; export PYTHONPATH=%h/neuravac-web-venv/lib/python3.12/site-packages:$$PYTHONPATH; exec ros2 launch bringup robot.launch.py use_roomba:=false use_lidar:=false use_slam:=false use_vision:=false"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

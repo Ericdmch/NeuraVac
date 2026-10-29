@@ -1,0 +1,13 @@
+[Unit]
+Description=NeuraVac legacy SLAM mapping
+After=neuravac-lidar.service neuravac-roomba.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Neuravac
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash; source %h/Neuravac/install/setup.bash; exec ros2 run neuravac_slam slam_node --ros-args --params-file %h/Neuravac/install/neuravac_slam/share/neuravac_slam/config/slam_params.yaml"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

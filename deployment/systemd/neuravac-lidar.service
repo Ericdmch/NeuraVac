@@ -1,0 +1,13 @@
+[Unit]
+Description=NeuraVac LiDAR driver (USB port)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Neuravac
+ExecStart=/bin/bash -c "source /opt/ros/jazzy/setup.bash; source %h/Neuravac/install/setup.bash; exec ros2 run lidar lidar_node --ros-args --params-file %h/Neuravac/install/lidar/share/lidar/config/lidar_params.yaml -p serial_port:=/dev/serial/by-path/platform-xhci-hcd.1-usb-0:2:1.0-port0"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -432,6 +432,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             speed_step_mm_s=speed_step,
         )
 
+    @app.get('/pi/diagnostics')
+    def pi_diagnostics():
+        from .pi_diagnostics import snapshot
+        response = jsonify(snapshot())
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
     @app.get('/telemetry')
     def telemetry():
         response = jsonify(serial_bridge.snapshot())
