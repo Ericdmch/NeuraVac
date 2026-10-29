@@ -3,15 +3,35 @@ import unittest
 import tempfile
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import rclpy
 from std_srvs.srv import Trigger
 
-from neuravac_slam.slam_node import LidarMapper, rotation_search_angles, scan_to_cartesian
+from neuravac_slam.slam_node import LidarMapper, refine_icp, rotation_search_angles, scan_to_cartesian
 
 
 class ScanCoordinateTests(unittest.TestCase):
+    def test_icp_recovers_rigid_motion_with_distant_outliers(self):
+        rng = np.random.default_rng(4)
+        points = rng.uniform(-2, 2, (100, 2))
+        yaw = 0.03
+        rotation = np.array(((np.cos(yaw), -np.sin(yaw)),
+                             (np.sin(yaw), np.cos(yaw))))
+        target = points @ rotation.T + (0.03, -0.02)
+        noisy = np.vstack((points, rng.uniform(8, 9, (10, 2))))
+        pose, ratio, error = refine_icp(noisy, target, np.zeros(3))
+        np.testing.assert_allclose(pose, (0.03, -0.02, yaw), atol=0.01)
+        self.assertGreater(ratio, 0.85)
+        self.assertLess(error, 0.01)
+
+    def test_icp_rejects_clouds_without_correspondences(self):
+        points = np.column_stack((np.arange(40), np.zeros(40)))
+        _, ratio, error = refine_icp(points, points + (0, 10), np.zeros(3))
+        self.assertEqual(ratio, 0)
+        self.assertTrue(np.isinf(error))
+
     def test_clockwise_lidar_angle_becomes_clockwise_local_y(self):
         scan = np.array(((0.0, 1.0), (np.pi / 2, 1.0), (np.pi, 1.0)))
         points = scan_to_cartesian(scan)
@@ -74,6 +94,29 @@ class MapProtectionTests(unittest.TestCase):
         scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
         mapper._process_scan(scan)
         self.assertFalse(mapper.grid.any())
+
+    def test_recovery_requires_three_consistent_scans(self):
+        mapper = self.mapper
+        mapper.grid[10, :40] = 12
+        mapper._last_scan = np.zeros((40, 2))
+        mapper._recovering = True
+        original = mapper.grid.copy()
+
+        def good_match(points):
+            mapper._match_score = 1.0
+            return np.array((0.01, 0.0, 0.01))
+
+        mapper._match_scan = good_match
+        scan = np.column_stack((np.linspace(0, 6.2, 40), np.ones(40)))
+        with patch('neuravac_slam.slam_node.refine_icp',
+                   return_value=(np.array((0.01, 0.0, 0.01)), 1.0, 0.01)):
+            for _ in range(2):
+                mapper._process_scan(scan)
+                np.testing.assert_array_equal(mapper.grid, original)
+                np.testing.assert_array_equal(mapper._pose, np.zeros(3))
+            mapper._process_scan(scan)
+        self.assertFalse(mapper._recovering)
+        np.testing.assert_allclose(mapper._pose, (0.01, 0.0, 0.01))
 
     def test_saved_checkpoint_restores_grid_and_pose(self):
         mapper = self.mapper

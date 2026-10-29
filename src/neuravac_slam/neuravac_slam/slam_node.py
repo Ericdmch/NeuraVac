@@ -31,6 +31,55 @@ def rotation_search_angles(odom_fresh, odom_window, fallback_window, fallback_st
     return np.linspace(-fallback_window, fallback_window, fallback_steps)
 
 
+def refine_icp(points, target, seed, max_distance=0.20, iterations=8):
+    """Refine a pose with trimmed nearest-neighbor rigid alignment."""
+    pose = np.asarray(seed, dtype=float).copy()
+    if len(target) < 30 or len(points) < 30:
+        return pose, 0.0, float('inf')
+
+    def pairs(world):
+        # Keep memory bounded even when the room map is large.
+        nearest = []
+        distances = []
+        for start in range(0, len(world), 60):
+            delta = world[start:start + 60, None, :] - target[None, :, :]
+            squared = np.sum(delta * delta, axis=2)
+            indices = np.argmin(squared, axis=1)
+            nearest.extend(indices)
+            distances.extend(np.sqrt(squared[np.arange(len(indices)), indices]))
+        return np.asarray(nearest), np.asarray(distances)
+
+    for _ in range(iterations):
+        c, s = math.cos(pose[2]), math.sin(pose[2])
+        world = points @ np.array(((c, -s), (s, c))).T + pose[:2]
+        indices, distances = pairs(world)
+        eligible = np.flatnonzero(distances < max_distance)
+        if len(eligible) < 30:
+            return pose, 0.0, float('inf')
+        keep = eligible[np.argsort(distances[eligible])[:max(30, int(len(eligible) * 0.75))]]
+        source = world[keep]
+        destination = target[indices[keep]]
+        center_source, center_target = source.mean(axis=0), destination.mean(axis=0)
+        u, _, vt = np.linalg.svd((source - center_source).T @ (destination - center_target))
+        rotation = vt.T @ u.T
+        if np.linalg.det(rotation) < 0:
+            vt[-1] *= -1
+            rotation = vt.T @ u.T
+        translation = center_target - rotation @ center_source
+        pose[:2] = rotation @ pose[:2] + translation
+        angle = math.atan2(rotation[1, 0], rotation[0, 0])
+        pose[2] = math.atan2(math.sin(pose[2] + angle), math.cos(pose[2] + angle))
+        if np.linalg.norm(translation) < 0.001 and abs(angle) < 0.0005:
+            break
+    c, s = math.cos(pose[2]), math.sin(pose[2])
+    world = points @ np.array(((c, -s), (s, c))).T + pose[:2]
+    _, distances = pairs(world)
+    inliers = distances < max_distance
+    ratio = float(np.mean(inliers))
+    rmse = float(np.sqrt(np.mean(distances[inliers] ** 2))) if inliers.any() else float('inf')
+    return pose, ratio, rmse
+
+
 class LidarMapper(Node):
     """Accumulate full revolutions, align them against the map, and map rays."""
 
@@ -49,6 +98,10 @@ class LidarMapper(Node):
         self.declare_parameter('min_scan_overlap', 0.15)
         self.declare_parameter('collision_pause_sec', 1.0)
         self.declare_parameter('map_file', '~/Neuravac/maps/room.npz')
+        self.declare_parameter('icp_max_distance_m', 0.20)
+        self.declare_parameter('icp_min_inlier_ratio', 0.40)
+        self.declare_parameter('icp_max_rmse_m', 0.10)
+        self.declare_parameter('recovery_scans', 3)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
         self.size = max(100, int(float(value('map_size_m')) / self.resolution))
@@ -65,6 +118,13 @@ class LidarMapper(Node):
         self.min_scan_overlap = float(value('min_scan_overlap'))
         self.collision_pause = float(value('collision_pause_sec'))
         self.map_file = Path(str(value('map_file'))).expanduser()
+        self.icp_distance = float(value('icp_max_distance_m'))
+        self.icp_ratio = float(value('icp_min_inlier_ratio'))
+        self.icp_rmse = float(value('icp_max_rmse_m'))
+        self.recovery_scans = max(2, int(value('recovery_scans')))
+        self._recovering = False
+        self._recovery_pose = None
+        self._recovery_count = 0
         self._collision_until = 0.0
         self._serial_buffer = bytearray()
         self._match_score = 1.0
@@ -105,6 +165,9 @@ class LidarMapper(Node):
             del self._serial_buffer[:26]
             if packet[0] & 31:
                 self._collision_until = time.monotonic() + self.collision_pause
+                self._recovering = True
+                self._recovery_pose = None
+                self._recovery_count = 0
 
     def save_map(self, _request, response):
         """Atomically save map evidence and its associated robot pose."""
@@ -140,6 +203,9 @@ class LidarMapper(Node):
                 self.grid[:] = grid
                 self._pose[:] = pose
                 self._last_scan = np.empty((0, 2))
+                self._recovering = True
+                self._recovery_pose = None
+                self._recovery_count = 0
                 self._scan.clear()
                 self._last_angle = None
                 self._odom_at_last_scan = (
@@ -162,6 +228,9 @@ class LidarMapper(Node):
             self._last_angle = None
             self._last_scan = None
             self._pose.fill(0.0)
+            self._recovering = False
+            self._recovery_pose = None
+            self._recovery_count = 0
             self._odom_at_last_scan = (
                 self._odom_pose.copy() if self._odom_pose is not None else None
             )
@@ -242,6 +311,7 @@ class LidarMapper(Node):
             return self._pose.copy()
         best_pose = self._pose.copy()
         best_score = -1.0
+        best_cost = float('inf')
         step = max(self.resolution, self.match_window / 4.0)
         translations = np.arange(-self.match_window, self.match_window + step / 2, step)
         odom_fresh = (
@@ -269,8 +339,10 @@ class LidarMapper(Node):
                     if not valid.any():
                         continue
                     score = float(np.count_nonzero(occupied[iy[valid], ix[valid]])) / len(points)
-                    if score > best_score:
+                    cost = dx * dx + dy * dy + dyaw * dyaw
+                    if score > best_score + 1e-9 or (abs(score - best_score) < 1e-9 and cost < best_cost):
                         best_score = score
+                        best_cost = cost
                         best_pose = np.array((self._pose[0] + dx,
                                               self._pose[1] + dy, theta))
         # If the scan has almost no overlap, do not invent a large correction.
@@ -291,12 +363,55 @@ class LidarMapper(Node):
                 return
             if self._last_scan is not None:
                 previous_pose = self._pose.copy()
-                self._predict_from_odometry()
+                if not self._recovering:
+                    self._predict_from_odometry()
+                else:
+                    self._odom_at_last_scan = (
+                        self._odom_pose.copy() if self._odom_pose is not None else None
+                    )
                 candidate = self._match_scan(points)
                 if self._match_score < self.min_scan_overlap:
                     self._pose = previous_pose
+                    self._recovering = True
+                    self._recovery_count = 0
                     self.get_logger().warning('Rejected scan: insufficient overlap; map held.')
                     return
+                ys, xs = np.nonzero(self.grid > 2)
+                target = np.column_stack((xs, ys)) * self.resolution + self.origin
+                if len(target) > 2500:
+                    target = target[np.linspace(0, len(target) - 1, 2500).astype(int)]
+                refined, ratio, error = refine_icp(points, target, candidate, self.icp_distance)
+                correction_angle = abs(math.atan2(
+                    math.sin(refined[2] - candidate[2]),
+                    math.cos(refined[2] - candidate[2])))
+                if (ratio < self.icp_ratio or error > self.icp_rmse
+                        or np.linalg.norm(refined[:2] - candidate[:2]) > 0.25
+                        or correction_angle > math.radians(15)):
+                    self._pose = previous_pose
+                    self._recovering = True
+                    self._recovery_count = 0
+                    return
+                candidate = refined
+                jump = abs(math.atan2(math.sin(candidate[2] - previous_pose[2]),
+                                      math.cos(candidate[2] - previous_pose[2])))
+                if (jump > math.radians(20)
+                        or np.linalg.norm(candidate[:2] - previous_pose[:2]) > 0.35):
+                    self._pose = previous_pose
+                    self._recovering = True
+                    self._recovery_count = 0
+                    return
+                if self._recovering:
+                    consistent = self._recovery_pose is not None and (
+                        np.linalg.norm(candidate[:2] - self._recovery_pose[:2]) < 0.08
+                        and abs(math.atan2(math.sin(candidate[2] - self._recovery_pose[2]),
+                                           math.cos(candidate[2] - self._recovery_pose[2]))) < math.radians(5))
+                    self._recovery_count = self._recovery_count + 1 if consistent else 1
+                    self._recovery_pose = candidate.copy()
+                    self._pose = previous_pose
+                    if self._recovery_count < self.recovery_scans:
+                        return
+                    self._recovering = False
+                    self._recovery_count = 0
                 self._pose = candidate
             elif self._odom_pose is not None:
                 self._odom_at_last_scan = self._odom_pose.copy()
