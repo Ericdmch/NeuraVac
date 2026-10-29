@@ -74,6 +74,15 @@ This calls `/slam/reset` (`std_srvs/srv/Trigger`). This initial scan matcher
 is intended for slow mapping in small rooms; without loop closure,
 long drives can drift, and moving objects can leave temporary marks.
 
+Collision handling discards partial, queued, and in-flight contact scans and
+pauses mapping until two consistent LiDAR alignments confirm recovery. Encoder
+counts received with bumper or wheel-drop flags are consumed without advancing
+the pose, because spinning wheels need not mean chassis motion. Rapid pose
+changes also hold map insertion. These checks reduce smearing; wheel slip without
+a contact flag and ambiguous room geometry still require physical validation.
+The map arrow calibrates from straight W/S travel and points along motion,
+including backward for S; releasing the key retains its last travel direction.
+
 The dashboard reads cached telemetry every five seconds and has a **Request
 now** button. The `request_telemetry` ROS service requests and returns an
 fresh group-0 telemetry from the same serialized encoder query. The service

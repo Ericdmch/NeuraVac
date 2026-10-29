@@ -27,6 +27,24 @@ def scan_to_cartesian(scan):
     return np.column_stack((ranges * np.cos(angles), ranges * np.sin(angles)))
 
 
+def deskew_scan(scan):
+    """Place each receipt-time return in the final return's robot frame.
+
+    Extra columns hold the measured wheel pose at each point's receipt time.
+    Legacy two-column synthetic scans remain supported.
+    """
+    points = scan_to_cartesian(scan)
+    if scan.shape[1] < 5:
+        return points
+    poses = scan[:, 2:5]
+    c, s = np.cos(poses[:, 2]), np.sin(poses[:, 2])
+    world = np.column_stack((c * points[:, 0] - s * points[:, 1],
+                             s * points[:, 0] + c * points[:, 1])) + poses[:, :2]
+    yaw = poses[-1, 2]
+    c, s = math.cos(yaw), math.sin(yaw)
+    return (world - poses[-1, :2]) @ np.array(((c, -s), (s, c)))
+
+
 def rotation_search_angles(odom_fresh, odom_window, fallback_window, fallback_steps):
     """Broaden rotation matching when no recent wheel-odometry prior exists."""
     if odom_fresh:
@@ -132,7 +150,7 @@ class LidarMapper(Node):
         self.declare_parameter('recovery_scans', 2)
         self.declare_parameter('recovery_window_m', 0.60)
         self.declare_parameter('recovery_window_deg', 60.0)
-        self.declare_parameter('use_icp_recovery', False)
+        self.declare_parameter('use_icp_recovery', True)
         self.declare_parameter('min_mapping_agreement', 0.55)
         self.declare_parameter('mapping_tolerance_m', 0.12)
         self.declare_parameter('max_mapping_turn_deg', 2.5)
@@ -222,6 +240,11 @@ class LidarMapper(Node):
                 continue
             del self._serial_buffer[:26]
             if packet[0] & 31:
+                # Invalidate queued/in-flight scans, including contact that
+                # starts and ends while the worker is matching a scan.
+                self._generation += 1
+                self._scan.clear()
+                self._have_scan_seam = False
                 self._collision_until = time.monotonic() + self.collision_pause
                 self._recovering = True
                 self._recovery_pose = None
@@ -334,11 +357,19 @@ class LidarMapper(Node):
             return self._pose.copy()
         return project_odometry(anchor[0], anchor[1], current)
 
-    def _predict_from_odometry(self):
-        if self._odom_pose is None:
+    def _predict_from_odometry(self, scan_odom=None):
+        if scan_odom is None and self._odom_pose is None:
             return
-        current = self._odom_pose.copy()
+        current = (scan_odom if scan_odom is not None else self._odom_pose).copy()
         if self._odom_at_last_scan is None:
+            self._odom_at_last_scan = current
+            return
+        if self._display_anchor is not None:
+            # A rejected match restores _pose but may advance the per-scan
+            # odometry baseline. Predict from the trusted map/odom pair so
+            # motion across rejected scans is never silently discarded.
+            anchor_pose, anchor_odom = self._display_anchor
+            self._pose = project_odometry(anchor_pose, anchor_odom, current)
             self._odom_at_last_scan = current
             return
         previous = self._odom_at_last_scan
@@ -360,6 +391,11 @@ class LidarMapper(Node):
         self._odom_at_last_scan = current
 
     def on_point(self, message):
+        if time.monotonic() < self._collision_until:
+            self._scan.clear()
+            self._last_angle = None
+            self._have_scan_seam = False
+            return
         angle = math.radians(float(message.angle_deg) % 360.0)
         if self._last_angle is not None:
             delta = angle - self._last_angle
@@ -388,14 +424,20 @@ class LidarMapper(Node):
         self._last_angle = angle
         distance = float(message.distance_mm) / 1000.0
         if self.min_range <= distance <= self.max_range:
-            self._scan.append((angle, distance))
+            if (self._odom_pose is None or self._odom_received_at is None
+                    or time.monotonic() - self._odom_received_at > 0.25):
+                self._scan.clear()
+                self._have_scan_seam = False
+                return
+            self._scan.append((angle, distance, *self._odom_pose))
 
     def _local_points(self, scan):
-        # Bound CPU while retaining evenly spaced angular coverage.
+        # Deskew before subsampling so the reference remains the final return.
+        points = deskew_scan(scan)
         if len(scan) > 360:
             take = np.linspace(0, len(scan) - 1, 360).astype(np.int32)
-            scan = scan[take]
-        return scan_to_cartesian(scan)
+            points = points[take]
+        return points
 
     def _match_scan(self, points):
         occupied = self.grid > 2
@@ -462,6 +504,8 @@ class LidarMapper(Node):
             try:
                 self._process_scan(scan, generation)
                 self._processed_scans += 1
+                # Publish between scans; the timer can starve on the map lock.
+                self.publish_map()
             except Exception as error:
                 self.get_logger().error(f'Scan processing failed: {error}')
 
@@ -472,7 +516,7 @@ class LidarMapper(Node):
 
     def publish_status(self):
         status = 'ODOMETRY ESTIMATE · MAP RECOVERING' if self.use_icp_recovery and self._recovering else 'TRACKING'
-        if not self.use_icp_recovery and self._map_hold_reason:
+        if self._map_hold_reason:
             status = self._map_hold_reason
         if time.monotonic() < self._collision_until:
             status = 'COLLISION — MAP PAUSED'
@@ -490,6 +534,9 @@ class LidarMapper(Node):
         })))
 
     def _process_scan(self, scan, generation=None):
+        # The queue may lag: use the pose captured with this scan, never
+        # feedback that arrived later while ICP was working.
+        scan_odom = scan[-1, 2:5].copy() if scan.shape[1] >= 5 else self._odom_pose
         points = self._local_points(scan)
         if len(points) < 30:
             return
@@ -499,16 +546,16 @@ class LidarMapper(Node):
             self._map_hold_reason = None
             if time.monotonic() < self._collision_until:
                 self._odom_at_last_scan = (
-                    self._odom_pose.copy() if self._odom_pose is not None else None
+                    scan_odom.copy() if scan_odom is not None else None
                 )
                 return
             if self._last_scan is not None and self.use_icp_recovery:
                 previous_pose = self._pose.copy()
                 if not self._recovering:
-                    self._predict_from_odometry()
+                    self._predict_from_odometry(scan_odom)
                 else:
                     self._odom_at_last_scan = (
-                        self._odom_pose.copy() if self._odom_pose is not None else None
+                        scan_odom.copy() if scan_odom is not None else None
                     )
                     # Follow a moving recovery hypothesis instead of repeatedly
                     # searching around the old, frozen map pose.
@@ -592,7 +639,7 @@ class LidarMapper(Node):
                 self._pose = candidate
             elif self._last_scan is not None:
                 previous_pose = self._pose.copy()
-                self._predict_from_odometry()
+                self._predict_from_odometry(scan_odom)
                 candidate = self._match_scan(points)
                 ys, xs = np.nonzero(self.grid > 2)
                 target = np.column_stack((xs, ys)) * self.resolution + self.origin
@@ -617,20 +664,37 @@ class LidarMapper(Node):
                     self._anchor_display()
                     self._map_hold_reason = 'MOVING QUICKLY · MAP HELD'
                     return
-            elif self._odom_pose is not None:
-                self._odom_at_last_scan = self._odom_pose.copy()
+            elif scan_odom is not None:
+                self._odom_at_last_scan = scan_odom.copy()
             theta = self._pose[2]
-            if time.monotonic() < self._collision_until:
+            if (time.monotonic() < self._collision_until
+                    or (generation is not None and generation != self._generation)):
                 if self._last_scan is not None:
                     self._pose = previous_pose
                 self._recovering = True
                 return
+            if self._last_scan is not None and self.use_icp_recovery:
+                turn = abs(math.atan2(math.sin(self._pose[2] - previous_pose[2]),
+                                      math.cos(self._pose[2] - previous_pose[2])))
+                if (turn > self.max_mapping_turn or
+                        np.linalg.norm(self._pose[:2] - previous_pose[:2]) > self.max_mapping_translation):
+                    self._anchor_display()
+                    self._map_hold_reason = 'MOVING QUICKLY · MAP HELD'
+                    return
             c, s = math.cos(theta), math.sin(theta)
             rotation = np.array(((c, -s), (s, c)))
             world = points @ rotation.T + self._pose[:2]
             scanner = self._pose[:2]
+            before_grid = self.grid.copy()
             for endpoint in world:
                 self._trace_ray(scanner, endpoint)
+            if (time.monotonic() < self._collision_until
+                    or (generation is not None and generation != self._generation)):
+                self.grid[:] = before_grid
+                if self._last_scan is not None:
+                    self._pose = previous_pose
+                self._recovering = True
+                return
             self._last_scan = points
             self._anchor_display()
             self._map_version += 1

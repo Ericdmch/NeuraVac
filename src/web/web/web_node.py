@@ -47,6 +47,17 @@ OVERRIDE_MOTIONS = {
     'D': (1, -1),     # clockwise (right)
 }
 SPEED_KEYS = {'Q', 'E'}
+ARC_RADIUS_MM = 500
+
+def motion_for_keys(held):
+    longitudinal = next((k for k in reversed(held) if k in ('W', 'S')), None)
+    lateral = next((k for k in reversed(held) if k in ('A', 'D')), None)
+    if longitudinal and lateral:
+        direction = 1 if longitudinal == 'W' else -1
+        side = 1 if lateral == 'A' else -1
+        return direction, direction * side * ARC_RADIUS_MM
+    key = longitudinal or lateral
+    return OVERRIDE_MOTIONS[key] if key else None
 
 
 class WebBridge(Node):
@@ -188,6 +199,7 @@ class LidarBridge:
         self.bridge.add_subscriber(PoseStamped, 'slam/pose', self.pose_callback, 10)
         self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 1)
         self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
+        self._slam_save_client = self.bridge.create_client(Trigger, 'slam/save')
 
     def reset_slam(self):
         if not self._slam_reset_client.wait_for_service(timeout_sec=0.5):
@@ -204,6 +216,20 @@ class LidarBridge:
         if response.success:
             with self._pose_lock:
                 self._travel_heading = TravelHeading()
+        return response.success, response.message
+
+    def save_slam(self):
+        if not self._slam_save_client.wait_for_service(timeout_sec=0.5):
+            return False, 'SLAM save service is unavailable.'
+        completed = threading.Event()
+        future = self._slam_save_client.call_async(Trigger.Request())
+        future.add_done_callback(lambda _future: completed.set())
+        if not completed.wait(timeout=10.0):
+            return False, 'SLAM save request timed out.'
+        try:
+            response = future.result()
+        except Exception as error:
+            return False, f'SLAM save failed: {error}'
         return response.success, response.message
 
     def lidar_callback(self, msg):
@@ -317,9 +343,8 @@ class LidarBridge:
             ),
         }
         with self._pose_lock:
-            if hasattr(self, '_travel_heading'):
-                pose['yaw'] = self._travel_heading.update(
-                    pose['x'], pose['y'], pose['yaw'], time.monotonic())
+            # Room-map marker represents body orientation in the SLAM frame.
+            # Travel direction and noisy short displacements cannot calibrate it.
             self._slam_pose = pose
         with self._map_condition:
             if self._map is not None:
@@ -367,6 +392,7 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         static_url_path='/static',
     )
     active_override = None
+    held_motion = []
     settings = {**DEFAULT_DRIVE_CONFIG, **(drive_config or {})}
     min_speed = min(500, max(0, int(settings['min_drive_speed_mm_s'])))
     max_speed = max(
@@ -448,19 +474,33 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
                     min(max_speed, speed + (speed_step if key == 'E' else -speed_step)),
                 )
                 if active_override:
-                    direction, radius = OVERRIDE_MOTIONS[active_override]
+                    direction, radius = active_override
                     serial_bridge.send_message(roomba_drive(speed * direction, radius))
             return jsonify(key=key, pressed=pressed, speed=speed)
 
+        previous = active_override
         if pressed:
-            direction, radius = OVERRIDE_MOTIONS[key]
-            serial_bridge.send_message(roomba_drive(speed * direction, radius))
-            active_override = key
-        elif active_override == key:
-            serial_bridge.send_message(roomba_drive(0, STRAIGHT))
-            active_override = None
-
+            if key in held_motion:
+                held_motion.remove(key)
+            held_motion.append(key)
+        elif key in held_motion:
+            held_motion.remove(key)
+        active_override = motion_for_keys(held_motion)
+        if active_override != previous:
+            if active_override:
+                direction, radius = active_override
+                serial_bridge.send_message(roomba_drive(speed * direction, radius))
+            else:
+                serial_bridge.send_message(roomba_drive(0, STRAIGHT))
         return jsonify(key=key, pressed=pressed, speed=speed)
+
+    @app.post('/override/stop')
+    def stop_override():
+        nonlocal active_override
+        held_motion.clear()
+        active_override = None
+        serial_bridge.send_message(roomba_drive(0, STRAIGHT))
+        return jsonify(stopped=True, speed=speed)
 
     @app.post('/roomba/led')
     def roomba_led():
@@ -536,6 +576,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             events(), mimetype='text/event-stream',
             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
         )
+
+    @app.post('/slam/save')
+    def save_slam():
+        success, message = lidar_bridge.save_slam()
+        if not success:
+            return jsonify(error=message), 503
+        return jsonify(saved=True, message=message)
 
     @app.post('/slam/reset')
     def reset_slam():

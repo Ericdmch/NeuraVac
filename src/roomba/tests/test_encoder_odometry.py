@@ -15,6 +15,15 @@ def reply(left=100, right=100):
 
 
 class EncoderTests(unittest.TestCase):
+    def test_contact_consumes_wheel_spin_without_pose_jump_on_release(self):
+        odom = EncoderOdometry()
+        odom.update(100, 100, 0)
+        self.assertIsNone(odom.update(200, 300, .1, blocked=True))
+        self.assertEqual((odom.x, odom.y, odom.yaw), (0, 0, 0))
+        odom.update(202, 302, .2)
+        self.assertAlmostEqual(odom.x, 2 * odom.meters_per_count)
+        self.assertAlmostEqual(odom.yaw, 0)
+
     def test_signed_and_unsigned_wrap_in_both_directions(self):
         self.assertEqual(counter_delta(5, 65530), 11)
         self.assertEqual(counter_delta(65530, 5), -11)

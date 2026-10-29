@@ -1,4 +1,4 @@
-slam_node:
+neuravac_slam:
   ros__parameters:
     resolution_m: 0.05
     map_size_m: 20.0
@@ -21,8 +21,8 @@ slam_node:
     recovery_window_m: 0.60
     recovery_window_deg: 60.0
 
-    # Earlier coarse scan matcher: no multi-scan ICP recovery lock.
-    use_icp_recovery: false
+    # Require consistent LiDAR alignment before inserting scans after contact.
+    use_icp_recovery: true
     # Map insertion checks are independent of live marker updates.
     min_mapping_agreement: 0.55
     mapping_tolerance_m: 0.12

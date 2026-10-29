@@ -1,6 +1,10 @@
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.time import Time
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+from neuravac_mapping.scan_math import ScanAssembler
 import serial
 from serial import SerialException
 from roomba_interfaces.msg import LidarPoint, SerialData
@@ -52,6 +56,8 @@ class Lidar(Node):
 
         # Parseing lidar data
         self._buffer = bytearray()
+        self._scan_assembler = ScanAssembler()
+        self._scan_pub = self.create_publisher(LaserScan, 'scan_raw', qos_profile_sensor_data)
 
     def read_serial(self):
         waiting = self.serial.in_waiting
@@ -70,7 +76,24 @@ class Lidar(Node):
         if points:
             for point in points:
                 self.lidar_points.publish(point)
+                stamp = self.get_clock().now().nanoseconds * 1e-9
+                scan = self._scan_assembler.add(point.angle_deg, point.distance_mm, stamp)
+                if scan is not None:
+                    self.publish_scan(scan)
 
+
+    def publish_scan(self, scan):
+        message = LaserScan()
+        message.header.stamp = Time(seconds=scan['stamp']).to_msg()
+        message.header.frame_id = 'lidar_link'
+        message.angle_min = 0.0
+        message.angle_increment = scan['angle_increment']
+        message.angle_max = (len(scan['ranges']) - 1) * message.angle_increment
+        message.scan_time = scan['duration']
+        message.time_increment = scan['duration'] / len(scan['ranges'])
+        message.range_min, message.range_max = 0.12, 8.0
+        message.ranges = scan['ranges']
+        self._scan_pub.publish(message)
 
     def extract_packet(self):
         """

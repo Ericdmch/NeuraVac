@@ -35,11 +35,11 @@ class EncoderOdometry:
         self.x = self.y = self.yaw = 0.0
         self.rejected = False
 
-    def update(self, left, right, stamp):
+    def update(self, left, right, stamp, blocked=False):
         self.rejected = False
         previous, previous_stamp = self.previous, self.stamp
         self.previous, self.stamp = (left, right), stamp
-        if previous is None:
+        if previous is None or blocked:
             return None
         dt = stamp - previous_stamp
         dl = counter_delta(left, previous[0]) * self.meters_per_count * self.left_scale

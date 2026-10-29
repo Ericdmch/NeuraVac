@@ -16,7 +16,7 @@ class TravelHeadingTests(unittest.TestCase):
         heading = TravelHeading()
         heading.update(0, 0, math.pi / 2, 0)
         heading.command([137, 255, 56, 128, 0])
-        self.assertAlmostEqual(heading.update(-0.025, 0, math.pi / 2, 0.1), 0)
+        self.assertAlmostEqual(abs(heading.update(-0.025, 0, math.pi / 2, 0.1)), math.pi)
 
     def test_forward_calibrates_from_displacement(self):
         heading = TravelHeading()
@@ -24,11 +24,21 @@ class TravelHeadingTests(unittest.TestCase):
         heading.update(0, 0, math.pi / 2, 0)
         self.assertAlmostEqual(heading.update(0.1, 0, math.pi / 2, 0.5), 0)
 
-    def test_reverse_preserves_front_direction(self):
+    def test_reverse_points_in_direction_of_travel(self):
         heading = TravelHeading()
         heading.command([137, 255, 56, 128, 0])
         heading.update(0, 0, math.pi / 2, 0)
-        self.assertAlmostEqual(heading.update(-0.1, 0, math.pi / 2, 0.5), 0)
+        self.assertAlmostEqual(abs(heading.update(-0.1, 0, math.pi / 2, 0.5)), math.pi)
+
+    def test_reverse_arrow_persists_on_stop_and_flips_on_forward(self):
+        heading = TravelHeading()
+        heading.update(0, 0, 0, 0)
+        heading.command([137, 255, 56, 128, 0])
+        self.assertAlmostEqual(abs(heading.update(-0.1, 0, 0, 0.5)), math.pi)
+        heading.command([137, 0, 0, 128, 0])
+        self.assertAlmostEqual(abs(heading.update(-0.1, 0, 0, 0.6)), math.pi)
+        heading.command([137, 0, 200, 128, 0])
+        self.assertAlmostEqual(heading.update(-0.1, 0, 0, 0.7), 0)
 
     def test_stationary_noise_does_not_calibrate(self):
         heading = TravelHeading()

@@ -8,6 +8,7 @@ class TravelHeading:
         self.anchor = None
         self.offset = 0.0
         self.latest_pose = None
+        self.travel_sign = 1
 
     def command(self, data):
         if len(data) != 5 or data[0] != 137:
@@ -18,6 +19,10 @@ class TravelHeading:
         if direction != self.direction:
             self.anchor = self.latest_pose if direction else None
         self.direction = direction
+        if direction:
+            self.travel_sign = direction
+        elif velocity:
+            self.travel_sign = 1
 
     def update(self, x, y, yaw, now):
         self.latest_pose = (x, y, yaw, now)
@@ -37,5 +42,5 @@ class TravelHeading:
                     self.anchor = None
             if self.anchor is None:
                 self.anchor = (x, y, yaw, now)
-        result = yaw + self.offset
+        result = yaw + self.offset + (math.pi if self.travel_sign < 0 else 0)
         return math.atan2(math.sin(result), math.cos(result))

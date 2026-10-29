@@ -1,5 +1,7 @@
 """Own the Roomba serial link and integrate Query List wheel encoder data."""
 import math
+import json
+import os
 import threading
 import time
 
@@ -37,10 +39,22 @@ class Roomba(Node):
             float(value('wheel_track_m')), float(value('left_wheel_scale')),
             float(value('right_wheel_scale')), float(value('max_wheel_speed_m_s')),
         )
+        # Restore the last stationary odometry pose after a controlled driver restart.
+        checkpoint = '/tmp/neuravac-lift-odom.json'
+        try:
+            with open(checkpoint) as saved:
+                state = json.load(saved)
+            os.unlink(checkpoint)
+            pose = state['pose']
+            if abs(time.time() - state['time']) < 20 and len(pose) == 3 and all(math.isfinite(v) for v in pose):
+                self.encoder.x, self.encoder.y, self.encoder.yaw = pose
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
         self._serial_lock = threading.RLock()
         self._sensor_condition = threading.Condition()
         self._sensor_sequence = 0
         self._latest_group_zero = None
+        self._latest_group_zero_at = None
         self._sensor_buffer = bytearray()
         self._query_pending = False
         self._query_started = 0.0
@@ -126,9 +140,10 @@ class Roomba(Node):
             self._query_pending = False
         self.sensors_pub.publish(SerialData(data=list(telemetry)))
         self.encoder_pub.publish(UInt16MultiArray(data=[left, right]))
-        self.publish_odometry(left, right, time.monotonic())
+        self.publish_odometry(left, right, time.monotonic(), blocked=bool(telemetry[0] & 31))
         with self._sensor_condition:
             self._latest_group_zero = telemetry
+            self._latest_group_zero_at = time.monotonic()
             self._sensor_sequence += 1
             self._sensor_condition.notify_all()
 
@@ -142,8 +157,20 @@ class Roomba(Node):
             self._warn('Use request_telemetry; raw sensor queries are owned by the driver.')
             return
         with self._serial_lock:
-            if self.serial.is_open:
-                self.serial.write(payload)
+            if not self.serial.is_open:
+                return
+            if len(payload) == 5 and payload[0] == 137 and int.from_bytes(payload[1:3], 'big', signed=True) != 0:
+                with self._sensor_condition:
+                    sensor, updated = self._latest_group_zero, self._latest_group_zero_at
+                if (sensor is None or updated is None or time.monotonic() - updated > 1.0
+                        or sensor[0] & 0x1c or any(sensor[2:6])
+                        or sensor[16] in (1, 2, 3)):
+                    self._warn('Drive blocked: wheel drop, cliff, charging, or stale sensor feedback.')
+                    return
+                # A lift puts the OI in Passive mode. Re-arm Safe on a NEW
+                # drive request only, retaining the Roomba safety interlocks.
+                self.serial.write(bytes((131,)))
+            self.serial.write(payload)
 
     def request_telemetry(self, _request, response):
         """Join an in-flight encoder query or request one; return group 0 only."""
@@ -165,8 +192,10 @@ class Roomba(Node):
             response.data = list(self._latest_group_zero) if received else []
         return response
 
-    def publish_odometry(self, left, right, stamp):
-        result = self.encoder.update(left, right, stamp)
+    def publish_odometry(self, left, right, stamp, blocked=False):
+        # Contact/wheel-drop counts can be wheel spin, not chassis motion.
+        # Consume the counts without moving the pose; LiDAR reacquires it.
+        result = self.encoder.update(left, right, stamp, blocked=blocked)
         if result is None:
             if self.encoder.rejected:
                 self._warn('Rejected implausible encoder jump; counter baseline reset.')

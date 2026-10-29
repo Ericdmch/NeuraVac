@@ -181,15 +181,23 @@ function RemoteOverride() {
       finally { window.clearTimeout(timeout); }
     });
   }
-  function releaseAll() { [...heldKeys.current].forEach(key => sendOverride(key, false)); }
+  function releaseAll() {
+    if (!heldKeys.current.size) return;
+    heldKeys.current.clear();
+    setActiveKeys(new Set());
+    queue.current = queue.current.catch(() => {}).then(() => fetch('/override/stop', {method: 'POST'})).catch(() => setError('Control link unavailable. Check the robot.'));
+  }
+  function controlKey(key) {
+    return ({ArrowUp:'W', ArrowDown:'S', ArrowLeft:'A', ArrowRight:'D'})[key] || key.toUpperCase();
+  }
   React.useEffect(() => {
     function keyDown(event) {
       if (!isEnabled || event.repeat || event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
-      const key = event.key.toUpperCase();
+      const key = controlKey(event.key);
       if (controls.includes(key)) { event.preventDefault(); sendOverride(key, true); }
     }
     function keyUp(event) {
-      const key = event.key.toUpperCase();
+      const key = controlKey(event.key);
       if (heldKeys.current.has(key)) { event.preventDefault(); sendOverride(key, false); }
     }
     function hide() { if (document.hidden) releaseAll(); }
@@ -221,7 +229,7 @@ function RemoteOverride() {
       onBlur={() => { if (heldKeys.current.has(key)) sendOverride(key, false); }}>
       <span>{key}</span><small>{{Q:'Slower',W:'Forward',E:'Faster',A:'Left',S:'Reverse',D:'Right'}[key]}</small>
     </button>)}</div>
-    <p className="panel-note">{error || (isEnabled ? 'Hold a key or button to drive. Release to stop.' : 'Enable manual control to use WASD. Q / E adjust speed.')}</p>
+    <p className="panel-note">{error || (isEnabled ? 'Hold a key or button to drive. Release to stop.' : 'Enable manual control to use arrow keys or WASD. Q / E adjust speed.')}</p>
   </section>;
 }
 
@@ -464,6 +472,23 @@ function SlamMapView() {
   const [status, setStatus] = React.useState('WAITING FOR MAP');
   const [resetting, setResetting] = React.useState(false);
   const [resetError, setResetError] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [saveMessage, setSaveMessage] = React.useState('');
+
+  async function saveMap() {
+    setSaving(true);
+    setSaveMessage('');
+    try {
+      const response = await fetch('/slam/save', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to save map.');
+      setSaveMessage(result.message || 'Map saved.');
+    } catch (error) {
+      setSaveMessage(error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function resetMap() {
     setResetting(true);
@@ -540,6 +565,9 @@ function SlamMapView() {
       layer.width = cropWidth; layer.height = cropHeight;
       layer.getContext('2d').putImageData(image, 0, 0);
       context.imageSmoothingEnabled = false;
+      context.save();
+      context.translate(width, 0);
+      context.scale(-1, 1);
       context.drawImage(layer, left, top, drawWidth, drawHeight);
       if (hasRobotPose && robotX >= minX && robotX <= maxX && robotY >= minY && robotY <= maxY) {
         context.fillStyle = '#63b3ff'; context.beginPath();
@@ -552,7 +580,8 @@ function SlamMapView() {
         context.save();
         context.translate(markerX, markerY);
         // Occupancy grid rows increase downward in this canvas.
-        context.rotate(heading);
+        // Display-only 270-degree offset; SLAM yaw stays unchanged.
+        context.rotate(heading + 3 * Math.PI / 2);
         context.strokeStyle = '#63b3ff';
         context.lineWidth = 2.5 * devicePixelRatio;
         context.beginPath();
@@ -563,6 +592,7 @@ function SlamMapView() {
         context.stroke();
         context.restore();
       }
+      context.restore();
       return true;
     }
     stream.onmessage = event => {
@@ -581,6 +611,9 @@ function SlamMapView() {
   return <section className="lidar-view slam-map-view" aria-labelledby="slam-map-title">
     <div className="lidar-header"><div><p className="console-label">LIDAR + WHEEL ODOMETRY / SCAN MATCHED</p><h2 id="slam-map-title">Room map</h2></div>
       <div className="slam-map-actions">
+        <button className="telemetry-refresh" type="button" onClick={saveMap} disabled={saving}>
+          {saving ? 'SAVING…' : 'SAVE MAP'}
+        </button>
         <button className="telemetry-refresh" type="button" onClick={resetMap} disabled={resetting}>
           {resetting ? 'RESETTING…' : 'RESET & REMAP'}
         </button>
@@ -588,7 +621,7 @@ function SlamMapView() {
       </div>
     </div>
     <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
-    <p className="panel-note slam-map-note">{resetError || 'Orange = persistent wall returns · Blue = estimated robot pose · Reset clears the map and pose; fresh scans rebuild it.'}</p>
+    <p className="panel-note slam-map-note">{saveMessage || resetError || 'Orange = persistent wall returns · Blue = estimated robot pose · Reset clears the map and pose; fresh scans rebuild it.'}</p>
   </section>;
 }
 

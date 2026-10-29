@@ -21,7 +21,8 @@ from datetime import datetime
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -91,11 +92,18 @@ def launch_setup(context):
         ))
 
         if enabled(context, 'use_slam'):
-            nodes.append(Node(
-                package='neuravac_slam', executable='slam_node', name='neuravac_slam',
-                parameters=[package_config('neuravac_slam', 'slam_params.yaml')],
-                output='screen', respawn=True, respawn_delay=3.0,
-            ))
+            backend = LaunchConfiguration('slam_backend').perform(context)
+            if backend == 'toolbox':
+                nodes.append(IncludeLaunchDescription(PythonLaunchDescriptionSource(
+                    os.path.join(get_package_share_directory('neuravac_mapping'),
+                                 'launch', 'mapping.launch.py'))))
+            elif backend == 'legacy':
+                nodes.append(Node(
+                    package='neuravac_slam', executable='slam_node', name='neuravac_slam',
+                    parameters=[package_config('neuravac_slam', 'slam_params.yaml')],
+                    output='screen', respawn=True, respawn_delay=3.0))
+            else:
+                raise ValueError('slam_backend must be toolbox or legacy')
 
     use_vision = enabled(context, 'use_vision')
     if use_vision:
@@ -122,6 +130,7 @@ def launch_setup(context):
 
 def generate_launch_description():
     arguments = [
+        DeclareLaunchArgument('slam_backend', default_value='toolbox'),
         DeclareLaunchArgument('use_roomba', default_value='true',
                               description='Start the Roomba serial node'),
         DeclareLaunchArgument('use_lidar', default_value='true',
