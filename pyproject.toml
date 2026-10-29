@@ -55,4 +55,4 @@ web = "src/web/web"
 web = ["templates/*.html", "static/*", "static/images/*"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/bringup/tests", "src/web/tests"]
+testpaths = ["src/bringup/tests", "src/web/tests", "src/neuravac_slam/tests"]

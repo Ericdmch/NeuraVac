@@ -13,6 +13,7 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
+from std_msgs.msg import String
 
 from .override import roomba_drive
 from .camera import CameraCapture, LatestJpeg
@@ -141,7 +142,9 @@ class LidarBridge:
         self._map_condition = threading.Condition()
         self._map_sequence = 0
         self._map = None
+        self._slam_status = None
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
+        self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 10)
 
     def lidar_callback(self, msg):
         point = {
@@ -230,6 +233,15 @@ class LidarBridge:
                 lambda: self._map_sequence > after_sequence, timeout=timeout
             )
             return self._map_sequence, self._map
+
+    def status_callback(self, message):
+        with self._map_condition:
+            self._slam_status = message.data
+            self._map_condition.notify_all()
+
+    def slam_status(self):
+        with self._map_condition:
+            return self._slam_status
 
     def snapshot(self):
         cutoff = time.monotonic() - self.RECENT_POINT_MAX_AGE_SECONDS
@@ -405,6 +417,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             events(), mimetype='text/event-stream',
             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
         )
+
+    @app.get('/slam/status')
+    def slam_status():
+        status = lidar_bridge.slam_status()
+        response = jsonify(status=status, available=status is not None)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     return app
 

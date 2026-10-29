@@ -433,11 +433,21 @@ function LidarView() {
 
 function SlamMapView() {
   const canvasRef = React.useRef(null);
-  const [status, setStatus] = React.useState('WAITING FOR MAP');
+  const [status, setStatus] = React.useState('WAITING FOR SLAM');
 
   React.useEffect(() => {
     const stream = new EventSource('/slam/map/stream');
     let latestMap = null;
+    async function refreshSlamStatus() {
+      try {
+        const response = await fetch('/slam/status', { cache: 'no-store' });
+        const payload = await response.json();
+        if (!payload.available) { setStatus('WAITING FOR SLAM'); return; }
+        const state = payload.status.match(/state=([^;]+)/)?.[1] || 'UNKNOWN';
+        const reason = payload.status.match(/reason=(.*)$/)?.[1] || '';
+        setStatus(reason ? `${state} · ${reason}` : state);
+      } catch (error) { setStatus('SLAM STATUS UNAVAILABLE'); }
+    }
     function drawMap(map) {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -489,13 +499,18 @@ function SlamMapView() {
       }
     }
     stream.onmessage = event => {
-      try { latestMap = JSON.parse(event.data); drawMap(latestMap); setStatus('MAPPING · LIDAR ONLY'); }
+      try { latestMap = JSON.parse(event.data); drawMap(latestMap); }
       catch (error) { console.error('Unable to decode LiDAR map.', error); }
     };
     stream.onerror = () => setStatus('WAITING FOR MAP');
+    refreshSlamStatus();
+    const statusTimer = window.setInterval(refreshSlamStatus, 1000);
     const resize = () => { if (latestMap) drawMap(latestMap); };
     window.addEventListener('resize', resize);
-    return () => { stream.close(); window.removeEventListener('resize', resize); };
+    return () => {
+      stream.close(); window.clearInterval(statusTimer);
+      window.removeEventListener('resize', resize);
+    };
   }, []);
 
   return <section className="lidar-view slam-map-view" aria-labelledby="slam-map-title">
