@@ -3,3 +3,13 @@ roomba_node:
     # Stable name created by `ros2 run bringup neuravac_udev_setup`
     serial_port: /dev/neuravac_roomba
     baudrate: 115200
+    sensor_query_hz: 10.0
+    # Nominal Roomba 650/Create 2 geometry; calibrate against measured travel.
+    wheel_diameter_m: 0.072
+    encoder_counts_per_rev: 508.8
+    wheel_track_m: 0.235
+    left_wheel_scale: 1.0
+    right_wheel_scale: 1.0
+    max_wheel_speed_m_s: 0.6
+    query_timeout_sec: 0.35
+    startup_delay_sec: 2.0

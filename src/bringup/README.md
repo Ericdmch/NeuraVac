@@ -63,8 +63,8 @@ Parameters still live in each package's `config/` YAML
 file loads them. The web dashboard is configured with `NEURAVAC_*` environment
 variables as described in `src/web/README.md`.
 
-`roomba_node` requests sensor group 0 twice per second and publishes
-incremental wheel odometry on `/odom`. The web dashboard only refreshes its
+`roomba_node` requests group 0 and encoder packets 43/44 with opcode 149 at
+10 Hz and publishes encoder odometry on `/odom`. The web dashboard refreshes its
 telemetry display every five seconds; **Request now** or
 `ros2 service call /request_telemetry roomba_interfaces/srv/RequestTelemetry "{}"`
 triggers an immediate sample. The SLAM matcher uses `/odom` as a prediction

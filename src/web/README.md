@@ -23,8 +23,8 @@ close to the robot marker. The **Room map** panel displays `/slam/map`, the
 occupancy grid published by `neuravac_slam`. Its blue marker follows the
 scan-matched position from `/slam/pose`, rather than staying at the map origin.
 
-The Roomba node samples OI sensor group 0 (`142 0`) at 2 Hz for wheel
-odometry. The dashboard reads its cached sensor data every five seconds;
+The Roomba node queries group 0 and encoders (`149 3 0 43 44`) at 10 Hz.
+Odometry uses the wheel counts; the dashboard reads cached telemetry every five seconds;
 **Request now** calls the `/request_telemetry` ROS service, which returns an
 immediate 26-byte sample. `/telemetry` returns battery,
 charging, current, temperature, bumpers, cliffs, wheel drops, wall flags,
@@ -32,8 +32,7 @@ overcurrent, and incremental distance/turn readings. Replies are accumulated
 across serial chunks; incomplete, invalid, or late responses are ignored.
 Readings older than 15 seconds are hidden rather than shown as current.
 Use the `/request_telemetry` service instead of issuing sensor queries from
-the raw serial console. The 2 Hz group 0 stream also supplies the scan
-matcher’s odometry prior.
+the raw serial console. Encoder-derived `/odom` supplies the scan matcher's motion prior.
 
 Protocol references: `docs/Roomba/Roomba_SCI_manual.md` confirms the basic
 26-byte layout, flags, and battery units. That document is the 2005 SCI
@@ -81,11 +80,15 @@ installed asset directory.
 
 `neuravac_slam` consumes `lidar_points`, groups full rotations, estimates pose
 by scan matching against its occupancy grid, and publishes `slam/map` at 2
-Hz. It does not use camera or Roomba odometry. Launch it by default with
+Hz. It uses encoder-derived Roomba odometry; the camera is not used for mapping. Launch it by default with
 `ros2 launch bringup robot.launch.py`; use `use_slam:=false` to turn mapping
 off. Maps persist for the life of the node and reset on restart. Run the robot
 slowly in a room with relatively stationary walls; this initial mapper has no
 loop closure, so accumulated pose drift can distort large or repeated paths.
+
+On the encoder branch, telemetry uses `roomba/sensors` (complete 26-byte packets).
+`serial_rx` is retained for the raw log only. The arrow calibrates from short
+straight W/S travel, with reverse handled, as on `codex/slam-collision-icp`.
 
 The telemetry deployment runs from `~/neuravac-dashboard/20261024-telemetry`
 to avoid concurrent checkout edits replacing the running version. The Pi's

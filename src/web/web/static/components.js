@@ -552,7 +552,7 @@ function SlamMapView() {
         context.save();
         context.translate(markerX, markerY);
         // Occupancy grid rows increase downward in this canvas.
-        context.rotate(3 * Math.PI / 2 - heading);
+        context.rotate(heading);
         context.strokeStyle = '#63b3ff';
         context.lineWidth = 2.5 * devicePixelRatio;
         context.beginPath();
@@ -568,7 +568,7 @@ function SlamMapView() {
     stream.onmessage = event => {
       try {
         latestMap = JSON.parse(event.data);
-        setStatus(drawMap(latestMap) ? 'MAPPING · LIDAR ONLY' : 'WAITING FOR SCANS');
+        setStatus(drawMap(latestMap) ? (latestMap.tracking_status || 'TRACKING') : 'WAITING FOR SCANS');
       }
       catch (error) { console.error('Unable to decode LiDAR map.', error); }
     };

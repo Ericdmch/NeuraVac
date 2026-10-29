@@ -30,7 +30,9 @@ flowchart LR
     Camera[USB camera] --> V[vision_node]
     Bundle[(floor-vision-pi<br/>inference bundle)] --> V
 
-    R -->|serial_rx / odom| W[web_node]
+    R -->|serial_rx / roomba/sensors| W[web_node]
+    R -->|odom from encoder packets 43 and 44| S
+    R -->|roomba/encoder_counts| E[Encoder diagnostics]
     W -->|RequestTelemetry service| R
     W -->|slam/reset service| S
     L -->|lidar_points<br/>20 ms incremental batches| W
@@ -54,8 +56,9 @@ serial buffer, avoiding stale packet backlogs. The dashboard streams new
 points incrementally in timestamped batches of up to 20 ms; the browser draws
 on its next frame and keeps a rolling 250 ms visible.
 
-The `roomba_node` requests OI sensor group 0 twice per second and publishes
-incremental wheel odometry on `/odom`. `neuravac_slam` uses that as a motion
+The `roomba_node` requests `[149, 3, 0, 43, 44]` at 10 Hz and calculates
+`/odom` from wheel encoder changes. Its 30-byte response contains 26 bytes of
+group-0 telemetry followed by two bytes per wheel. `neuravac_slam` uses this motion
 prediction, then corrects the pose against LiDAR scans before updating
 `/slam/map`. LiDAR scan matching is authoritative when it disagrees with wheel
 odometry. The COIN-D6 reports clockwise angles, so SLAM reverses the angular
@@ -73,8 +76,10 @@ long drives can drift, and moving objects can leave temporary marks.
 
 The dashboard reads cached telemetry every five seconds and has a **Request
 now** button. The `request_telemetry` ROS service requests and returns an
-immediate group 0 packet. The background 2 Hz sensor reads remain enabled for odometry;
-they send only a two-byte query and receive the 26-byte group 0 packet.
+fresh group-0 telemetry from the same serialized encoder query. The service
+joins an outstanding query instead of inserting another serial transaction.
+Only `roomba/sensors` carries the extracted 26-byte telemetry payload;
+`serial_rx` remains the complete raw stream, including encoder bytes.
 
 ## ROS 2 packages
 
@@ -96,7 +101,7 @@ they send only a two-byte query and receive the 26-byte group 0 packet.
 | --- | --- | --- | --- |
 | `serial_rx` | `roomba_interfaces/msg/SerialData` | Roomba -> ROS | Raw bytes received from the Roomba. |
 | `serial_tx` | `roomba_interfaces/msg/SerialData` | ROS -> Roomba | Raw bytes sent to the Roomba. |
-| `odom` | `nav_msgs/msg/Odometry` | Roomba -> ROS | Wheel-odometry pose from incremental OI distance/angle reports. |
+| `odom` | `nav_msgs/msg/Odometry` | Roomba -> ROS | Pose and velocity from encoder packets 43 and 44. |
 | `request_telemetry` | `roomba_interfaces/srv/RequestTelemetry` | ROS -> Roomba | Requests and returns a fresh 26-byte OI sensor group 0 response. |
 
 `SerialData` contains a `uint8[] data` field. The Roomba node starts the
@@ -342,7 +347,7 @@ in the [SCI manual](docs/Roomba/Roomba_SCI_manual.md).
 
 ## Diagnostic recordings and speed configuration
 
-The experimental motion deskew and map tuning were rolled back after a rotation regression. The mapper and 2 Hz odometry polling now use the previous implementation.
+This branch starts from `codex/slam-odometry-telemetry` and adds direct encoder odometry. The coarse mapper is used by default; ICP recovery is disabled. A worker keeps the newest complete revolution to avoid stale scan backlogs.
 
 Record a diagnostic run with `ros2 launch bringup robot.launch.py use_diagnostics:=true`. Bags are stored in `~/Neuravac/logs/` and ignored by Git. Release drive controls before stopping the launch with Ctrl+C.
 
@@ -350,9 +355,9 @@ Dashboard drive speeds remain configurable in `src/web/config/web_params.yaml` (
 
 ## Protecting and saving a room map
 
-SLAM pauses integration for one second after a reported Roomba bump or wheel drop. It also rejects scans with less than `min_scan_overlap` (default 0.15) endpoint agreement with the accumulated map. Rejected scans do not paint walls or clear existing cells. This compares against the established map, including initial observations, rather than treating only the previous scan as ground truth. If tracking is lost, the map stays held; move back to a recognizable view or use Reset & Remap. Collision detection depends on valid Roomba sensor replies and cannot detect every physical impact.
+SLAM waits for a complete initial revolution and verifies endpoint agreement against existing walls before inserting a scan. Rapid turns or large pose changes pause insertion for that scan; the next clean scan resumes immediately. Limits are editable in the SLAM YAML. The live marker follows encoder odometry during map holds and remains an estimate when wheels slip. Reset an already smeared map before evaluating this branch; these checks cannot repair previously incorrect walls.
 
-The blue marker now includes a heading arrow. Its direction follows the estimated SLAM heading.
+The arrow uses the travel calibration from `codex/slam-collision-icp`: about 2 cm of straight W/S movement aligns it with travel, with reverse handled so it points toward the robot front. This is display calibration, not an independent physical heading measurement.
 
 Save a good checkpoint, then reload it after a restart:
 
@@ -363,4 +368,14 @@ ros2 service call /slam/load std_srvs/srv/Trigger "{}"
 
 The file defaults to `~/Neuravac/maps/room.npz` (`map_file` in the SLAM YAML). It contains occupancy evidence, map geometry, and robot pose, and is written atomically. Load only with the robot at the position and heading where it was saved. This mapper does not yet perform global relocalization; saving a map preserves work but does not by itself eliminate drift. Loading is explicit so a poor run cannot automatically replace a good checkpoint. Reset clears the in-memory map and leaves the saved checkpoint intact. Map files are ignored by Git.
 
-The heading arrow uses the dashboard mounting convention: 270 degrees clockwise offset with the heading direction reversed (including the additional 180 degree mounting correction). Ctrl+C closes node executors and serial connections; the Roomba driver sends a zero-speed command before closing its port. Saving remains explicit via `/slam/save`; quitting does not automatically overwrite a checkpoint. The `.npz` file is a compressed NumPy ZIP archive containing `grid`, `pose`, `resolution`, and `origin` arrays, loaded without pickle.
+Ctrl+C closes node executors and serial connections; the Roomba driver sends a zero-speed command before closing its port. Saving remains explicit via `/slam/save`; quitting does not automatically overwrite a checkpoint. The `.npz` file is a compressed NumPy ZIP archive containing `grid`, `pose`, `resolution`, and `origin` arrays, loaded without pickle.
+
+## Encoder positioning configuration
+
+`src/roomba/config/roomba_params.yaml` contains nominal wheel diameter (0.072 m), encoder counts per revolution (508.8), wheel track (0.235 m), left/right scale factors, polling rate, query timeout, and startup delay. Wheel track is the distance between wheel contact centers across the robot. Calibrate these against measured travel; the old SCI manual's 258 mm spacing should not automatically be applied to the 650.
+
+`roomba/encoder_counts` is `std_msgs/UInt16MultiArray`, ordered `[left, right]`, preserving raw 16-bit patterns. Signed modular differences handle rollover in both directions; the first sample establishes a baseline. Implausible jumps and gaps over two seconds rebaseline without moving the estimated pose. Group-0 distance and angle are not used for positioning.
+
+`roomba/sensors` contains exactly the extracted 26-byte group-0 payload for web telemetry and SLAM bumper detection. Diagnostic bags include it, encoder counts, odometry, raw serial, and SLAM status/quality. The service and poller share one outstanding query. Partial replies are accumulated; timeout or invalid replies trigger a quiet drain before retrying.
+
+Wake the robot with CLEAN if asleep before launching. Startup sends Start, waits two seconds, then enters Safe mode and sends stop. Avoid injecting sensor queries or stream commands through the manual serial console while the driver owns the port. Firmware encoder direction depends on commanded motor direction: manually pushing a wheel opposite that direction can produce incorrect motion. Spinning/slipping wheels still require LiDAR correction.

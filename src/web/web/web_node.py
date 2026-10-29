@@ -19,10 +19,12 @@ from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
 from roomba_interfaces.srv import RequestTelemetry
 from std_srvs.srv import Trigger
+from std_msgs.msg import String
 
 from .override import roomba_drive
 from .camera import CameraCapture, LatestJpeg
 from .telemetry import SensorState
+from .travel_heading import TravelHeading
 
 
 app = Flask(__name__)
@@ -101,6 +103,7 @@ class SerialBridge:
         self._rx_log = deque(maxlen=8)
         self._rx_sequence = 0
         self.bridge.add_subscriber(SerialData, 'serial_rx', self.receive_serial)
+        self.bridge.add_subscriber(SerialData, 'roomba/sensors', self.receive_telemetry)
         self._telemetry_client = self.bridge.create_client(
             RequestTelemetry, 'request_telemetry'
         )
@@ -132,15 +135,17 @@ class SerialBridge:
         return True
 
     def receive_serial(self, message):
-        now = time.monotonic()
-        self.sensors.request(now)
-        self.sensors.receive(bytes(message.data), now)
         with self._rx_lock:
             self._rx_sequence += 1
             self._rx_log.append({
                 'id': self._rx_sequence,
                 'text': bytes(message.data).hex(' '),
             })
+
+    def receive_telemetry(self, message):
+        now = time.monotonic()
+        self.sensors.request(now)
+        self.sensors.receive(bytes(message.data), now)
 
     def snapshot(self):
         result = self.sensors.snapshot(time.monotonic())
@@ -177,8 +182,11 @@ class LidarBridge:
         self._map = None
         self._pose_lock = threading.Lock()
         self._slam_pose = None
+        self._travel_heading = TravelHeading()
+        self.bridge.add_subscriber(SerialData, 'serial_tx', self.drive_callback, 10)
         self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
         self.bridge.add_subscriber(PoseStamped, 'slam/pose', self.pose_callback, 10)
+        self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 1)
         self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
 
     def reset_slam(self):
@@ -193,6 +201,9 @@ class LidarBridge:
             response = future.result()
         except Exception as error:
             return False, f'SLAM reset failed: {error}'
+        if response.success:
+            with self._pose_lock:
+                self._travel_heading = TravelHeading()
         return response.success, response.message
 
     def lidar_callback(self, msg):
@@ -264,6 +275,7 @@ class LidarBridge:
     def map_callback(self, message):
         encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
         payload = {
+            'tracking_status': getattr(self, '_tracking_status', 'TRACKING'),
             'width': int(message.info.width),
             'height': int(message.info.height),
             'resolution': float(message.info.resolution),
@@ -282,6 +294,18 @@ class LidarBridge:
             self._map_sequence += 1
             self._map_condition.notify_all()
 
+    def status_callback(self, message):
+        self._tracking_status = message.data
+        with self._map_condition:
+            if self._map is not None:
+                self._map = {**self._map, 'tracking_status': message.data}
+                self._map_sequence += 1
+                self._map_condition.notify_all()
+
+    def drive_callback(self, message):
+        with self._pose_lock:
+            self._travel_heading.command(message.data)
+
     def pose_callback(self, message):
         q = message.pose.orientation
         pose = {
@@ -293,7 +317,16 @@ class LidarBridge:
             ),
         }
         with self._pose_lock:
+            if hasattr(self, '_travel_heading'):
+                pose['yaw'] = self._travel_heading.update(
+                    pose['x'], pose['y'], pose['yaw'], time.monotonic())
             self._slam_pose = pose
+        with self._map_condition:
+            if self._map is not None:
+                self._map = {**self._map, 'robot_x': pose['x'],
+                             'robot_y': pose['y'], 'robot_yaw': pose['yaw']}
+                self._map_sequence += 1
+                self._map_condition.notify_all()
 
     def wait_for_map(self, after_sequence, timeout):
         with self._map_condition:
