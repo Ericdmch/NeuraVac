@@ -7,6 +7,7 @@ class TravelHeading:
         self.direction = 0
         self.anchor = None
         self.offset = 0.0
+        self.latest_pose = None
 
     def command(self, data):
         if len(data) != 5 or data[0] != 137:
@@ -15,10 +16,11 @@ class TravelHeading:
         radius = int.from_bytes(bytes(data[3:5]), 'big')
         direction = (1 if velocity > 0 else -1) if velocity and radius in (32768, 32767) else 0
         if direction != self.direction:
-            self.anchor = None
+            self.anchor = self.latest_pose if direction else None
         self.direction = direction
 
     def update(self, x, y, yaw, now):
+        self.latest_pose = (x, y, yaw, now)
         if self.direction:
             if self.anchor is not None:
                 ax, ay, ayaw, stamp = self.anchor
@@ -27,7 +29,7 @@ class TravelHeading:
                 elapsed = now - stamp
                 if distance > 0.5 or turn > math.radians(5) or elapsed > 2:
                     self.anchor = None
-                elif distance >= 0.08 and elapsed >= 0.15:
+                elif distance >= 0.02 and elapsed > 0:
                     forward = math.atan2(y - ay, x - ax)
                     if self.direction < 0:
                         forward += math.pi
