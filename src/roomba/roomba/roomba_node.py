@@ -10,6 +10,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist
 from std_msgs.msg import UInt16MultiArray
 from roomba_interfaces.msg import SerialData
 from roomba_interfaces.srv import RequestTelemetry
@@ -28,7 +29,9 @@ class Roomba(Node):
             'encoder_counts_per_rev': 508.8, 'wheel_track_m': 0.235,
             'left_wheel_scale': 1.0, 'right_wheel_scale': 1.0,
             'max_wheel_speed_m_s': 0.6, 'query_timeout_sec': 0.35,
-            'startup_delay_sec': 2.0,
+            'startup_delay_sec': 2.0, 'cmd_vel_timeout_sec': 0.5,
+            'max_linear_velocity_m_s': 0.4,
+            'max_angular_velocity_rad_s': 1.5,
         }
         for name, default in defaults.items():
             self.declare_parameter(name, default)
@@ -39,6 +42,11 @@ class Roomba(Node):
             float(value('wheel_track_m')), float(value('left_wheel_scale')),
             float(value('right_wheel_scale')), float(value('max_wheel_speed_m_s')),
         )
+        self.max_wheel_speed = abs(float(value('max_wheel_speed_m_s')))
+        self.cmd_vel_timeout = max(0.1, float(value('cmd_vel_timeout_sec')))
+        self.max_linear_velocity = abs(float(value('max_linear_velocity_m_s')))
+        self.max_angular_velocity = abs(float(value('max_angular_velocity_rad_s')))
+        self._last_cmd_vel = time.monotonic()
         # Restore the last stationary odometry pose after a controlled driver restart.
         checkpoint = '/tmp/neuravac-lift-odom.json'
         try:
@@ -73,7 +81,11 @@ class Roomba(Node):
         self.sensors_pub = self.create_publisher(SerialData, 'roomba/sensors', 10)
         self.encoder_pub = self.create_publisher(UInt16MultiArray, 'roomba/encoder_counts', 10)
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
+        self.serial_tx_pub = self.create_publisher(SerialData, 'serial_tx', 10)
         self.serial_tx = self.create_subscription(SerialData, 'serial_tx', self.write_serial, 10)
+        self.cmd_vel_sub = self.create_subscription(Twist, 'cmd_vel', self.on_cmd_vel, 10)
+        self.cmd_vel_watchdog = self.create_timer(
+            min(0.1, self.cmd_vel_timeout / 2), self.check_cmd_vel_watchdog)
         self.serial_timer = self.create_timer(0.005, self.read_serial)
         hz = max(1.0, min(20.0, float(value('sensor_query_hz'))))
         self._sensor_query_timer = self.create_timer(1.0 / hz, self.request_group_zero)
@@ -85,6 +97,37 @@ class Roomba(Node):
             f'Encoder odometry: opcode 149, packets [0,43,44], {hz:g} Hz; '
             f'track={self.encoder.track:g} m'
         )
+
+    def _drive_message(self, left_m_s, right_m_s):
+        """Create Roomba drive-direct (opcode 145) bytes from wheel speeds."""
+        limit = min(self.max_wheel_speed, 0.5)  # OI drive-direct limit is 500 mm/s.
+        left = int(round(max(-limit, min(limit, left_m_s)) * 1000))
+        right = int(round(max(-limit, min(limit, right_m_s)) * 1000))
+        return SerialData(data=[
+            145, (right >> 8) & 0xff, right & 0xff,
+            (left >> 8) & 0xff, left & 0xff,
+        ])
+
+    def on_cmd_vel(self, message):
+        linear = max(-self.max_linear_velocity,
+                     min(self.max_linear_velocity, float(message.linear.x)))
+        angular = max(-self.max_angular_velocity,
+                      min(self.max_angular_velocity, float(message.angular.z)))
+        half_track = self.encoder.track / 2.0
+        left = linear - angular * half_track
+        right = linear + angular * half_track
+        # Scale both wheels together to preserve the requested curvature.
+        peak = max(abs(left), abs(right), 1e-9)
+        if peak > self.max_wheel_speed:
+            scale = self.max_wheel_speed / peak
+            left, right = left * scale, right * scale
+        self._last_cmd_vel = time.monotonic()
+        self.serial_tx_pub.publish(self._drive_message(left, right))
+
+    def check_cmd_vel_watchdog(self):
+        if time.monotonic() - self._last_cmd_vel > self.cmd_vel_timeout:
+            self.serial_tx_pub.publish(self._drive_message(0., 0.))
+            self._last_cmd_vel = time.monotonic()
 
     def _warn(self, message):
         now = time.monotonic()
@@ -218,7 +261,7 @@ class Roomba(Node):
         self.odom_pub.publish(message)
 
     def destroy_node(self):
-        for timer in (self.serial_timer, self._sensor_query_timer):
+        for timer in (self.serial_timer, self._sensor_query_timer, self.cmd_vel_watchdog):
             timer.cancel()
         with self._serial_lock:
             if self.serial.is_open:

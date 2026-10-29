@@ -13,3 +13,7 @@ roomba_node:
     max_wheel_speed_m_s: 0.6
     query_timeout_sec: 0.35
     startup_delay_sec: 2.0
+    # Navigation commands are clamped and stopped when this deadline expires.
+    cmd_vel_timeout_sec: 0.5
+    max_linear_velocity_m_s: 0.4
+    max_angular_velocity_rad_s: 1.5

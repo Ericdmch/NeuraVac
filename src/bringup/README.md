@@ -55,8 +55,25 @@ ros2 launch bringup robot.launch.py
 | `use_vision` | `true` | Camera + detection node |
 | `use_web` | `true` | Flask dashboard on port 5000 |
 | `camera_device` | `/dev/neuravac_camera` | Webcam used by the dashboard when `use_vision:=false` |
+| `use_navigation` | `false` | Nav2 controller, planner, costmaps and lifecycle manager |
+| `use_rviz` | `false` | RViz2 map/scan/TF display (requires `use_navigation`) |
+| `map` | empty | Saved map YAML; empty uses the live SLAM Toolbox `/map` |
 
 Example without the model running: `ros2 launch bringup robot.launch.py use_vision:=false`.
+
+For autonomous navigation while mapping, start:
+
+```bash
+ros2 launch bringup robot.launch.py use_navigation:=true use_rviz:=true
+```
+
+Nav2 uses `/scan`, `/odom`, `map -> odom -> base_link`, and the `/map` published
+by the active SLAM Toolbox launch. To persist that map, run
+`ros2 launch bringup save_map.launch.py output:=~/Neuravac/maps/room`; later
+pass `map:=~/Neuravac/maps/room.yaml` to use Nav2's map server instead of live
+SLAM. This saves an occupancy map, not a SLAM Toolbox pose graph. Hardware
+serial devices and the Nav2/SLAM packages must be installed on the target;
+the repository cannot validate those runtime integrations without the robot.
 
 Parameters still live in each package's `config/` YAML
 (`roomba_params.yaml`, `lidar_params.yaml`, `vision_params.yaml`); the launch

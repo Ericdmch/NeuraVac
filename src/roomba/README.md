@@ -39,6 +39,11 @@ the serial console are rejected because the driver owns reply framing.
 | `roomba/encoder_counts` | `UInt16MultiArray` `[left, right]` raw 16-bit patterns. |
 | `odom` | Encoder-derived `nav_msgs/Odometry`. |
 
+`/cmd_vel` (`geometry_msgs/Twist`) is converted to Roomba drive-direct
+(`serial_tx`, opcode 145). Linear and angular limits are applied from
+`roomba_params.yaml`; a 0.5 second command watchdog publishes a stop command.
+The watchdog is a software safety layer and does not replace an emergency stop.
+
 Wake the robot with CLEAN if needed. Startup sends Start, waits two seconds,
 enters Safe mode, and sends stop. Ctrl+C sends stop and closes the port.
 Missing replies produce a rate-limited warning, not invented encoder motion.

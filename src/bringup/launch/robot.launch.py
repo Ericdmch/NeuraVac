@@ -125,6 +125,16 @@ def launch_setup(context):
             additional_env=camera_env,
         ))
 
+    if enabled(context, 'use_navigation'):
+        nodes.append(IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(
+                get_package_share_directory('bringup'), 'launch',
+                'navigation.launch.py')),
+            launch_arguments={
+                'map': LaunchConfiguration('map').perform(context),
+                'rviz': LaunchConfiguration('use_rviz').perform(context),
+            }.items()))
+
     return nodes
 
 
@@ -150,5 +160,11 @@ def generate_launch_description():
                                           'and Roomba serial topics to a rosbag'),
         DeclareLaunchArgument('diagnostics_dir', default_value='~/Neuravac/logs',
                               description='Parent folder for diagnostic rosbag runs'),
+        DeclareLaunchArgument('use_navigation', default_value='false',
+                              description='Start Nav2 against SLAM Toolbox /map'),
+        DeclareLaunchArgument('use_rviz', default_value='false',
+                              description='Start RViz2 with the Nav2 display config'),
+        DeclareLaunchArgument('map', default_value='',
+                              description='Saved map YAML for localization; empty uses live SLAM'),
     ]
     return LaunchDescription(arguments + [OpaqueFunction(function=launch_setup)])

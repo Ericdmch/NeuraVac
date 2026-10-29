@@ -100,7 +100,7 @@ Only `roomba/sensors` carries the extracted 26-byte telemetry payload;
 | [`roomba_interfaces`](src/roomba_interfaces) | `ament_cmake` | Builds the custom ROS 2 messages shared by the nodes. |
 | [`vision`](src/vision) | `ament_python` | Captures camera frames, runs the deployed floor-vision model, and publishes detections. |
 | [`web`](src/web) | `ament_python` | Runs the Flask dashboard and bridges browser actions and telemetry to ROS 2. |
-| [`bringup`](src/bringup) | `ament_python` | Launches the robot nodes together and creates stable USB device names. |
+| [`bringup`](src/bringup) | `ament_python` | Launches the robot nodes, Nav2 navigation/costmaps, RViz2 and stable USB device names. |
 
 ### Interfaces and topics
 
