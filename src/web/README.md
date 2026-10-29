@@ -41,6 +41,12 @@ degrees, one dirt detector, no caster wheel-drop field), use iRobot's
 [600-series/Create 2 OI specification](https://cdn-shop.adafruit.com/datasheets/create_2_Open_Interface_Spec.pdf).
 Distance and angle are raw incremental robot reports, not calibrated odometry.
 
+The **CALIBRATE POSITION** control calls `/slam/relocalize`. The SLAM node
+loads the saved `.npz` map, waits for a fresh LiDAR revolution, and performs a
+whole-map scan search followed by ICP refinement. It rejects missing, low
+confidence, high-error, or ambiguous matches without changing the active map;
+save a map first and keep the robot still while calibration runs.
+
 On the Pi, install `python3-opencv`, or use a virtual environment with system
 packages enabled and install `opencv-python-headless` there. Flask and the
 ROS 2 Jazzy packages must be available to the same Python interpreter.

@@ -474,6 +474,8 @@ function SlamMapView() {
   const [resetError, setResetError] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [saveMessage, setSaveMessage] = React.useState('');
+  const [calibrating, setCalibrating] = React.useState(false);
+  const [calibrationMessage, setCalibrationMessage] = React.useState('');
 
   async function saveMap() {
     setSaving(true);
@@ -502,6 +504,21 @@ function SlamMapView() {
       setResetError(error.message);
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function calibratePosition() {
+    setCalibrating(true);
+    setCalibrationMessage('');
+    try {
+      const response = await fetch('/slam/relocalize', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to calibrate position.');
+      setCalibrationMessage(result.message || 'Position calibrated.');
+    } catch (error) {
+      setCalibrationMessage(`Calibration failed: ${error.message}`);
+    } finally {
+      setCalibrating(false);
     }
   }
 
@@ -614,6 +631,9 @@ function SlamMapView() {
         <button className="telemetry-refresh" type="button" onClick={saveMap} disabled={saving}>
           {saving ? 'SAVING…' : 'SAVE MAP'}
         </button>
+        <button className="telemetry-refresh" type="button" onClick={calibratePosition} disabled={calibrating}>
+          {calibrating ? 'CALIBRATING…' : 'CALIBRATE POSITION'}
+        </button>
         <button className="telemetry-refresh" type="button" onClick={resetMap} disabled={resetting}>
           {resetting ? 'RESETTING…' : 'RESET & REMAP'}
         </button>
@@ -621,7 +641,7 @@ function SlamMapView() {
       </div>
     </div>
     <div className="slam-map-canvas-wrap"><canvas ref={canvasRef} aria-label="LiDAR-built room occupancy map" /></div>
-    <p className="panel-note slam-map-note">{saveMessage || resetError || 'Orange = persistent wall returns · Blue = estimated robot pose · Reset clears the map and pose; fresh scans rebuild it.'}</p>
+    <p className="panel-note slam-map-note">{calibrationMessage || saveMessage || resetError || 'Orange = persistent wall returns · Blue = estimated robot pose · Reset clears the map and pose; fresh scans rebuild it.'}</p>
   </section>;
 }
 

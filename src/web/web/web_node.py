@@ -200,6 +200,7 @@ class LidarBridge:
         self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 1)
         self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
         self._slam_save_client = self.bridge.create_client(Trigger, 'slam/save')
+        self._slam_relocalize_client = self.bridge.create_client(Trigger, 'slam/relocalize')
 
     def reset_slam(self):
         if not self._slam_reset_client.wait_for_service(timeout_sec=0.5):
@@ -230,6 +231,20 @@ class LidarBridge:
             response = future.result()
         except Exception as error:
             return False, f'SLAM save failed: {error}'
+        return response.success, response.message
+
+    def relocalize_slam(self):
+        if not self._slam_relocalize_client.wait_for_service(timeout_sec=0.5):
+            return False, 'SLAM relocalization service is unavailable.'
+        completed = threading.Event()
+        future = self._slam_relocalize_client.call_async(Trigger.Request())
+        future.add_done_callback(lambda _future: completed.set())
+        if not completed.wait(timeout=12.0):
+            return False, 'SLAM relocalization request timed out.'
+        try:
+            response = future.result()
+        except Exception as error:
+            return False, f'SLAM relocalization failed: {error}'
         return response.success, response.message
 
     def lidar_callback(self, msg):
@@ -590,6 +605,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         if not success:
             return jsonify(error=message), 503
         return jsonify(reset=True, message=message)
+
+    @app.post('/slam/relocalize')
+    def relocalize_slam():
+        success, message = lidar_bridge.relocalize_slam()
+        if not success:
+            return jsonify(error=message), 503
+        return jsonify(relocalized=True, message=message)
 
     return app
 

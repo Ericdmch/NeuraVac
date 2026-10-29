@@ -10,7 +10,8 @@ import os
 
 import numpy as np
 import rclpy
-from rclpy.executors import ExternalShutdownException
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
@@ -155,6 +156,12 @@ class LidarMapper(Node):
         self.declare_parameter('mapping_tolerance_m', 0.12)
         self.declare_parameter('max_mapping_turn_deg', 2.5)
         self.declare_parameter('max_mapping_translation_m', 0.10)
+        self.declare_parameter('relocalization_timeout_sec', 8.0)
+        self.declare_parameter('relocalization_translation_step_m', 0.20)
+        self.declare_parameter('relocalization_angle_step_deg', 10.0)
+        self.declare_parameter('relocalization_min_inlier_ratio', 0.50)
+        self.declare_parameter('relocalization_max_rmse_m', 0.10)
+        self.declare_parameter('relocalization_min_score_margin', 0.05)
         value = lambda name: self.get_parameter(name).value
         self.resolution = float(value('resolution_m'))
         self.size = max(100, int(float(value('map_size_m')) / self.resolution))
@@ -182,6 +189,16 @@ class LidarMapper(Node):
         self.mapping_tolerance = float(value('mapping_tolerance_m'))
         self.max_mapping_turn = math.radians(float(value('max_mapping_turn_deg')))
         self.max_mapping_translation = float(value('max_mapping_translation_m'))
+        self.relocalization_timeout = max(1.0, float(value('relocalization_timeout_sec')))
+        self.relocalization_translation_step = max(
+            self.resolution, float(value('relocalization_translation_step_m'))
+        )
+        self.relocalization_angle_step = math.radians(
+            max(1.0, float(value('relocalization_angle_step_deg')))
+        )
+        self.relocalization_min_ratio = float(value('relocalization_min_inlier_ratio'))
+        self.relocalization_max_rmse = float(value('relocalization_max_rmse_m'))
+        self.relocalization_min_margin = float(value('relocalization_min_score_margin'))
         self._map_hold_reason = None
         self._recovering = False
         self._recovery_pose = None
@@ -192,6 +209,9 @@ class LidarMapper(Node):
         self._match_score = 1.0
         self.grid = np.zeros((self.size, self.size), dtype=np.int8)
         self._scan = []
+        self._scan_condition = threading.Condition()
+        self._scan_sequence = 0
+        self._latest_scan = None
         self._last_angle = None
         self._have_scan_seam = False
         self._last_scan = None
@@ -208,6 +228,7 @@ class LidarMapper(Node):
         self._processed_scans = 0
         self._pending = queue.Queue(maxsize=1)
         self._stopping = threading.Event()
+        self._service_group = ReentrantCallbackGroup()
         self._map_version = 0
         self._published_version = -1
         self.create_subscription(LidarPoint, 'lidar_points', self.on_point, 1000)
@@ -221,6 +242,10 @@ class LidarMapper(Node):
         self.create_service(Trigger, 'slam/reset', self.reset_map)
         self.create_service(Trigger, 'slam/save', self.save_map)
         self.create_service(Trigger, 'slam/load', self.load_map)
+        self.create_service(
+            Trigger, 'slam/relocalize', self.relocalize,
+            callback_group=self._service_group,
+        )
         self.create_timer(1.0 / max(0.2, float(value('map_publish_hz'))), self.publish_map)
         self._publish_pose()
         self._worker = threading.Thread(target=self.scan_worker, daemon=True)
@@ -302,6 +327,149 @@ class LidarMapper(Node):
         except (OSError, ValueError, KeyError) as error:
             response.success = False
             response.message = str(error)
+        return response
+
+    def _read_saved_map(self):
+        with np.load(self.map_file, allow_pickle=False) as saved:
+            grid = saved['grid'].copy()
+            pose = saved['pose'].copy()
+            if (grid.shape != self.grid.shape or pose.shape != (3,)
+                    or grid.dtype != np.int8
+                    or np.any(grid < -8) or np.any(grid > 16)
+                    or not np.isfinite(pose).all()
+                    or not np.isclose(float(saved['resolution']), self.resolution)
+                    or not np.isclose(float(saved['origin']), self.origin)):
+                raise ValueError('Saved map geometry is incompatible.')
+        if not np.any(grid > 2):
+            raise ValueError('Saved map contains no occupied LiDAR evidence.')
+        return grid, pose
+
+    def _global_relocalization_seed(self, points, grid):
+        """Find the strongest whole-map scan correlation, not just a local match."""
+        occupied = grid > 2
+        padded = np.pad(occupied, 1)
+        occupied = np.logical_or.reduce([
+            padded[y:y + self.size, x:x + self.size]
+            for y in range(3) for x in range(3)
+        ])
+        step = self.relocalization_translation_step
+        coordinates = np.arange(
+            self.origin, self.origin + self.size * self.resolution, step
+        )
+        xx, yy = np.meshgrid(coordinates, coordinates)
+        translations = np.column_stack((xx.ravel(), yy.ravel()))
+        angles = np.arange(-math.pi, math.pi, self.relocalization_angle_step)
+        scored = []
+        for theta in angles:
+            c, s = math.cos(theta), math.sin(theta)
+            rotated = points @ np.array(((c, -s), (s, c))).T
+            for start in range(0, len(translations), 2000):
+                candidate = translations[start:start + 2000]
+                ix = np.rint((rotated[None, :, 0] + candidate[:, None, 0] - self.origin)
+                             / self.resolution).astype(np.int32)
+                iy = np.rint((rotated[None, :, 1] + candidate[:, None, 1] - self.origin)
+                             / self.resolution).astype(np.int32)
+                valid = (ix >= 0) & (iy >= 0) & (ix < self.size) & (iy < self.size)
+                scores = np.zeros(len(candidate), dtype=float)
+                scores += np.sum(np.where(valid, occupied[iy.clip(0, self.size - 1),
+                                                        ix.clip(0, self.size - 1)], False), axis=1)
+                scored.extend((float(score) / len(points), int(start + index), theta)
+                              for index, score in enumerate(scores))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        if not scored or scored[0][0] < self.relocalization_min_ratio:
+            return None, None, 0.0, 0.0
+        best = scored[0]
+        second = next(
+            (item for item in scored[1:]
+             if abs(item[2] - best[2]) > self.relocalization_angle_step / 2
+             or np.linalg.norm(translations[item[1]] - translations[best[1]]) > step),
+            scored[1] if len(scored) > 1 else (0.0, best[1], best[2]),
+        )
+        translation = translations[best[1]]
+        seed = np.array((translation[0], translation[1], best[2]))
+        return seed, second, best[0], best[0] - second[0]
+
+    def _wait_for_fresh_scan(self, sequence, timeout):
+        deadline = time.monotonic() + timeout
+        with self._scan_condition:
+            while self._scan_sequence <= sequence:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                self._scan_condition.wait(remaining)
+            return self._latest_scan.copy()
+
+    def relocalize(self, _request, response):
+        """Load the saved map and globally locate the robot using a fresh revolution."""
+        try:
+            grid, _saved_pose = self._read_saved_map()
+        except (OSError, ValueError, KeyError) as error:
+            response.success = False
+            response.message = f'Relocalization unavailable: {error}'
+            return response
+        with self._scan_condition:
+            sequence = self._scan_sequence
+        scan = self._wait_for_fresh_scan(sequence, self.relocalization_timeout)
+        if scan is None:
+            response.success = False
+            response.message = (
+                f'Relocalization failed: no fresh LiDAR revolution within '
+                f'{self.relocalization_timeout:.1f}s.'
+            )
+            return response
+        points = self._local_points(scan)
+        if len(points) < 30:
+            response.success = False
+            response.message = 'Relocalization failed: fresh LiDAR scan has too few valid returns.'
+            return response
+        seed, _second, score, margin = self._global_relocalization_seed(points, grid)
+        if seed is None or margin < self.relocalization_min_margin:
+            response.success = False
+            response.message = (
+                f'Relocalization ambiguous: best map correlation {score:.2f} '
+                f'has insufficient separation from alternatives ({margin:.2f}).'
+            )
+            return response
+        ys, xs = np.nonzero(grid > 2)
+        target = np.column_stack((xs, ys)) * self.resolution + self.origin
+        if len(target) > 2500:
+            target = target[np.linspace(0, len(target) - 1, 2500).astype(int)]
+        refined, ratio, error = refine_icp(
+            points, target, seed, self.icp_distance
+        )
+        if ratio < self.relocalization_min_ratio or error > self.relocalization_max_rmse:
+            response.success = False
+            response.message = (
+                f'Relocalization rejected: confidence {ratio:.2f}, '
+                f'RMSE {error:.3f}m (required >= {self.relocalization_min_ratio:.2f}, '
+                f'<= {self.relocalization_max_rmse:.2f}m).'
+            )
+            return response
+        with self._lock:
+            self._generation += 1
+            self.grid[:] = grid
+            self._pose[:] = refined
+            self._last_scan = points
+            self._recovering = False
+            self._recovery_pose = None
+            self._recovery_count = 0
+            self._map_hold_reason = None
+            self._icp_stats = (float(ratio), float(error))
+            self._scan.clear()
+            self._last_angle = None
+            self._have_scan_seam = False
+            self._odom_at_last_scan = (
+                self._odom_pose.copy() if self._odom_pose is not None else None
+            )
+            self._anchor_display()
+            self._map_version += 1
+        self._publish_pose()
+        response.success = True
+        response.message = (
+            f'Relocalized at x={refined[0]:.2f}m, y={refined[1]:.2f}m, '
+            f'heading={math.degrees(refined[2]):.1f}° '
+            f'(confidence {ratio:.2f}, RMSE {error:.3f}m).'
+        )
         return response
 
     def reset_map(self, _request, response):
@@ -406,6 +574,10 @@ class LidarMapper(Node):
                     scan = np.asarray(self._scan, dtype=np.float64)
                     self._scan = []
                     self._received_scans += 1
+                    with self._scan_condition:
+                        self._scan_sequence += 1
+                        self._latest_scan = scan.copy()
+                        self._scan_condition.notify_all()
                     try:
                         self._pending.put_nowait((self._generation, scan))
                     except queue.Full:
@@ -765,11 +937,14 @@ class LidarMapper(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = LidarMapper()
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.try_shutdown()

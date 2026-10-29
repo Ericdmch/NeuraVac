@@ -23,6 +23,9 @@ class FakeSerialBridge:
 
 
 class FakeLidarBridge:
+    def relocalize_slam(self):
+        return False, 'SLAM relocalization is unavailable in web-only mode.'
+
     def snapshot(self):
         return {
             'points': [
@@ -85,6 +88,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir):
                 min(MAX_SPEED, speed + (SPEED_STEP if key == 'E' else -SPEED_STEP)),
             )
         return jsonify(key=key, pressed=pressed, speed=speed)
+
+    @app.post('/slam/relocalize')
+    def relocalize_slam():
+        success, message = lidar_bridge.relocalize_slam()
+        if not success:
+            return jsonify(error=message), 503
+        return jsonify(relocalized=True, message=message)
 
     @app.get('/lidar')
     def lidar():

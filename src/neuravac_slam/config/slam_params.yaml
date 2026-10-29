@@ -28,3 +28,9 @@ neuravac_slam:
     mapping_tolerance_m: 0.12
     max_mapping_turn_deg: 2.5
     max_mapping_translation_m: 0.10
+    relocalization_timeout_sec: 8.0
+    relocalization_translation_step_m: 0.20
+    relocalization_angle_step_deg: 10.0
+    relocalization_min_inlier_ratio: 0.50
+    relocalization_max_rmse_m: 0.10
+    relocalization_min_score_margin: 0.05
