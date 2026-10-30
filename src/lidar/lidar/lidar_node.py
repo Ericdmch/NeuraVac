@@ -74,8 +74,12 @@ class Lidar(Node):
 
         points = self.extract_packet()
         if points:
+            sub_count = self.lidar_points.get_subscription_count()
             for point in points:
-                self.lidar_points.publish(point)
+                if sub_count > 0:
+                    self._point_count = getattr(self, '_point_count', 0) + 1
+                    if self._point_count % 2 == 0:
+                        self.lidar_points.publish(point)
                 stamp = self.get_clock().now().nanoseconds * 1e-9
                 scan = self._scan_assembler.add(point.angle_deg, point.distance_mm, stamp)
                 if scan is not None:

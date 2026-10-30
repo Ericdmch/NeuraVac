@@ -7,8 +7,8 @@ vision_node:
     camera_index: 0
     # Stable MJPEG capture resolution supported by the NeuraVac webcam.
     camera_fourcc: MJPG
-    camera_width: 1280
-    camera_height: 720
+    camera_width: 640
+    camera_height: 360
     camera_publish_hz: 8.0
     inference_hz: 2.0
     threads: 2

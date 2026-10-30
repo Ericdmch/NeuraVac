@@ -479,7 +479,7 @@ class VisionMarkerStore:
 
 class LidarBridge:
     RECENT_POINT_MAX_AGE_SECONDS = 0.25
-    STREAM_BATCH_SECONDS = 0.02
+    STREAM_BATCH_SECONDS = 0.08
 
     def __init__(self, topic, data_type = LidarPoint, bridge = None):
         self.bridge = bridge if bridge is not None else WebBridge(name='web_lidar_node')
@@ -539,7 +539,8 @@ class LidarBridge:
         self.vision_store.ingest_ros_batch(message, robot_pose=pose)
 
     def costmap_callback(self, message):
-        encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
+        data_bytes = message.data.tobytes() if hasattr(message.data, 'tobytes') else bytes(value & 0xff for value in message.data)
+        encoded = base64.b64encode(data_bytes).decode('ascii')
         payload = {
             'width': int(message.info.width),
             'height': int(message.info.height),
@@ -726,7 +727,8 @@ class LidarBridge:
             return self._sequence
 
     def map_callback(self, message):
-        encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
+        data_bytes = message.data.tobytes() if hasattr(message.data, 'tobytes') else bytes(value & 0xff for value in message.data)
+        encoded = base64.b64encode(data_bytes).decode('ascii')
         payload = {
             'tracking_status': getattr(self, '_tracking_status', 'TRACKING'),
             'width': int(message.info.width),
@@ -1078,12 +1080,33 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
     def slam_map_stream():
         def events():
             sequence = 0
+            last_sent_grid_key = None
+            last_pose_time = 0.0
             while True:
                 sequence, occupancy = lidar_bridge.wait_for_map(sequence, timeout=15.0)
                 if occupancy is None:
                     yield ': waiting for LiDAR map\n\n'
                     continue
-                yield f'data: {json.dumps(occupancy, separators=(",", ":"))}\n\n'
+                # If grid contents changed, send full map
+                grid_key = (occupancy.get('width'), occupancy.get('height'), occupancy.get('data'))
+                if grid_key != last_sent_grid_key:
+                    last_sent_grid_key = grid_key
+                    yield f'data: {json.dumps(occupancy, separators=(",", ":"))}\n\n'
+                else:
+                    # Grid unchanged: only robot pose / status changed.
+                    # Throttle pose updates to at most 10 Hz (100ms) to prevent socket buffer saturation
+                    now = time.monotonic()
+                    if now - last_pose_time < 0.09:
+                        continue
+                    last_pose_time = now
+                    pose_payload = {
+                        'type': 'pose',
+                        'robot_x': occupancy.get('robot_x', 0.0),
+                        'robot_y': occupancy.get('robot_y', 0.0),
+                        'robot_yaw': occupancy.get('robot_yaw', 0.0),
+                        'tracking_status': occupancy.get('tracking_status', 'TRACKING'),
+                    }
+                    yield f'data: {json.dumps(pose_payload, separators=(",", ":"))}\n\n'
 
         return Response(
             events(), mimetype='text/event-stream',
@@ -1363,10 +1386,19 @@ def build_camera(bridge):
         from sensor_msgs.msg import CompressedImage
 
         feed = LatestJpeg()
+        last_annotated = 0.0
 
-        def on_image(msg):
+        def on_annotated(msg):
+            nonlocal last_annotated
             if 'jpeg' in msg.format.lower() or 'jpg' in msg.format.lower():
+                last_annotated = time.monotonic()
                 feed.update(msg.data)
+
+        def on_raw(msg):
+            # Only use raw camera frames if no annotated frames have arrived recently
+            if time.monotonic() - last_annotated > 2.5:
+                if 'jpeg' in msg.format.lower() or 'jpg' in msg.format.lower():
+                    feed.update(msg.data)
 
         topic = os.environ.get('NEURAVAC_CAMERA_TOPIC', 'camera/image_annotated/compressed')
         qos = QoSProfile(
@@ -1374,9 +1406,9 @@ def build_camera(bridge):
             depth=1,
             reliability=ReliabilityPolicy.BEST_EFFORT,
         )
-        bridge.add_subscriber(CompressedImage, topic, on_image, qos)
+        bridge.add_subscriber(CompressedImage, topic, on_annotated, qos)
         if topic != 'camera/image/compressed':
-            bridge.add_subscriber(CompressedImage, 'camera/image/compressed', on_image, qos)
+            bridge.add_subscriber(CompressedImage, 'camera/image/compressed', on_raw, qos)
         return feed
 
     return CameraCapture(

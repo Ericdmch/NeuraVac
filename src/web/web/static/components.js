@@ -210,15 +210,8 @@ function RemoteOverride() {
       heldKeys.current.delete(key);
     }
     setActiveKeys(new Set(heldKeys.current));
-    // Keep press/release order and give quick clicks/taps a 250ms drive pulse.
+    // Dispatch override command immediately with zero artificial latency
     queue.current = queue.current.catch(() => {}).then(async () => {
-      if (!pressed && ! ['Q', 'E'].includes(key)) {
-        const elapsed = performance.now() - (pressTimes.current[key] || 0);
-        if (elapsed < 250) {
-          await new Promise(resolve => window.setTimeout(resolve, 250 - elapsed));
-          if (heldKeys.current.has(key)) return;
-        }
-      }
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 1500);
       try {
@@ -969,8 +962,7 @@ function SlamMapView() {
       context.fillStyle = '#0b121c'; context.fillRect(0, 0, width, height);
 
       const cache = mapCacheRef.current;
-      const mapKey = `${map.width}x${map.height}:${map.data}`;
-      if (cache.key !== mapKey) {
+      if (cache.data !== map.data || cache.width !== map.width || cache.height !== map.height) {
         const binary = atob(map.data);
         const cells = new Uint8Array(binary.length);
         let cMinX = map.width, cMinY = map.height, cMaxX = -1, cMaxY = -1;
@@ -984,7 +976,9 @@ function SlamMapView() {
             if (y > cMaxY) cMaxY = y;
           }
         }
-        cache.key = mapKey;
+        cache.data = map.data;
+        cache.width = map.width;
+        cache.height = map.height;
         cache.cells = cells;
         cache.minX = cMinX;
         cache.minY = cMinY;
@@ -1392,8 +1386,19 @@ function SlamMapView() {
       stream = new EventSource('/slam/map/stream');
       stream.onmessage = event => {
         try {
-          latestMapRef.current = JSON.parse(event.data);
-          setStatus(drawMap(latestMapRef.current) ? (latestMapRef.current.tracking_status || 'TRACKING') : 'WAITING FOR SCANS');
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'pose') {
+            if (latestMapRef.current) {
+              latestMapRef.current.robot_x = payload.robot_x;
+              latestMapRef.current.robot_y = payload.robot_y;
+              latestMapRef.current.robot_yaw = payload.robot_yaw;
+              if (payload.tracking_status) latestMapRef.current.tracking_status = payload.tracking_status;
+              setStatus(drawMap(latestMapRef.current) ? (latestMapRef.current.tracking_status || 'TRACKING') : 'WAITING FOR SCANS');
+            }
+          } else {
+            latestMapRef.current = payload;
+            setStatus(drawMap(latestMapRef.current) ? (latestMapRef.current.tracking_status || 'TRACKING') : 'WAITING FOR SCANS');
+          }
         }
         catch (error) { console.error('Unable to decode LiDAR map.', error); }
       };
@@ -1671,7 +1676,9 @@ function CameraView() {
         if (currentUrl) URL.revokeObjectURL(currentUrl);
         currentUrl = null;
       }
-      if (!stopped) timer = window.setTimeout(updateFrame, 200);
+      if (!stopped) {
+        timer = window.setTimeout(updateFrame, document.hidden ? 1000 : 125);
+      }
     }
 
     updateFrame();
