@@ -31,7 +31,7 @@ controller_server:
       # In-place rotation speed toward the clicked target in rad/s
       rotate_to_heading_angular_vel: 1.0
       use_rotate_to_heading: true
-      use_collision_detection: true
+      use_collision_detection: false
       max_allowed_time_to_collision_up_to_carrot: 0.35
       allow_reversing: false
       # Nav2 limits its first turn by accel / controller_frequency.  At 0.5

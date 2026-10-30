@@ -368,14 +368,15 @@ class VisionNode(Node):
         annotated = frame.copy()
         for detection in detections:
             x_min, y_min, x_max, y_max = map(int, detection['xyxy'])
-            label = f"{detection['label']} {float(detection['confidence']):.2f}"
-            color = detection.get(
-                'color', self._colors.get(detection['label'], (0, 255, 0))
-            )
+            raw_label = str(detection['label'])
+            action = suggested_action(raw_label)
+            action_tag = 'CLEAN' if action == 'clean' else 'AVOID'
+            label = f"[{action_tag}] {raw_label} {float(detection['confidence']):.2f}"
+            color = (100, 220, 120) if action_tag == 'CLEAN' else (60, 80, 255)
             self._cv2.rectangle(annotated, (x_min, y_min), (x_max, y_max), color, 2)
             self._cv2.putText(
                 annotated, label, (x_min, max(20, y_min - 8)),
-                self._cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2,
+                self._cv2.FONT_HERSHEY_SIMPLEX, 0.65, color, 2,
             )
         return annotated
 

@@ -594,6 +594,18 @@ function LidarView() {
   );
 }
 
+function pointInPoly(x, y, vertices) {
+  if (!vertices || vertices.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const xi = vertices[i][0], yi = vertices[i][1];
+    const xj = vertices[j][0], yj = vertices[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi || 1e-9) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 function SlamMapView() {
   const canvasRef = React.useRef(null);
   const latestMapRef = React.useRef(null);
@@ -607,6 +619,9 @@ function SlamMapView() {
   const showCostmapRef = React.useRef(true);
   const clickToMoveRef = React.useRef(true);
   const configLoadedRef = React.useRef(false);
+  const drawingPolygonRef = React.useRef(false);
+  const polyPointsRef = React.useRef([]);
+  const localSweptRef = React.useRef({});
 
   const [status, setStatus] = React.useState('WAITING FOR MAP');
   const [resetting, setResetting] = React.useState(false);
@@ -616,8 +631,60 @@ function SlamMapView() {
   const [selectedTarget, setSelectedTarget] = React.useState(null);
   const [showCostmap, setShowCostmap] = React.useState(true);
   const [clickToMove, setClickToMove] = React.useState(true);
+  const [drawingPolygon, setDrawingPolygon] = React.useState(false);
+  const [polyPoints, setPolyPoints] = React.useState([]);
+  const [regionName, setRegionName] = React.useState('');
   const [autonomySnap, setAutonomySnap] = React.useState(autonomyRef.current);
   const [missionNote, setMissionNote] = React.useState('');
+
+  React.useEffect(() => {
+    function onStartPolygonDraw() {
+      drawingPolygonRef.current = true;
+      setDrawingPolygon(true);
+      setMissionNote('Polygon drawing mode: click 3+ corners on the SLAM map to outline a cleaning region.');
+      redrawRef.current();
+    }
+    window.addEventListener('neuravac:start-polygon', onStartPolygonDraw);
+    return () => window.removeEventListener('neuravac:start-polygon', onStartPolygonDraw);
+  }, []);
+
+  async function savePolygonRegion(queueCleanNow = false) {
+    if (polyPointsRef.current.length < 3) {
+      setMissionNote('Click at least 3 points on the SLAM map to form a polygon.');
+      return;
+    }
+    try {
+      const response = await fetch('/regions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: regionName.trim(),
+          vertices: polyPointsRef.current,
+          queue_clean: queueCleanNow,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to save polygon region.');
+      autonomyRef.current = { ...autonomyRef.current, task_queue: data };
+      setAutonomySnap({ ...autonomyRef.current });
+      window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: data }));
+      polyPointsRef.current = [];
+      setPolyPoints([]);
+      setRegionName('');
+      drawingPolygonRef.current = false;
+      setDrawingPolygon(false);
+      redrawRef.current();
+      const rName = data.region?.name || 'region';
+      const wpCount = data.region?.waypoints?.length || 0;
+      setMissionNote(
+        queueCleanNow
+          ? `Saved "${rName}" and queued polygon cleaning (${wpCount} coverage waypoints)!`
+          : `Saved polygon region "${rName}" (${wpCount} coverage waypoints).`
+      );
+    } catch (err) {
+      setMissionNote(err.message || 'Failed to save polygon region.');
+    }
+  }
 
   function isCellInBuffer(map, cells, cellX, cellY, costmap, cfg) {
     const res = map.resolution || 0.05;
@@ -742,6 +809,22 @@ function SlamMapView() {
     const cellX = Math.floor(bounds.minX + (px - bounds.left) / bounds.fit);
     const cellY = Math.floor(bounds.minY + (py - bounds.top) / bounds.fit);
     if (cellX < 0 || cellY < 0 || cellX >= map.width || cellY >= map.height) return;
+
+    if (drawingPolygonRef.current) {
+      const wx = Number((map.origin_x + (cellX + 0.5) * map.resolution).toFixed(3));
+      const wy = Number((map.origin_y + (cellY + 0.5) * map.resolution).toFixed(3));
+      const nextPts = [...polyPointsRef.current, [wx, wy]];
+      polyPointsRef.current = nextPts;
+      setPolyPoints(nextPts);
+      redrawRef.current();
+      setMissionNote(
+        nextPts.length < 3
+          ? `Polygon vertex #${nextPts.length} added at (${wx.toFixed(2)}, ${wy.toFixed(2)}) m — click ${3 - nextPts.length} more corner(s).`
+          : `Polygon has ${nextPts.length} vertices — click CLEAN THIS POLYGON or SAVE REGION above.`
+      );
+      return;
+    }
+
     const { costmap, config } = autonomyRef.current;
     let targetCellX = cellX;
     let targetCellY = cellY;
@@ -783,14 +866,34 @@ function SlamMapView() {
     const pt = [Number(worldX.toFixed(3)), Number(worldY.toFixed(3))];
     selectedRef.current = pt;
     setSelectedTarget(pt);
+    window.dispatchEvent(new CustomEvent('neuravac:target', { detail: pt }));
     redrawRef.current();
     if (clickToMoveRef.current) {
-      sendMission('goto', pt);
-      if (snapped) {
-        setMissionNote(`Snapped outside wall buffer → moving to (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m…`);
-      }
+      fetch('/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'goto',
+          title: `Go to (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m`,
+          params: { target: pt, cleaning: false },
+          position: 'end',
+        }),
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (data) window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: data }));
+          const qLen = data?.queue?.length || 1;
+          if (snapped) {
+            setMissionNote(`Snapped outside wall buffer → queued (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m (#${qLen} in queue).`);
+          } else if (qLen > 1) {
+            setMissionNote(`Added (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m to task queue (#${qLen}).`);
+          } else {
+            setMissionNote(`Moving to (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m via Task Queue…`);
+          }
+        })
+        .catch(() => sendMission('goto', pt));
     } else {
-      setMissionNote(`Target selected: (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m — click GO TO POINT or AUTO-MAP.`);
+      setMissionNote(`Target selected: (${pt[0].toFixed(2)}, ${pt[1].toFixed(2)}) m — click GO TO POINT or add to Task Queue.`);
     }
   }
 
@@ -826,6 +929,9 @@ function SlamMapView() {
             autonomyRef.current = data;
             if (!stopped) {
               setAutonomySnap(data);
+              if (data.task_queue) {
+                window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: data.task_queue }));
+              }
               redrawRef.current();
             }
           }
@@ -951,6 +1057,30 @@ function SlamMapView() {
 
       const bufSq = bufferRadiusM * bufferRadiusM;
       const infSq = inflationRadiusM * inflationRadiusM;
+
+      // Find regions instructed to be cleaned to render purple cleaning tiles
+      const activeCleanRegionIds = new Set();
+      (autonomyRef.current?.task_queue?.queue || []).forEach(t => {
+        if (t.type === 'clean_polygon' && (t.status === 'active' || t.status === 'queued')) {
+          const rid = t.params?.region_id;
+          if (rid) activeCleanRegionIds.add(rid);
+        }
+      });
+      const cleaningRegions = (autonomyRef.current?.task_queue?.regions || []).filter(
+        reg => reg.cleaning_active || activeCleanRegionIds.has(reg.id) || (reg.uncleaned_tiles && reg.uncleaned_tiles.length > 0)
+      );
+
+      if (hasRobotPose) {
+        cleaningRegions.forEach(reg => {
+          const list = localSweptRef.current[reg.id] || [];
+          if (!list.length || (list[list.length - 1][0] - rxWorld) ** 2 + (list[list.length - 1][1] - ryWorld) ** 2 >= 0.03 ** 2) {
+            list.push([rxWorld, ryWorld]);
+            if (list.length > 600) list.shift();
+            localSweptRef.current[reg.id] = list;
+          }
+        });
+      }
+
       const image = context.createImageData(cropWidth, cropHeight);
       for (let y = 0; y < cropHeight; y += 1) {
         for (let x = 0; x < cropWidth; x += 1) {
@@ -965,11 +1095,43 @@ function SlamMapView() {
             image.data.set([186, 133, 93, 235], offset);
           } else {
             let r = 38, g = 56, b = 74;
-            if (showCost) {
+            const wx = map.origin_x + (gx + 0.5) * res;
+            const wy = map.origin_y + (gy + 0.5) * res;
+
+            let isUncleanedPurple = false;
+            for (let crIdx = 0; crIdx < cleaningRegions.length; crIdx += 1) {
+              const reg = cleaningRegions[crIdx];
+              if (pointInPoly(wx, wy, reg.vertices)) {
+                const sweepRadSq = 0.18 * 0.18;
+                let swept = false;
+                if (hasRobotPose && (wx - rxWorld) ** 2 + (wy - ryWorld) ** 2 <= sweepRadSq) {
+                  swept = true;
+                } else {
+                  const sList = localSweptRef.current[reg.id] || reg.swept_points || [];
+                  for (let sIdx = 0; sIdx < sList.length; sIdx += 1) {
+                    const sp = sList[sIdx];
+                    if ((wx - sp[0]) ** 2 + (wy - sp[1]) ** 2 <= sweepRadSq) {
+                      swept = true;
+                      break;
+                    }
+                  }
+                }
+                if (!swept) {
+                  isUncleanedPurple = true;
+                  break;
+                }
+              }
+            }
+
+            if (isUncleanedPurple) {
+              // Instructed to clean: purple tiles turn back to background color once swept!
+              const checker = ((gx + gy) % 2 === 0);
+              r = checker ? 148 : 132;
+              g = checker ? 92 : 80;
+              b = checker ? 246 : 228;
+            } else if (showCost) {
               let cv = 0;
               if (costmap && costmap.dataBytes) {
-                const wx = map.origin_x + (gx + 0.5) * res;
-                const wy = map.origin_y + (gy + 0.5) * res;
                 const cx = Math.floor((wx - costmap.origin_x) / costmap.resolution);
                 const cy = Math.floor((wy - costmap.origin_y) / costmap.resolution);
                 if (cx >= 0 && cy >= 0 && cx < costmap.width && cy < costmap.height) {
@@ -1039,6 +1201,149 @@ function SlamMapView() {
         context.arc(sx, sy, 3.5 * dpr, 0, Math.PI * 2);
         context.fill();
       }
+
+      // Draw saved polygon cleaning regions and their coverage waypoints
+      const savedRegions = autonomyRef.current?.task_queue?.regions || [];
+      savedRegions.forEach(reg => {
+        const verts = reg?.vertices || [];
+        if (verts.length < 3) return;
+        const color = reg.color || '#66d6a4';
+        context.save();
+        context.beginPath();
+        verts.forEach(([vx, vy], idx) => {
+          const [cx, cy] = worldToCanvas(vx, vy);
+          if (idx === 0) context.moveTo(cx, cy);
+          else context.lineTo(cx, cy);
+        });
+        context.closePath();
+        context.fillStyle = `${color}28`;
+        context.fill();
+        context.strokeStyle = color;
+        context.lineWidth = 2 * dpr;
+        context.stroke();
+
+        // Draw lawnmower coverage waypoints inside polygon
+        (reg.waypoints || []).forEach(([wx, wy], wIdx) => {
+          const [px, py] = worldToCanvas(wx, wy);
+          context.fillStyle = `${color}aa`;
+          context.beginPath();
+          context.arc(px, py, 2.2 * dpr, 0, Math.PI * 2);
+          context.fill();
+        });
+
+        // Draw region name at polygon centroid
+        const meanX = verts.reduce((s, v) => s + v[0], 0) / verts.length;
+        const meanY = verts.reduce((s, v) => s + v[1], 0) / verts.length;
+        const [lx, ly] = worldToCanvas(meanX, meanY);
+        context.translate(lx, ly);
+        context.scale(-1, 1);
+        context.font = `700 ${Math.round(9.5 * dpr)}px "JetBrains Mono", monospace`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = '#0b1018cc';
+        const pctText = (reg.cleaning_active || (reg.progress_pct && reg.progress_pct > 0)) ? ` · ${reg.progress_pct || 0}% CLEANED` : '';
+        const regionLabel = `${reg.name}${pctText}`;
+        const textW = context.measureText(regionLabel).width + 8 * dpr;
+        context.fillRect(-textW / 2, -7 * dpr, textW, 14 * dpr);
+        context.fillStyle = color;
+        context.fillText(regionLabel, 0, 0.5 * dpr);
+        context.restore();
+      });
+
+      // Draw in-progress polygon vertices while drawing on the map
+      const activePoly = polyPointsRef.current || [];
+      if (activePoly.length > 0) {
+        context.save();
+        context.beginPath();
+        activePoly.forEach(([vx, vy], idx) => {
+          const [cx, cy] = worldToCanvas(vx, vy);
+          if (idx === 0) context.moveTo(cx, cy);
+          else context.lineTo(cx, cy);
+        });
+        if (activePoly.length >= 3) {
+          context.closePath();
+          context.fillStyle = 'rgba(114, 183, 244, 0.22)';
+          context.fill();
+        }
+        context.strokeStyle = '#72b7f4';
+        context.setLineDash([4 * dpr, 3 * dpr]);
+        context.lineWidth = 2 * dpr;
+        context.stroke();
+        context.setLineDash([]);
+        activePoly.forEach(([vx, vy]) => {
+          const [cx, cy] = worldToCanvas(vx, vy);
+          context.fillStyle = '#ffb040';
+          context.beginPath();
+          context.arc(cx, cy, 4.5 * dpr, 0, Math.PI * 2);
+          context.fill();
+        });
+        context.restore();
+      }
+
+      const qItems = autonomyRef.current?.task_queue?.queue || [];
+      qItems.forEach((task, idx) => {
+        const tgt = task?.params?.target;
+        if (!Array.isArray(tgt) || tgt.length !== 2) return;
+        const [qx, qy] = worldToCanvas(tgt[0], tgt[1]);
+        context.fillStyle = task.status === 'active' ? '#66d6a4' : '#72b7f4';
+        context.beginPath();
+        context.arc(qx, qy, 6.5 * dpr, 0, Math.PI * 2);
+        context.fill();
+        context.save();
+        context.translate(qx, qy);
+        context.scale(-1, 1);
+        context.fillStyle = '#0b1018';
+        context.font = `700 ${Math.round(8.5 * dpr)}px "JetBrains Mono", monospace`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(String(idx + 1), 0, 0.5 * dpr);
+        context.restore();
+      });
+
+      // Draw Vision Markers (CLEAN = green diamond/ring, AVOID = red hazard triangle)
+      const visionMarkers = autonomyRef.current?.vision?.markers || [];
+      visionMarkers.forEach(vm => {
+        const [vx, vy] = worldToCanvas(vm.x, vm.y);
+        const isClean = vm.action === 'clean';
+        const color = isClean ? '#10b981' : '#ef4444';
+        const tag = isClean ? 'CLEAN' : 'AVOID';
+        context.save();
+        context.beginPath();
+        if (isClean) {
+          const s = 6.5 * dpr;
+          context.moveTo(vx, vy - s);
+          context.lineTo(vx + s, vy);
+          context.lineTo(vx, vy + s);
+          context.lineTo(vx - s, vy);
+          context.closePath();
+          context.fillStyle = '#10b981';
+          context.fill();
+        } else {
+          const s = 7 * dpr;
+          context.moveTo(vx, vy - s);
+          context.lineTo(vx + s, vy + s * 0.85);
+          context.lineTo(vx - s, vy + s * 0.85);
+          context.closePath();
+          context.fillStyle = '#ef4444';
+          context.fill();
+        }
+        context.strokeStyle = '#ffffff';
+        context.lineWidth = 1.2 * dpr;
+        context.stroke();
+
+        context.translate(vx, vy);
+        context.scale(-1, 1);
+        context.font = `700 ${Math.round(8 * dpr)}px "JetBrains Mono", monospace`;
+        context.textAlign = 'center';
+        context.textBaseline = 'bottom';
+        const textStr = `[${tag}] ${vm.label}`;
+        const textW = context.measureText(textStr).width + 6 * dpr;
+        context.fillStyle = '#0b1018e6';
+        context.fillRect(-textW / 2, -18 * dpr, textW, 11 * dpr);
+        context.fillStyle = color;
+        context.fillText(textStr, 0, -9 * dpr);
+        context.restore();
+      });
 
       if (hasRobotPose && robotX >= minX && robotX <= maxX && robotY >= minY && robotY <= maxY) {
         const markerX = left + (robotX - minX) * fit;
@@ -1120,7 +1425,22 @@ function SlamMapView() {
         <h2 id="slam-map-title">Room map &amp; autonomous navigation</h2>
       </div>
       <div className="slam-map-actions">
-        <button className={`telemetry-refresh ${clickToMove ? 'is-active-toggle' : ''}`} type="button"
+        <button className={`telemetry-refresh ${drawingPolygon ? 'is-armed-toggle' : ''}`} type="button"
+          onClick={() => {
+            const next = !drawingPolygon;
+            drawingPolygonRef.current = next;
+            setDrawingPolygon(next);
+            if (!next) {
+              polyPointsRef.current = [];
+              setPolyPoints([]);
+            } else {
+              setMissionNote('Polygon drawing mode: click 3+ points on the map to outline a cleaning region.');
+            }
+            redrawRef.current();
+          }}>
+          {drawingPolygon ? `DRAWING POLYGON (${polyPoints.length} PTS)` : 'DRAW POLYGON'}
+        </button>
+        <button className={`telemetry-refresh ${clickToMove && !drawingPolygon ? 'is-active-toggle' : ''}`} type="button"
           onClick={() => { clickToMoveRef.current = !clickToMove; setClickToMove(!clickToMove); }}>
           {clickToMove ? 'CLICK-TO-MOVE: ON' : 'CLICK-TO-MOVE: OFF'}
         </button>
@@ -1137,24 +1457,109 @@ function SlamMapView() {
         <button className="telemetry-refresh" type="button" onClick={resetMap} disabled={resetting}>
           {resetting ? 'RESETTING…' : 'RESET & REMAP'}
         </button>
+        {(autonomySnap?.vision?.markers?.length > 0) && (
+          <button className="telemetry-refresh" type="button" onClick={() => {
+            fetch('/vision/markers', { method: 'DELETE' })
+              .then(() => {
+                if (autonomyRef.current?.vision) autonomyRef.current.vision.markers = [];
+                setMissionNote('Cleared vision markers.');
+                redrawRef.current();
+              });
+          }}>
+            CLEAR MARKERS ({autonomySnap.vision.markers.length})
+          </button>
+        )}
         <span className={`connection-status ${status === 'WAITING FOR MAP' ? '' : 'is-online'}`}><span className="status-dot" />{status}</span>
       </div>
     </div>
+    {drawingPolygon && (
+      <div className="polygon-draw-bar" role="region" aria-label="Polygon region builder">
+        <input
+          type="text"
+          value={regionName}
+          onChange={e => setRegionName(e.target.value)}
+          placeholder="Region name (optional, e.g. Rug, Corner, Zone 1)…"
+          aria-label="Polygon region name"
+        />
+        <button
+          type="button"
+          className="autonomy-btn start-btn"
+          disabled={polyPoints.length < 3}
+          onClick={() => savePolygonRegion(true)}
+        >
+          CLEAN THIS POLYGON ({polyPoints.length} pts)
+        </button>
+        <button
+          type="button"
+          className="autonomy-btn goto-btn"
+          disabled={polyPoints.length < 3}
+          onClick={() => savePolygonRegion(false)}
+        >
+          SAVE REGION
+        </button>
+        <button
+          type="button"
+          className="autonomy-btn"
+          disabled={!polyPoints.length}
+          onClick={() => {
+            const next = polyPointsRef.current.slice(0, -1);
+            polyPointsRef.current = next;
+            setPolyPoints(next);
+            redrawRef.current();
+          }}
+        >
+          UNDO PT
+        </button>
+        <button
+          type="button"
+          className="autonomy-btn stop-btn"
+          onClick={() => {
+            polyPointsRef.current = [];
+            setPolyPoints([]);
+            drawingPolygonRef.current = false;
+            setDrawingPolygon(false);
+            redrawRef.current();
+          }}
+        >
+          CANCEL
+        </button>
+      </div>
+    )}
     <div className="autonomy-ActionBar">
       <button className="autonomy-btn goto-btn" type="button" disabled={!selectedTarget || isBusy} onClick={() => sendMission('goto')}>
         GO TO POINT
       </button>
-      <button className="autonomy-btn start-btn" type="button" disabled={!selectedTarget || isBusy} onClick={() => sendMission('start')}>
-        AUTO-MAP ROOM
+      <button className="autonomy-btn start-btn" type="button" disabled={isBusy} onClick={() => sendMission('start', selectedTarget || [0.0, 0.0])}>
+        SCAN AREA
       </button>
-      <button className="autonomy-btn return-btn" type="button" disabled={mState !== 'exploring'} onClick={() => sendMission('return')}>
-        END &amp; RETURN
+      <button className="autonomy-btn return-btn" type="button" onClick={() => {
+        fetch('/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'return_home',
+            title: 'Return to Dock (Opcode 143)',
+            params: { target: [0.0, 0.0], seek_dock: true, cleaning: false },
+            position: 'top',
+          }),
+        })
+          .then(r => (r.ok ? r.json() : null))
+          .then(d => {
+            if (d) window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: d }));
+            setMissionNote('Returning to (0, 0) and triggering Roomba OI Opcode 143 (Seek Dock)…');
+          });
+      }}>
+        RETURN TO DOCK (143)
       </button>
       <button className="autonomy-btn stop-btn" type="button" onClick={() => sendMission('stop')}>
         STOP
       </button>
       <span className="autonomy-target-readout">
-        {selectedTarget ? `Target: (${selectedTarget[0].toFixed(2)}, ${selectedTarget[1].toFixed(2)}) m` : 'Click any clear cell on the map to set target'}
+        {drawingPolygon
+          ? `Polygon vertices: ${polyPoints.length} (click map to add corners)`
+          : selectedTarget
+            ? `Target: (${selectedTarget[0].toFixed(2)}, ${selectedTarget[1].toFixed(2)}) m`
+            : 'Click map to drive, or click DRAW POLYGON to outline a cleaning zone'}
       </span>
     </div>
     <div className="slam-map-canvas-wrap">
@@ -1169,6 +1574,26 @@ function SlamMapView() {
 function CameraView() {
   const [frameUrl, setFrameUrl] = React.useState(null);
   const [isOnline, setIsOnline] = React.useState(false);
+  const [visionData, setVisionData] = React.useState(null);
+
+  React.useEffect(() => {
+    let stopped = false;
+    let timer;
+    async function pollVision() {
+      if (!document.hidden) {
+        try {
+          const res = await fetch('/vision/markers', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (!stopped) setVisionData(data);
+          }
+        } catch (_) {}
+      }
+      if (!stopped) timer = setTimeout(pollVision, 1200);
+    }
+    pollVision();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, []);
 
   React.useEffect(() => {
     let stopped = false;
@@ -1224,6 +1649,39 @@ function CameraView() {
       <div className="camera-frame">
         {frameUrl ? <img src={frameUrl} alt="Live view from the robot camera" /> : (
           <p role="status">Camera unavailable. Reconnecting…</p>
+        )}
+      </div>
+      <div className="vision-detection-bar">
+        <div className="vision-status-tag">
+          <span className={`status-dot ${visionData?.online ? 'is-online' : ''}`} />
+          <span>{visionData?.online ? 'AI VISION ACTIVE' : 'AI VISION STANDBY'}</span>
+        </div>
+        {visionData?.markers?.length > 0 ? (
+          <div className="vision-markers-list">
+            {visionData.markers.slice(-4).reverse().map(m => (
+              <span key={m.id} className={`vision-pill ${m.action === 'clean' ? 'is-clean' : 'is-avoid'}`}>
+                <strong>[{m.identifier}]</strong> {m.label} ({Math.round(m.confidence * 100)}%)
+                {m.action === 'clean' && (
+                  <button type="button" className="vision-clean-btn" onClick={() => {
+                    fetch('/tasks', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        type: 'goto',
+                        title: `Clean Debris: ${m.label}`,
+                        params: { target: [m.x, m.y], cleaning: true },
+                        position: 'top',
+                      }),
+                    }).then(r => r.json()).then(d => {
+                      if (d) window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: d }));
+                    });
+                  }}>Clean</button>
+                )}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="vision-idle-text">Scanning for debris [CLEAN] and obstacles [AVOID]…</span>
         )}
       </div>
     </section>
@@ -1330,6 +1788,301 @@ function PiDiagnostics() {
     <p className="panel-note">Updates every 2 seconds.</p></div></section>;
 }
 
+function TaskQueuePanel() {
+  const [queueData, setQueueData] = React.useState({
+    queue: [],
+    history: [],
+    regions: [],
+    auto_run: true,
+    override_active: false,
+    override_pinned: false,
+    presets: [],
+  });
+  const [selectedTarget, setSelectedTarget] = React.useState(null);
+  const [dragId, setDragId] = React.useState(null);
+  const [dragOverId, setDragOverId] = React.useState(null);
+  const [note, setNote] = React.useState('');
+
+  React.useEffect(() => {
+    fetch('/tasks', { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data) setQueueData(data); })
+      .catch(() => {});
+    function onTasks(event) {
+      if (event.detail) setQueueData(prev => ({ ...prev, ...event.detail }));
+    }
+    function onTarget(event) {
+      if (event.detail) setSelectedTarget(event.detail);
+    }
+    window.addEventListener('neuravac:tasks', onTasks);
+    window.addEventListener('neuravac:target', onTarget);
+    return () => {
+      window.removeEventListener('neuravac:tasks', onTasks);
+      window.removeEventListener('neuravac:target', onTarget);
+    };
+  }, []);
+
+  async function apiCall(url, method = 'POST', body = null) {
+    setNote('');
+    try {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body !== null) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setQueueData(prev => ({ ...prev, ...data }));
+      window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: data }));
+      return data;
+    } catch (err) {
+      setNote(err.message || 'Task queue request failed.');
+      return null;
+    }
+  }
+
+  function addPresetTask(type, title, extraParams = {}) {
+    const target = selectedTarget || [0.0, 0.0];
+    apiCall('/tasks', 'POST', {
+      type,
+      title,
+      params: { target, cleaning: false, ...extraParams },
+      position: 'end',
+    });
+  }
+
+  function reorderList(fromId, toId) {
+    if (!fromId || !toId || fromId === toId) return;
+    const items = queueData.queue.filter(t => t.type !== 'override');
+    const fromIdx = items.findIndex(t => t.id === fromId);
+    const toIdx = items.findIndex(t => t.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = [...items];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    const overrideItems = queueData.queue.filter(t => t.type === 'override');
+    setQueueData(prev => ({ ...prev, queue: [...overrideItems, ...next] }));
+    apiCall('/tasks/reorder', 'PUT', { task_ids: next.map(t => t.id) });
+  }
+
+  function moveByStep(taskId, delta) {
+    const items = queueData.queue.filter(t => t.type !== 'override');
+    const idx = items.findIndex(t => t.id === taskId);
+    const targetIdx = idx + delta;
+    if (idx < 0 || targetIdx < 0 || targetIdx >= items.length) return;
+    reorderList(taskId, items[targetIdx].id);
+  }
+
+  const queue = queueData.queue || [];
+  const history = queueData.history || [];
+  const regions = queueData.regions || [];
+
+  return (
+    <section className="panel task-queue-panel" aria-labelledby="task-queue-title">
+      <div className="panel-header">
+        <div>
+          <p className="console-label">MISSION SCHEDULER · DRAG TO REORDER</p>
+          <h2 id="task-queue-title">Roomba task queue ({queue.length})</h2>
+        </div>
+        <div className="task-queue-actions">
+          <button
+            type="button"
+            className={`telemetry-refresh ${queueData.auto_run ? 'is-armed-toggle' : ''}`}
+            onClick={() => apiCall('/tasks/control', 'POST', { auto_run: !queueData.auto_run })}
+          >
+            {queueData.auto_run ? 'AUTO-RUN: ON' : 'QUEUE PAUSED'}
+          </button>
+          <button
+            type="button"
+            className={`telemetry-refresh ${queueData.override_pinned ? 'is-active-toggle' : ''}`}
+            onClick={() => apiCall('/tasks/control', 'POST', { override_pinned: !queueData.override_pinned })}
+          >
+            {queueData.override_pinned ? 'OVERRIDE LOCKED' : 'INSERT OVERRIDE'}
+          </button>
+          <button
+            type="button"
+            className="telemetry-refresh"
+            disabled={!queue.length}
+            onClick={() => apiCall('/tasks/clear', 'POST')}
+          >
+            CLEAR
+          </button>
+        </div>
+      </div>
+
+      <div className="task-queue-body">
+        <div className="task-preset-row" aria-label="Quick add tasks">
+          <button
+            type="button"
+            className="task-preset-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('neuravac:start-polygon'))}
+          >
+            + Draw Cleaning Polygon on Map
+          </button>
+          <button
+            type="button"
+            className="task-preset-btn"
+            onClick={() => addPresetTask('scan_area', 'Scan Area')}
+          >
+            + Scan Area
+          </button>
+          <button
+            type="button"
+            className="task-preset-btn"
+            onClick={() => {
+              const tgt = selectedTarget || [0.0, 0.0];
+              addPresetTask('goto', `Go to (${tgt[0].toFixed(2)}, ${tgt[1].toFixed(2)}) m`);
+            }}
+          >
+            + Go to Map Target
+          </button>
+          <button
+            type="button"
+            className="task-preset-btn"
+            onClick={() => apiCall('/tasks', 'POST', {
+              type: 'return_home',
+              title: 'Return to Dock (Opcode 143)',
+              params: { target: [0.0, 0.0], seek_dock: true, cleaning: false },
+            })}
+          >
+            + Return to Dock (143)
+          </button>
+          <button
+            type="button"
+            className="task-preset-btn"
+            onClick={() => apiCall('/tasks', 'POST', {
+              type: 'seek_dock',
+              title: 'Seek Dock Beams Now (Opcode 143)',
+              params: { seek_dock: true, cleaning: false },
+            })}
+          >
+            + Seek Dock Now (143)
+          </button>
+        </div>
+
+        {regions.length > 0 && (
+          <div className="task-regions-box" aria-label="Drawn polygon cleaning regions">
+            <span className="section-label">DRAWN POLYGON REGIONS (CLICK TO QUEUE CLEANING)</span>
+            <div className="task-preset-row">
+              {regions.map(reg => (
+                <div key={reg.id} className="region-chip" style={{ borderColor: reg.color || '#66d6a4' }}>
+                  <button
+                    type="button"
+                    className="region-clean-btn"
+                    onClick={() => apiCall('/tasks', 'POST', {
+                      type: 'clean_polygon',
+                      title: `Clean ${reg.name} (${reg.waypoints?.length || 1} pts)`,
+                      params: { region_id: reg.id, cleaning: true },
+                    })}
+                  >
+                    + Clean {reg.name} ({reg.waypoints?.length || 1} pts)
+                  </button>
+                  <button
+                    type="button"
+                    className="region-del-btn"
+                    title={`Delete ${reg.name}`}
+                    onClick={() => apiCall(`/regions/${reg.id}`, 'DELETE')}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="task-list" role="list" aria-label="Active and queued Roomba tasks">
+          {queue.length === 0 ? (
+            <div className="task-empty">
+              Queue is empty. Click points on the SLAM map, draw a polygon region to clean, or add Scan Area / Return to Dock above.
+            </div>
+          ) : (
+            queue.map((task, index) => {
+              const isOverride = task.type === 'override';
+              const isActive = task.status === 'active';
+              return (
+                <div
+                  key={task.id}
+                  role="listitem"
+                  draggable={!isOverride}
+                  onDragStart={e => {
+                    setDragId(task.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={e => {
+                    if (isOverride) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverId !== task.id) setDragOverId(task.id);
+                  }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverId(null);
+                    reorderList(dragId, task.id);
+                    setDragId(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setDragOverId(null);
+                  }}
+                  className={`task-item ${isOverride ? 'is-override' : ''} ${isActive ? 'is-active' : ''} ${dragOverId === task.id ? 'is-drag-over' : ''}`}
+                >
+                  <span className="task-drag-handle" title={isOverride ? 'Pinned at top during override' : 'Drag to reorder'}>
+                    {isOverride ? '⚡' : '⋮⋮'}
+                  </span>
+                  <div className="task-main">
+                    <div className="task-title-row">
+                      <span className={`task-badge ${isOverride ? 'badge-override' : isActive ? 'badge-active' : 'badge-queued'}`}>
+                        {isOverride ? 'OVERRIDE' : isActive ? 'ACTIVE' : `#${index + 1}`}
+                      </span>
+                      <strong className="task-title">{task.title}</strong>
+                      {task.params?.cleaning && <span className="task-chip">VACUUM ON</span>}
+                    </div>
+                    <span className="task-meta">
+                      {task.note || (Array.isArray(task.params?.target) ? `Target (${task.params.target[0].toFixed(2)}, ${task.params.target[1].toFixed(2)}) m` : task.type)}
+                    </span>
+                  </div>
+                  <div className="task-item-actions">
+                    {!isOverride && (
+                      <>
+                        <button type="button" className="task-step-btn" title="Move up" onClick={() => moveByStep(task.id, -1)}>↑</button>
+                        <button type="button" className="task-step-btn" title="Move down" onClick={() => moveByStep(task.id, 1)}>↓</button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="task-remove-btn"
+                      title={isOverride ? 'End manual override' : 'Remove task'}
+                      onClick={() => apiCall(`/tasks/${task.id}`, 'DELETE')}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {history.length > 0 && (
+          <div className="task-history">
+            <span className="section-label">RECENTLY FINISHED</span>
+            <div className="task-history-items">
+              {history.slice(0, 3).map(h => (
+                <span key={h.id} className={`task-history-pill is-${h.status}`}>
+                  {h.status === 'completed' ? '✓' : '⚠'} {h.title}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="panel-note">
+          {note || 'Drag tasks to reorder. Click DRAW POLYGON on the SLAM map to outline a region and queue polygon cleaning.'}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const { telemetry, requestTelemetry } = useTelemetry();
   return (
@@ -1340,7 +2093,7 @@ function App() {
       </header>
       <div className="dashboard-grid">
         <div className="visual-column"><CameraView /><SlamMapView /><LidarView /></div>
-        <aside className="control-column"><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><PiDiagnostics /><RemoteOverride /><RoombaEffects /></aside>
+        <aside className="control-column"><TaskQueuePanel /><RemoteOverride /><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><PiDiagnostics /><RoombaEffects /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />
       <footer>NeuraVac · Live readings from the Raspberry Pi</footer>

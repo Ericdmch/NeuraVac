@@ -212,6 +212,31 @@ Roomba's cleaning motors (Open Interface opcode `138` via `GET`/`POST /roomba/cl
 - **SIDE BRUSH**: toggles the spinning side brush (bit 0, mask `1`).
 - **ALL MOTORS ON / STOP ALL MOTORS**: toggles all three cleaning motors together (mask `7` / `0`).
 
+#### Draggable Roomba task queue, polygon region cleaning & dock seeking (`TaskQueuePanel` & `task_queue.py`)
+
+The unified `:5000` dashboard includes a live **Roomba task queue** panel
+([`TaskQueuePanel`](src/web/web/static/components.js) backed by
+[`TaskQueueManager`](src/web/web/task_queue.py)) that executes tasks in order:
+
+- **Drag-and-drop reordering**: Drag any task card (or use its `↑` / `↓` buttons) to reorder priority (`PUT /tasks/reorder`). Dragging a queued task to the top immediately preempts the current autonomous task and starts the new top task.
+- **Automatic Manual Override preemption**: Holding `WASD` in the manual override panel (or clicking **INSERT OVERRIDE**) automatically inserts a `Manual Override` task at index `0` (`status: active`) and pauses/demotes the active autonomous task back to `queued` so it resumes once manual override ends.
+- **Interactive Polygon Region Drawing & Cleaning (`GET`/`POST /regions`, `DELETE /regions/<id>`)**:
+  - Click **DRAW POLYGON** on the SLAM map (or **+ Draw Cleaning Polygon on Map** in the Task Queue), click 3 or more points on the SLAM map to outline any region, name the region, and click **CLEAN THIS POLYGON** (or **SAVE REGION**).
+  - **Purple Cleaning Tiles & Live Sweep Progress**: The moment a region is instructed to be cleaned, all floor tiles inside the polygon turn vibrant **purple** (`#8b5cf6`). As the Roomba drives through the region with vacuum and brushes spinning (`[138, 7]`), the tiles underneath the robot's cleaning sweep radius (`0.18 m`) automatically turn back to the dark-slate background color in real time, with the live coverage percentage displayed on the map badge and task card (e.g. `Rug Zone · 74% CLEANED`).
+  - [`generate_polygon_waypoints`](src/web/web/task_queue.py) computes a boustrophedon (lawnmower zig-zag) coverage path (`0.25 m` stripe spacing) inside the polygon, steps through every waypoint in the polygon (`Cleaning waypoint i/N`), skips blocked points rather than aborting, and turns off the cleaning motors when finished.
+- **Computer Vision Debris & Obstacle Detection (`[CLEAN]` / `[AVOID]`)**:
+  - `vision_node` runs the floor-vision NCNN/YOLO model on `/dev/neuravac_camera`, streaming annotated frames with bounding box tags to `/camera/image_annotated/compressed` and object detections to `/camera/detections`.
+  - Detected objects are classified into two advisory actions:
+    - **`[CLEAN]`** (emerald diamond badge): Floor debris (`solid_debris`, small debris, dust, crumbs) with a one-click `Clean` button to send the Roomba directly to spot-clean that target.
+    - **`[AVOID]`** (red/amber hazard badge): Obstacles and cords (`cable`, `shoe`, `large_debris`, `liquid_spill`) placed as persistent obstacle markers on the 2D SLAM map.
+  - Markers are exposed via `GET`/`POST`/`DELETE /vision/markers` and rendered live on both the SLAM map and the Camera feed strip.
+- **Clicking points on the SLAM map**: With `CLICK-TO-MOVE: ON`, clicking points on the SLAM map queues `Go to (x, y) m` tasks in order and renders numbered waypoint badges (`1`, `2`, `3`…) on the map canvas.
+- **Built-in task types (`GET`/`POST /tasks`, `DELETE /tasks/<id>`, `POST /tasks/clear`, `POST /tasks/control`, `POST /roomba/dock`)**:
+  - **Clean Polygon Region (`clean_polygon`)**: Runs lawnmower coverage across a user-drawn polygon region with vacuum + brushes enabled.
+  - **Scan Area (`scan_area`)**: Runs persistent SLAM Toolbox + Nav2 frontier exploration (`start`). If the Roomba starts inside or enters a red buffer zone, [`_explore_next_with_escape`](src/neuravac_mapping/neuravac_mapping/autonomy_node.py) automatically drives out to the nearest clear cell and continues scanning with relaxed clearance instead of halting.
+  - **Go to Map Target (`goto`)**: Navigates to `[x, y]` via Nav2.
+  - **Return to Dock (`return_home`) & Seek Dock (`seek_dock`)**: Navigates back to `(0, 0)` near the home base, stops the cleaning motors, and sends Roomba SCI/OI **Seek Dock opcode `143` (`Force-Seeking-Dock`)** (`[143]`) so the Roomba locks onto the docking station IR beams.
+
 #### Vision
 
 | Topic | Type | Purpose |

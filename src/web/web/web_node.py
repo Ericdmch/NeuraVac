@@ -20,12 +20,18 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
+try:
+    from roomba_interfaces.msg import VisionDetectionArray
+except ImportError:
+    VisionDetectionArray = None
 from roomba_interfaces.srv import RequestTelemetry
 from std_srvs.srv import Trigger
 from std_msgs.msg import String
+import uuid
 
 from .override import roomba_drive
 from .cleaning import cleaning_command
+from .task_queue import TaskQueueManager
 from .camera import CameraCapture, LatestJpeg
 from .telemetry import SensorState
 from .travel_heading import TravelHeading
@@ -184,6 +190,143 @@ class SerialBridge:
     def send_message(self, message):
         self.bridge.publish(self.topic, message)
 
+def classify_vision_action(label, suggested_action=''):
+    """Normalize a detector class or suggested_action into 'clean' or 'avoid'."""
+    sa = str(suggested_action or '').strip().lower()
+    lbl = str(label or '').strip().lower().replace(' ', '_')
+    if sa == 'clean':
+        return 'clean'
+    if sa in ('avoid', 'avoid_and_review'):
+        return 'avoid'
+    if any(k in lbl for k in ('solid_debris', 'small_debris', 'dust', 'dirt', 'crumb', 'trash')) and 'large' not in lbl:
+        return 'clean'
+    if lbl == 'debris':
+        return 'clean'
+    return 'avoid'
+
+
+class VisionMarkerStore:
+    """Thread-safe store of computer-vision markers projected onto the 2D SLAM map."""
+
+    MERGE_RADIUS_M = 0.30
+    CLEAN_SWEEP_RADIUS_M = 0.18
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._markers = []
+        self._latest_detections = []
+        self._updated_at = 0.0
+        self._frame_valid = False
+
+    def add_or_update_marker(self, label, action=None, x=0.0, y=0.0, confidence=1.0, suggested_action=''):
+        norm_action = classify_vision_action(label, action or suggested_action)
+        clean_label = str(label or 'object').strip() or 'object'
+        fx, fy = round(float(x), 3), round(float(y), 3)
+        conf = round(max(0.0, min(1.0, float(confidence))), 3)
+        now = time.time()
+        with self._lock:
+            for m in self._markers:
+                if m['action'] == norm_action and m['label'] == clean_label:
+                    if (m['x'] - fx) ** 2 + (m['y'] - fy) ** 2 <= self.MERGE_RADIUS_M ** 2:
+                        m['x'] = round(m['x'] * 0.65 + fx * 0.35, 3)
+                        m['y'] = round(m['y'] * 0.65 + fy * 0.35, 3)
+                        m['confidence'] = max(m['confidence'], conf)
+                        m['count'] = m.get('count', 1) + 1
+                        m['updated_at'] = now
+                        return dict(m)
+            marker = {
+                'id': uuid.uuid4().hex[:8],
+                'label': clean_label,
+                'action': norm_action,
+                'identifier': 'CLEAN' if norm_action == 'clean' else 'AVOID',
+                'x': fx,
+                'y': fy,
+                'confidence': conf,
+                'count': 1,
+                'updated_at': now,
+            }
+            self._markers.append(marker)
+            if len(self._markers) > 60:
+                del self._markers[: len(self._markers) - 60]
+            return dict(marker)
+
+    def ingest_ros_batch(self, message, robot_pose=None):
+        now_mono = time.monotonic()
+        frame_valid = bool(getattr(message, 'frame_valid', True))
+        img_h = max(1.0, float(getattr(message, 'image_height', 720) or 720))
+        rx, ry, ryaw = 0.0, 0.0, 0.0
+        if isinstance(robot_pose, dict):
+            rx = float(robot_pose.get('x', 0.0))
+            ry = float(robot_pose.get('y', 0.0))
+            ryaw = float(robot_pose.get('yaw', 0.0))
+        elif isinstance(robot_pose, (list, tuple)) and len(robot_pose) >= 2:
+            rx = float(robot_pose[0])
+            ry = float(robot_pose[1])
+            ryaw = float(robot_pose[2]) if len(robot_pose) > 2 else 0.0
+
+        live = []
+        for det in (getattr(message, 'detections', None) or []):
+            lbl = str(getattr(det, 'label', 'object'))
+            conf = round(float(getattr(det, 'confidence', 0.0)), 3)
+            sa = str(getattr(det, 'suggested_action', ''))
+            act = classify_vision_action(lbl, sa)
+            cx_norm = float(getattr(det, 'center_x_norm', 0.5))
+            cy_norm = float(getattr(det, 'center_y_norm', 0.5))
+            y_max_px = float(getattr(det, 'y_max_px', cy_norm * img_h))
+            y_max_norm = min(1.0, max(0.0, y_max_px / img_h))
+            bearing_rad = (0.5 - cx_norm) * math.radians(60.0)
+            dist_m = max(0.22, min(1.15, 0.22 + (1.0 - y_max_norm) * 0.90))
+            mx = round(rx + dist_m * math.cos(ryaw + bearing_rad), 3)
+            my = round(ry + dist_m * math.sin(ryaw + bearing_rad), 3)
+            live.append({
+                'label': lbl,
+                'action': act,
+                'identifier': 'CLEAN' if act == 'clean' else 'AVOID',
+                'confidence': conf,
+                'center_x_norm': round(cx_norm, 3),
+                'center_y_norm': round(cy_norm, 3),
+                'x': mx,
+                'y': my,
+            })
+            self.add_or_update_marker(lbl, action=act, x=mx, y=my, confidence=conf)
+
+        with self._lock:
+            self._latest_detections = live
+            self._updated_at = now_mono
+            self._frame_valid = frame_valid
+
+    def sweep_robot_pose(self, rx, ry, cleaning_active=False):
+        if not cleaning_active:
+            return
+        rad_sq = self.CLEAN_SWEEP_RADIUS_M ** 2
+        with self._lock:
+            self._markers = [
+                m for m in self._markers
+                if not (m['action'] == 'clean' and (m['x'] - rx) ** 2 + (m['y'] - ry) ** 2 <= rad_sq)
+            ]
+
+    def remove_marker(self, marker_id):
+        with self._lock:
+            before = len(self._markers)
+            self._markers = [m for m in self._markers if m['id'] != marker_id]
+            return len(self._markers) < before
+
+    def clear_markers(self):
+        with self._lock:
+            self._markers.clear()
+
+    def snapshot(self):
+        now_mono = time.monotonic()
+        with self._lock:
+            online = self._updated_at > 0 and (now_mono - self._updated_at) <= 4.0
+            return {
+                'online': online,
+                'frame_valid': self._frame_valid,
+                'latest_detections': list(self._latest_detections) if online else [],
+                'markers': [dict(m) for m in self._markers],
+            }
+
+
 class LidarBridge:
     RECENT_POINT_MAX_AGE_SECONDS = 0.25
     STREAM_BATCH_SECONDS = 0.02
@@ -191,6 +334,7 @@ class LidarBridge:
     def __init__(self, topic, data_type = LidarPoint):
         self.bridge = WebBridge(name='web_lidar_node')
         self.bridge.add_subscriber(data_type, topic, self.lidar_callback)
+        self.vision_store = VisionMarkerStore()
 
         self.topic = topic
         self._condition = threading.Condition()
@@ -234,6 +378,15 @@ class LidarBridge:
         self._get_param_client = self.bridge.create_client(
             GetParameters, '/autonomous_mapping/get_parameters'
         )
+        if VisionDetectionArray is not None:
+            self.bridge.add_subscriber(
+                VisionDetectionArray, 'camera/detections', self.vision_detections_callback, 10
+            )
+
+    def vision_detections_callback(self, message):
+        with self._pose_lock:
+            pose = self._slam_pose
+        self.vision_store.ingest_ros_batch(message, robot_pose=pose)
 
     def costmap_callback(self, message):
         encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
@@ -321,6 +474,7 @@ class LidarBridge:
                 'pose': [pose['x'], pose['y']] if pose else None,
                 'costmap': costmap,
                 'path': path,
+                'vision': self.vision_store.snapshot(),
             }
 
     def reset_slam(self):
@@ -468,6 +622,7 @@ class LidarBridge:
             # Room-map marker represents body orientation in the SLAM frame.
             # Travel direction and noisy short displacements cannot calibrate it.
             self._slam_pose = pose
+        self.vision_store.sweep_robot_pose(pose['x'], pose['y'], cleaning_active=True)
         with self._map_condition:
             if self._map is not None:
                 self._map = {**self._map, 'robot_x': pose['x'],
@@ -628,6 +783,7 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
                 serial_bridge.send_message(roomba_drive(speed * direction, radius))
             else:
                 serial_bridge.send_message(roomba_drive(0, STRAIGHT))
+        task_queue.notify_manual_key(bool(active_override))
         return jsonify(key=key, pressed=pressed, speed=speed)
 
     @app.post('/override/stop')
@@ -636,9 +792,51 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         held_motion.clear()
         active_override = None
         serial_bridge.send_message(roomba_drive(0, STRAIGHT))
+        task_queue.notify_manual_key(False)
         return jsonify(stopped=True, speed=speed)
 
     cleaning_state = {'vacuum': False, 'side_brush': False, 'main_brush': False}
+
+    def _set_all_cleaning(enabled):
+        flag = bool(enabled)
+        cleaning_state['vacuum'] = flag
+        cleaning_state['side_brush'] = flag
+        cleaning_state['main_brush'] = flag
+        serial_bridge.send_message(SerialData(data=cleaning_command(flag, flag, flag)))
+
+    def _dispatch_queued_task(task):
+        t_type = task.get('type')
+        params = task.get('params') or {}
+        target = params.get('target')
+        if not isinstance(target, (list, tuple)) or len(target) != 2:
+            target = [0.0, 0.0]
+        target_pt = [float(target[0]), float(target[1])]
+        if hasattr(lidar_bridge, 'set_motion_enabled'):
+            lidar_bridge.set_motion_enabled(True)
+        cmd = 'goto' if t_type in ('goto', 'return_home', 'clean_polygon') else 'start'
+        if hasattr(lidar_bridge, 'send_autonomy_request'):
+            lidar_bridge.send_autonomy_request({'command': cmd, 'return_goal': target_pt})
+
+    def _stop_queued_task():
+        if hasattr(lidar_bridge, 'send_autonomy_request'):
+            lidar_bridge.send_autonomy_request({'command': 'stop'})
+
+    def _seek_dock():
+        # Send Roomba Open Interface Opcode 143 (Seek Dock / Force-Seeking-Dock)
+        serial_bridge.send_message(SerialData(data=[143]))
+
+    task_queue = TaskQueueManager(
+        dispatch_fn=_dispatch_queued_task,
+        stop_fn=_stop_queued_task,
+        cleaning_fn=_set_all_cleaning,
+        seek_dock_fn=_seek_dock,
+    )
+
+    @app.post('/roomba/dock')
+    def roomba_seek_dock():
+        _set_all_cleaning(False)
+        _seek_dock()
+        return jsonify(sent=True, opcode=143, message='Sent Opcode 143 (Seek Dock) to Roomba.')
 
     @app.get('/roomba/cleaning')
     def get_roomba_cleaning():
@@ -768,9 +966,144 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             else {'state': None, 'costmap': None, 'path': None, 'pose': None, 'motion_enabled': False}
         )
         snap['config'] = costmap_config
+        snap['task_queue'] = task_queue.snapshot(snap.get('state'), robot_pose=snap.get('pose'))
+        if 'vision' not in snap and hasattr(lidar_bridge, 'vision_store'):
+            snap['vision'] = lidar_bridge.vision_store.snapshot()
         response = jsonify(snap)
         response.headers['Cache-Control'] = 'no-store'
         return response
+
+    def _current_autonomy_state_dict():
+        if hasattr(lidar_bridge, 'autonomy_snapshot'):
+            return lidar_bridge.autonomy_snapshot().get('state')
+        return None
+
+    def _current_robot_pose():
+        if hasattr(lidar_bridge, 'autonomy_snapshot'):
+            return lidar_bridge.autonomy_snapshot().get('pose')
+        return None
+
+    @app.get('/tasks')
+    def get_tasks():
+        response = jsonify(task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()))
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.post('/tasks')
+    def add_task():
+        payload = request.get_json(silent=True) or {}
+        t_type = payload.get('type')
+        title = payload.get('title')
+        params = payload.get('params') or {}
+        position = payload.get('position', 'end')
+        if position not in ('end', 'top'):
+            position = 'end'
+        try:
+            created = task_queue.add_task(t_type, title=title, params=params, position=position)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        return jsonify(created=created, **task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose())), 201
+
+    @app.put('/tasks/reorder')
+    def reorder_tasks():
+        payload = request.get_json(silent=True) or {}
+        task_ids = payload.get('task_ids')
+        try:
+            task_queue.reorder(task_ids)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        return jsonify(task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()))
+
+    @app.delete('/tasks/<task_id>')
+    def delete_task(task_id):
+        removed = task_queue.remove_task(task_id)
+        if not removed:
+            return jsonify(error='Task not found'), 404
+        return jsonify(removed=True, **task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()))
+
+    @app.post('/tasks/clear')
+    def clear_tasks():
+        task_queue.clear()
+        return jsonify(cleared=True, **task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()))
+
+    @app.post('/tasks/control')
+    def control_tasks():
+        payload = request.get_json(silent=True) or {}
+        if 'auto_run' in payload:
+            if not isinstance(payload['auto_run'], bool):
+                return jsonify(error='auto_run must be a boolean'), 400
+            task_queue.set_auto_run(payload['auto_run'])
+        if 'override_pinned' in payload:
+            if not isinstance(payload['override_pinned'], bool):
+                return jsonify(error='override_pinned must be a boolean'), 400
+            task_queue.set_override_pinned(payload['override_pinned'])
+        return jsonify(task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()))
+
+    @app.get('/regions')
+    def get_regions():
+        return jsonify(regions=task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()).get('regions', []))
+
+    @app.post('/regions')
+    def create_region():
+        payload = request.get_json(silent=True) or {}
+        name = payload.get('name')
+        vertices = payload.get('vertices')
+        queue_clean = bool(payload.get('queue_clean', False))
+        try:
+            region = task_queue.add_region(name, vertices)
+            if queue_clean:
+                task_queue.add_task(
+                    'clean_polygon',
+                    title=f"Clean {region['name']} ({len(region['waypoints'])} pts)",
+                    params={'region_id': region['id'], 'cleaning': True},
+                )
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        return jsonify(region=region, **task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose())), 201
+
+    @app.delete('/regions/<region_id>')
+    def delete_region(region_id):
+        removed = task_queue.remove_region(region_id)
+        if not removed:
+            return jsonify(error='Region not found'), 404
+        return jsonify(removed=True, **task_queue.snapshot(_current_autonomy_state_dict(), robot_pose=_current_robot_pose()))
+
+    @app.get('/vision/markers')
+    def get_vision_markers():
+        store = getattr(lidar_bridge, 'vision_store', None)
+        snap = store.snapshot() if store else {'online': False, 'frame_valid': False, 'latest_detections': [], 'markers': []}
+        return jsonify(snap)
+
+    @app.post('/vision/markers')
+    def add_vision_marker():
+        payload = request.get_json(silent=True) or {}
+        label = payload.get('label') or 'object'
+        action = payload.get('action')
+        x = float(payload.get('x', 0.0))
+        y = float(payload.get('y', 0.0))
+        confidence = float(payload.get('confidence', 1.0))
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        marker = store.add_or_update_marker(label, action=action, x=x, y=y, confidence=confidence)
+        return jsonify(created=marker, **store.snapshot()), 201
+
+    @app.delete('/vision/markers/<marker_id>')
+    def delete_vision_marker(marker_id):
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        removed = store.remove_marker(marker_id)
+        if not removed:
+            return jsonify(error='Marker not found'), 404
+        return jsonify(removed=True, **store.snapshot())
+
+    @app.delete('/vision/markers')
+    def clear_vision_markers():
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is not None:
+            store.clear_markers()
+        return jsonify(cleared=True)
 
     @app.post('/autonomy/motion')
     def autonomy_motion():
@@ -825,16 +1158,15 @@ def build_camera(bridge):
             if 'jpeg' in msg.format.lower() or 'jpg' in msg.format.lower():
                 feed.update(msg.data)
 
-        bridge.add_subscriber(
-            CompressedImage,
-            os.environ.get('NEURAVAC_CAMERA_TOPIC', 'camera/image/compressed'),
-            on_image,
-            QoSProfile(
-                history=HistoryPolicy.KEEP_LAST,
-                depth=1,
-                reliability=ReliabilityPolicy.BEST_EFFORT,
-            ),
+        topic = os.environ.get('NEURAVAC_CAMERA_TOPIC', 'camera/image_annotated/compressed')
+        qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
         )
+        bridge.add_subscriber(CompressedImage, topic, on_image, qos)
+        if topic != 'camera/image/compressed':
+            bridge.add_subscriber(CompressedImage, 'camera/image/compressed', on_image, qos)
         return feed
 
     return CameraCapture(

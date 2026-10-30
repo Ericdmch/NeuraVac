@@ -183,6 +183,82 @@ class AutonomyNode(Node):
             return True
         return False
 
+    def _find_escape_point(self, planner, position, min_rad=2, max_rad=25):
+        if not hasattr(planner, 'geometry') or not hasattr(planner, 'rows'):
+            return None
+        start = planner.geometry.world_cell(*position)
+        if start is None:
+            return None
+        sx, sy = start
+        r = max(1, planner.clearance)
+        def is_safe_open(cx, cy, clearance_r):
+            if not (0 <= cx < planner.geometry.width and 0 <= cy < planner.geometry.height):
+                return False
+            if not (0 <= planner.rows[cy][cx] <= 20):
+                return False
+            for dy in range(-clearance_r, clearance_r + 1):
+                for dx in range(-clearance_r, clearance_r + 1):
+                    if dx * dx + dy * dy > clearance_r * clearance_r:
+                        continue
+                    xx, yy = cx + dx, cy + dy
+                    if not (0 <= xx < planner.geometry.width and 0 <= yy < planner.geometry.height):
+                        return False
+                    if planner.rows[yy][xx] < 0 or planner.rows[yy][xx] > 20:
+                        return False
+            return True
+        for clearance_r in (r, 1, 0):
+            best = None
+            best_d2 = 1e9
+            for rad in range(min_rad, max_rad + 1):
+                for dy in range(-rad, rad + 1):
+                    for dx in range(-rad, rad + 1):
+                        d2 = dx * dx + dy * dy
+                        if d2 >= best_d2:
+                            continue
+                        if is_safe_open(sx + dx, sy + dy, clearance_r):
+                            best = (sx + dx, sy + dy)
+                            best_d2 = d2
+                if best is not None:
+                    wx, wy = planner.geometry.cell_center(*best)
+                    return (round(wx, 3), round(wy, 3))
+        return None
+
+    def _persistent_preflight(self, planner, position, target):
+        try:
+            if planner.return_reachable(position, target):
+                return True
+        except Exception:
+            pass
+        if hasattr(planner, 'geometry') and hasattr(planner, 'rows'):
+            return self._goto_reachable(planner, position, target)
+        return False
+
+    def _explore_next_with_escape(self, planner, position):
+        try:
+            goal = planner.next_goal(position)
+            if goal is not None or not hasattr(planner, 'geometry'):
+                return goal
+        except ValueError:
+            if not hasattr(planner, 'geometry'):
+                raise
+        # Robot is inside the red buffer zone or tight space; find nearest clear cell outside buffer
+        escape_pt = self._find_escape_point(planner, position, min_rad=1, max_rad=25)
+        search_origins = [p for p in (escape_pt, position) if p is not None]
+        for c_try in (planner.clearance, 1, 0):
+            for origin in search_origins:
+                try:
+                    relaxed = ExplorationPlanner(planner.geometry, planner.rows, c_try, self.rejected)
+                    goal = relaxed.next_goal(origin, min_distance_m=.15)
+                    if goal is not None:
+                        return goal
+                except ValueError:
+                    continue
+        if escape_pt is not None and escape_pt not in self.rejected:
+            dist = math.hypot(escape_pt[0] - position[0], escape_pt[1] - position[1])
+            if dist >= 0.08:
+                return escape_pt
+        return None
+
     def start(self, target, goto_only=False):
         if not self.get_parameter('enable_motion').value:
             raise ValueError('Autonomous motion is disabled')
@@ -213,7 +289,7 @@ class AutonomyNode(Node):
         check_fn = (
             (lambda: self._goto_reachable(planner, self.position, tuple(target)))
             if goto_only
-            else (lambda: planner.return_reachable(self.position, tuple(target)))
+            else (lambda: self._persistent_preflight(planner, self.position, tuple(target)))
         )
         self.plan_future = self.plan_executor.submit(check_fn)
         self.plan_generation = self.generation
@@ -247,7 +323,7 @@ class AutonomyNode(Node):
     def plan_next(self):
         try:
             planner, position = self.planner(), self.position
-            self.plan_future = self.plan_executor.submit(planner.next_goal, position)
+            self.plan_future = self.plan_executor.submit(self._explore_next_with_escape, planner, position)
             self.plan_generation = self.generation
             self.plan_started = time.monotonic()
             self.plan_kind = 'explore'
@@ -257,7 +333,7 @@ class AutonomyNode(Node):
     def send_return(self):
         try:
             planner, position, target = self.planner(), self.position, self.mission.return_goal
-            self.plan_future = self.plan_executor.submit(planner.return_reachable, position, target)
+            self.plan_future = self.plan_executor.submit(self._persistent_preflight, planner, position, target)
             self.plan_generation = self.generation
             self.plan_started = time.monotonic()
             self.plan_kind = 'return'
@@ -364,7 +440,7 @@ class AutonomyNode(Node):
             if not succeeded:
                 self.rejected.add(self.current_goal)
                 self.failures += 1
-                if self.failures >= 3:
+                if self.failures >= 8:
                     self.halt('Navigation failed repeatedly; waiting for operator')
                     return
             else:
