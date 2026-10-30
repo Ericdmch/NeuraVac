@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# NeuraVac Service and Performance Profile Manager
+
+cmd="$1"
+
+case "$cmd" in
+  status)
+    echo "=== NeuraVac Service Status ==="
+    systemctl --user status neuravac-roomba neuravac-lidar neuravac-toolbox neuravac-autonomy neuravac-dashboard --no-pager
+    echo ""
+    echo "=== Top CPU Consumers ==="
+    ps aux --sort=-%cpu | head -n 12
+    ;;
+
+  drive|manual)
+    echo "Switching to MANUAL DRIVE mode (lowest CPU)..."
+    systemctl --user stop neuravac-autonomy.service neuravac-toolbox.service neuravac-lidar.service
+    systemctl --user start neuravac-roomba.service neuravac-dashboard.service
+    echo "Active services: neuravac-roomba, neuravac-dashboard"
+    ;;
+
+  mapping|map)
+    echo "Switching to MAPPING mode (Roomba + LiDAR + SLAM)..."
+    systemctl --user stop neuravac-autonomy.service
+    systemctl --user start neuravac-roomba.service neuravac-lidar.service neuravac-toolbox.service neuravac-dashboard.service
+    echo "Active services: neuravac-roomba, neuravac-lidar, neuravac-toolbox, neuravac-dashboard"
+    ;;
+
+  auto|full)
+    echo "Switching to FULL AUTONOMY mode..."
+    systemctl --user start neuravac-roomba.service neuravac-lidar.service neuravac-toolbox.service neuravac-autonomy.service neuravac-dashboard.service
+    echo "All 5 services active."
+    ;;
+
+  stop-all)
+    echo "Stopping all NeuraVac services..."
+    systemctl --user stop neuravac-autonomy.service neuravac-toolbox.service neuravac-lidar.service neuravac-dashboard.service neuravac-roomba.service
+    echo "All services stopped."
+    ;;
+
+  start-all)
+    echo "Starting all NeuraVac services..."
+    systemctl --user start neuravac-roomba.service neuravac-lidar.service neuravac-toolbox.service neuravac-autonomy.service neuravac-dashboard.service
+    echo "All services started."
+    ;;
+
+  *)
+    echo "Usage: neuravac-ctl [command]"
+    echo ""
+    echo "Commands:"
+    echo "  status     - Show active services and CPU metrics"
+    echo "  manual     - Lowest CPU: Run only Roomba driver & Web dashboard (~40% CPU total)"
+    echo "  map        - Medium CPU: Run Roomba, LiDAR, SLAM mapping, & Web dashboard"
+    echo "  auto       - Full Autonomy: Run everything including Nav2 path planner"
+    echo "  stop-all   - Stop all NeuraVac services"
+    echo "  start-all  - Start all NeuraVac services"
+    ;;
+esac
