@@ -1638,7 +1638,7 @@ function CameraView() {
           }
         } catch (_) {}
       }
-      if (!stopped) timer = setTimeout(pollVision, 1200);
+      if (!stopped) timer = setTimeout(pollVision, 2000);
     }
     pollVision();
     return () => { stopped = true; clearTimeout(timer); };
@@ -1671,7 +1671,7 @@ function CameraView() {
         if (currentUrl) URL.revokeObjectURL(currentUrl);
         currentUrl = null;
       }
-      if (!stopped) timer = window.setTimeout(updateFrame, 100);
+      if (!stopped) timer = window.setTimeout(updateFrame, 200);
     }
 
     updateFrame();
@@ -2189,7 +2189,7 @@ function AvoidanceIdentifiersPanel() {
 
   React.useEffect(() => {
     fetchIdentifiers();
-    const interval = setInterval(fetchIdentifiers, 3000);
+    const interval = setInterval(fetchIdentifiers, 8000);
     const handleMarkerUpdate = () => fetchIdentifiers();
     window.addEventListener('neuravac:markers', handleMarkerUpdate);
     return () => {
