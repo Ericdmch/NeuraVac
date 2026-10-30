@@ -36,8 +36,8 @@ class Lidar(Node):
             f'Lidar serial connection opened on {serial_port} at {baudrate} baud'
         )
 
-        # ROS2 Serial topics
-        self.serial_timer = self.create_timer(0.002, self.read_serial)
+        # ROS2 Serial topics (15ms / ~66 Hz drains incoming serial buffer cleanly without 500 Hz CPU spin)
+        self.serial_timer = self.create_timer(0.015, self.read_serial)
         
         self.lidar_points = self.create_publisher(
             LidarPoint,

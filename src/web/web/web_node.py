@@ -117,8 +117,8 @@ class WebBridge(Node):
 
 
 class SerialBridge:
-    def __init__(self, topic, data_type = SerialData):
-        self.bridge = WebBridge(name='web_serial_node')
+    def __init__(self, topic, data_type = SerialData, bridge = None):
+        self.bridge = bridge if bridge is not None else WebBridge(name='web_serial_node')
         self.publisher = self.bridge.add_publisher(data_type, topic)
 
         self.topic = topic
@@ -481,8 +481,8 @@ class LidarBridge:
     RECENT_POINT_MAX_AGE_SECONDS = 0.25
     STREAM_BATCH_SECONDS = 0.02
 
-    def __init__(self, topic, data_type = LidarPoint):
-        self.bridge = WebBridge(name='web_lidar_node')
+    def __init__(self, topic, data_type = LidarPoint, bridge = None):
+        self.bridge = bridge if bridge is not None else WebBridge(name='web_lidar_node')
         self.bridge.add_subscriber(data_type, topic, self.lidar_callback)
         self.vision_store = VisionMarkerStore()
 
@@ -667,7 +667,8 @@ class LidarBridge:
         with self._condition:
             self._sequence += 1
             self._points.append((self._sequence, time.monotonic(), point))
-            self._condition.notify_all()
+            if self._sequence % 12 == 0:
+                self._condition.notify_all()
 
     def wait_for_points(self, after_sequence, timeout):
         with self._condition:
@@ -1393,13 +1394,13 @@ def main(args=None):
 
     signal.signal(signal.SIGTERM, interrupt)
 
-    serial_bridge = SerialBridge('serial_tx', SerialData)
-    lidar_bridge = LidarBridge('lidar_points', LidarPoint)
-    camera = build_camera(lidar_bridge.bridge)
+    shared_bridge = WebBridge(name='web_node')
+    serial_bridge = SerialBridge('serial_tx', SerialData, bridge=shared_bridge)
+    lidar_bridge = LidarBridge('lidar_points', LidarPoint, bridge=shared_bridge)
+    camera = build_camera(shared_bridge)
 
-    executor = MultiThreadedExecutor()
-    executor.add_node(serial_bridge.bridge)
-    executor.add_node(lidar_bridge.bridge)
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(shared_bridge)
     def spin_ros():
         try:
             executor.spin()
@@ -1430,7 +1431,6 @@ def main(args=None):
         camera.close()
         executor.shutdown()
         ros_thread.join(timeout=2.0)
-        serial_bridge.bridge.destroy_node()
-        lidar_bridge.bridge.destroy_node()
+        shared_bridge.destroy_node()
         if rclpy.ok():
             rclpy.try_shutdown()

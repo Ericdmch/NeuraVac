@@ -69,9 +69,9 @@ class VisionNode(Node):
         self.declare_parameter('camera_frame_id', 'camera_optical_frame')
         self.declare_parameter('flip_code', -1)  # Added safely without duplicating width
         self.declare_parameter('device', 'cpu')
-        self.declare_parameter('threads', 3)
-        self.declare_parameter('camera_publish_hz', 12.0)
-        self.declare_parameter('inference_hz', 5.0)
+        self.declare_parameter('threads', 2)
+        self.declare_parameter('camera_publish_hz', 8.0)
+        self.declare_parameter('inference_hz', 2.0)
         self.declare_parameter('imgsz', 0)
         self.declare_parameter('publish_annotated_image', True)
         self.declare_parameter('jpeg_quality', 80)

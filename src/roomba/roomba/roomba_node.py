@@ -80,7 +80,7 @@ class Roomba(Node):
         self.encoder_pub = self.create_publisher(UInt16MultiArray, 'roomba/encoder_counts', 10)
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
         self.serial_tx = self.create_subscription(SerialData, 'serial_tx', self.write_serial, 10)
-        self.serial_timer = self.create_timer(0.005, self.read_serial)
+        self.serial_timer = self.create_timer(0.020, self.read_serial)
         hz = max(1.0, min(20.0, float(value('sensor_query_hz'))))
         self._sensor_query_timer = self.create_timer(1.0 / hz, self.request_group_zero)
         self._sensor_service = self.create_service(
