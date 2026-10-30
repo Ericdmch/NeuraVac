@@ -984,6 +984,7 @@ function SlamMapView() {
         cache.minY = cMinY;
         cache.maxX = cMaxX;
         cache.maxY = cMaxY;
+        cache.version = (cache.version || 0) + 1;
         cache.distSqGrid = null;
         cache.cropKey = null;
       }
@@ -1032,7 +1033,7 @@ function SlamMapView() {
       // Precompute local distance-squared to nearest wall in crop ONLY when map or crop changes
       let distSqGrid = null;
       if (showCost) {
-        const cropKey = `${mapKey}|${minX},${minY},${cropWidth},${cropHeight}|${inflationRadiusM}`;
+        const cropKey = `${cache.version || 0}|${minX},${minY},${cropWidth},${cropHeight}|${inflationRadiusM}`;
         if (cache.cropKey === cropKey && cache.distSqGrid) {
           distSqGrid = cache.distSqGrid;
         } else {
