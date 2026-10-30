@@ -634,6 +634,7 @@ function SlamMapView() {
   const [drawingPolygon, setDrawingPolygon] = React.useState(false);
   const [polyPoints, setPolyPoints] = React.useState([]);
   const [regionName, setRegionName] = React.useState('');
+  const [selectedMarker, setSelectedMarker] = React.useState(null);
   const [autonomySnap, setAutonomySnap] = React.useState(autonomyRef.current);
   const [missionNote, setMissionNote] = React.useState('');
 
@@ -822,6 +823,18 @@ function SlamMapView() {
           ? `Polygon vertex #${nextPts.length} added at (${wx.toFixed(2)}, ${wy.toFixed(2)}) m — click ${3 - nextPts.length} more corner(s).`
           : `Polygon has ${nextPts.length} vertices — click CLEAN THIS POLYGON or SAVE REGION above.`
       );
+      return;
+    }
+
+    const clickWx = Number((map.origin_x + (cellX + 0.5) * map.resolution).toFixed(3));
+    const clickWy = Number((map.origin_y + (cellY + 0.5) * map.resolution).toFixed(3));
+    const clickedMarker = (autonomyRef.current?.vision?.markers || []).find(m => {
+      const d2 = (m.x - clickWx) ** 2 + (m.y - clickWy) ** 2;
+      return d2 <= (0.28) ** 2;
+    });
+    if (clickedMarker) {
+      setSelectedMarker(clickedMarker);
+      setMissionNote(`Marker [${clickedMarker.identifier}] "${clickedMarker.label}" selected. Click DISMISS FALSE above to remove.`);
       return;
     }
 
@@ -1457,6 +1470,38 @@ function SlamMapView() {
         <button className="telemetry-refresh" type="button" onClick={resetMap} disabled={resetting}>
           {resetting ? 'RESETTING…' : 'RESET & REMAP'}
         </button>
+        {selectedMarker && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '9px', color: '#fbbf24', fontFamily: 'JetBrains Mono, monospace' }}>
+              [{selectedMarker.identifier}] {selectedMarker.label}:
+            </span>
+            <button
+              type="button"
+              className="telemetry-refresh is-active-toggle"
+              onClick={() => {
+                fetch(`/vision/markers/${selectedMarker.id}/dismiss`, { method: 'POST' })
+                  .then(r => r.json())
+                  .then(d => {
+                    setSelectedMarker(null);
+                    setMissionNote(`Dismissed ${selectedMarker.label} as false positive.`);
+                    if (d?.markers && autonomyRef.current?.vision) {
+                      autonomyRef.current.vision.markers = d.markers;
+                    }
+                    redrawRef.current();
+                  });
+              }}
+            >
+              DISMISS FALSE
+            </button>
+            <button
+              type="button"
+              className="telemetry-refresh"
+              onClick={() => setSelectedMarker(null)}
+            >
+              CANCEL
+            </button>
+          </div>
+        )}
         {(autonomySnap?.vision?.markers?.length > 0) && (
           <button className="telemetry-refresh" type="button" onClick={() => {
             fetch('/vision/markers', { method: 'DELETE' })
@@ -1575,6 +1620,10 @@ function CameraView() {
   const [frameUrl, setFrameUrl] = React.useState(null);
   const [isOnline, setIsOnline] = React.useState(false);
   const [visionData, setVisionData] = React.useState(null);
+  const [flipped, setFlipped] = React.useState(() => {
+    const saved = localStorage.getItem('neuravac_camera_flipped');
+    return saved !== null ? saved === 'true' : false;
+  });
 
   React.useEffect(() => {
     let stopped = false;
@@ -1641,12 +1690,26 @@ function CameraView() {
           <p className="console-label">LIVE FEED / USB CAMERA</p>
           <h2 id="camera-view-title">Camera</h2>
         </div>
-        <span className={`connection-status ${isOnline ? 'is-online' : ''}`}>
-          <span className="status-dot" />
-          {isOnline ? 'LIVE' : 'OFFLINE'}
-        </span>
+        <div className="telemetry-actions">
+          <button
+            type="button"
+            className={`camera-flip-btn ${flipped ? 'is-active' : ''}`}
+            onClick={() => {
+              const next = !flipped;
+              setFlipped(next);
+              localStorage.setItem('neuravac_camera_flipped', String(next));
+            }}
+            title="Flip camera view 180 degrees"
+          >
+            {flipped ? '180° FLIPPED' : 'FLIP 180°'}
+          </button>
+          <span className={`connection-status ${isOnline ? 'is-online' : ''}`}>
+            <span className="status-dot" />
+            {isOnline ? 'LIVE' : 'OFFLINE'}
+          </span>
+        </div>
       </div>
-      <div className="camera-frame">
+      <div className={`camera-frame ${flipped ? 'is-flipped-180' : ''}`}>
         {frameUrl ? <img src={frameUrl} alt="Live view from the robot camera" /> : (
           <p role="status">Camera unavailable. Reconnecting…</p>
         )}
@@ -1677,6 +1740,23 @@ function CameraView() {
                     });
                   }}>Clean</button>
                 )}
+                <button
+                  type="button"
+                  className="vision-dismiss-btn"
+                  title="Dismiss marker as false positive"
+                  onClick={() => {
+                    fetch(`/vision/markers/${m.id}/dismiss`, { method: 'POST' })
+                      .then(r => r.json())
+                      .then(d => {
+                        if (d?.markers) {
+                          setVisionData(prev => ({ ...prev, markers: d.markers, dismissed_count: d.dismissed_count }));
+                          window.dispatchEvent(new CustomEvent('neuravac:markers', { detail: d }));
+                        }
+                      });
+                  }}
+                >
+                  ✕ False
+                </button>
               </span>
             ))}
           </div>
@@ -2083,6 +2163,174 @@ function TaskQueuePanel() {
   );
 }
 
+function AvoidanceIdentifiersPanel() {
+  const [identifiers, setIdentifiers] = React.useState({});
+  const [activeCount, setActiveCount] = React.useState(0);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [dismissedCount, setDismissedCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+
+  const fetchIdentifiers = React.useCallback(async () => {
+    try {
+      const res = await fetch('/vision/avoid-identifiers');
+      if (res.ok) {
+        const data = await res.json();
+        setIdentifiers(data.identifiers || {});
+        setActiveCount(data.active_count || 0);
+        setTotalCount(data.total_count || 0);
+      }
+      const markerRes = await fetch('/vision/markers');
+      if (markerRes.ok) {
+        const markerData = await markerRes.json();
+        setDismissedCount(markerData.dismissed_count || 0);
+      }
+    } catch (_) {}
+  }, []);
+
+  React.useEffect(() => {
+    fetchIdentifiers();
+    const interval = setInterval(fetchIdentifiers, 3000);
+    const handleMarkerUpdate = () => fetchIdentifiers();
+    window.addEventListener('neuravac:markers', handleMarkerUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('neuravac:markers', handleMarkerUpdate);
+    };
+  }, [fetchIdentifiers]);
+
+  async function toggleCategory(key, currentEnabled) {
+    setLoading(true);
+    try {
+      const res = await fetch('/vision/avoid-identifiers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, enabled: !currentEnabled }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIdentifiers(data.identifiers || {});
+        setActiveCount(data.active_count || 0);
+        setTotalCount(data.total_count || 0);
+        window.dispatchEvent(new CustomEvent('neuravac:markers', { detail: data }));
+      }
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function setAll(enableAll) {
+    setLoading(true);
+    const updated = {};
+    Object.keys(identifiers).forEach(k => {
+      updated[k] = enableAll;
+    });
+    try {
+      const res = await fetch('/vision/avoid-identifiers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers: updated }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIdentifiers(data.identifiers || {});
+        setActiveCount(data.active_count || 0);
+        setTotalCount(data.total_count || 0);
+        window.dispatchEvent(new CustomEvent('neuravac:markers', { detail: data }));
+      }
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function resetDismissed() {
+    try {
+      const res = await fetch('/vision/markers/dismissed', { method: 'DELETE' });
+      if (res.ok) {
+        setDismissedCount(0);
+        fetchIdentifiers();
+        window.dispatchEvent(new CustomEvent('neuravac:markers', { detail: {} }));
+      }
+    } catch (_) {}
+  }
+
+  const entries = Object.entries(identifiers);
+
+  return (
+    <section className="panel avoidance-panel" aria-labelledby="avoidance-title">
+      <div className="panel-header">
+        <div>
+          <p className="console-label">AI VISION · OBSTACLE IDENTIFIERS</p>
+          <h2 id="avoidance-title">Avoidance Identifiers</h2>
+        </div>
+        <span className={`telemetry-refresh ${activeCount > 0 ? 'is-armed-toggle' : ''}`} style={{ fontSize: '9px' }}>
+          {activeCount} / {totalCount} ACTIVE
+        </span>
+      </div>
+      <div className="avoidance-body">
+        <p className="avoidance-intro">
+          Toggle obstacle identifiers the robot should avoid. When toggled OFF, detections of that category are ignored and will not create [AVOID] markers.
+        </p>
+        <div className="avoidance-grid">
+          {entries.map(([key, item]) => {
+            const isEnabled = !!item.enabled;
+            return (
+              <div key={key} className={`avoidance-card ${isEnabled ? 'is-active' : 'is-inactive'}`}>
+                <div className="avoidance-info">
+                  <span className="avoidance-name">
+                    <span>{item.icon || '⚠️'}</span>
+                    <span>{item.name || key}</span>
+                  </span>
+                  <span className="avoidance-desc">{item.description}</span>
+                </div>
+                <button
+                  type="button"
+                  className={`avoidance-switch ${isEnabled ? 'is-on' : 'is-off'}`}
+                  disabled={loading}
+                  onClick={() => toggleCategory(key, isEnabled)}
+                  title={`Toggle avoidance for ${item.name}`}
+                >
+                  {isEnabled ? 'AVOID: ON' : 'OFF'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="avoidance-footer">
+          <div className="avoidance-actions">
+            <button
+              type="button"
+              className="telemetry-refresh"
+              onClick={() => setAll(true)}
+              disabled={loading}
+            >
+              ENABLE ALL
+            </button>
+            <button
+              type="button"
+              className="telemetry-refresh"
+              onClick={() => setAll(false)}
+              disabled={loading}
+            >
+              DISABLE ALL
+            </button>
+          </div>
+          {dismissedCount > 0 && (
+            <div className="dismissed-notice">
+              <span>{dismissedCount} false positive(s) dismissed</span>
+              <button
+                type="button"
+                className="telemetry-refresh"
+                style={{ padding: '3px 7px', fontSize: '8.5px' }}
+                onClick={resetDismissed}
+              >
+                Reset False Positives
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const { telemetry, requestTelemetry } = useTelemetry();
   return (
@@ -2093,7 +2341,7 @@ function App() {
       </header>
       <div className="dashboard-grid">
         <div className="visual-column"><CameraView /><SlamMapView /><LidarView /></div>
-        <aside className="control-column"><TaskQueuePanel /><RemoteOverride /><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><PiDiagnostics /><RoombaEffects /></aside>
+        <aside className="control-column"><TaskQueuePanel /><AvoidanceIdentifiersPanel /><RemoteOverride /><SensorPanel telemetry={telemetry} onRequestTelemetry={requestTelemetry} /><PiDiagnostics /><RoombaEffects /></aside>
       </div>
       <SerialConsole telemetry={telemetry} />
       <footer>NeuraVac · Live readings from the Raspberry Pi</footer>

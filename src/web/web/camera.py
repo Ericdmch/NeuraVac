@@ -38,10 +38,13 @@ class LatestJpeg:
 
 
 class CameraCapture:
-    def __init__(self, device='/dev/neuravac_camera', width=1280, height=720):
+    def __init__(self, device='/dev/neuravac_camera', width=1280, height=720, flip_code=None):
+        import os
         self.device = device
         self.width = width
         self.height = height
+        env_flip = os.environ.get('NEURAVAC_CAMERA_FLIP')
+        self.flip_code = int(env_flip) if env_flip is not None and env_flip != '' else flip_code
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._jpeg = None
@@ -84,6 +87,8 @@ class CameraCapture:
                     ok, frame = capture.read()
                     if not ok:
                         raise RuntimeError('Camera read failed')
+                    if self.flip_code is not None:
+                        frame = cv2.flip(frame, self.flip_code)
                     ok, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
                     if not ok:
                         raise RuntimeError('Camera JPEG encoding failed')

@@ -190,6 +190,67 @@ class SerialBridge:
     def send_message(self, message):
         self.bridge.publish(self.topic, message)
 
+DEFAULT_AVOID_IDENTIFIERS = {
+    'cable': {
+        'id': 'cable',
+        'name': 'Cables & Wires',
+        'description': 'Power cords, USB cables, charging wires',
+        'icon': '⚡',
+        'enabled': True,
+    },
+    'shoe': {
+        'id': 'shoe',
+        'name': 'Footwear & Shoes',
+        'description': 'Shoes, sneakers, slippers, socks',
+        'icon': '👟',
+        'enabled': True,
+    },
+    'liquid_spill': {
+        'id': 'liquid_spill',
+        'name': 'Liquid Spills',
+        'description': 'Water spills, pet accidents, puddles',
+        'icon': '💧',
+        'enabled': True,
+    },
+    'large_debris': {
+        'id': 'large_debris',
+        'name': 'Large Debris & Bulky Items',
+        'description': 'Large boxes, packaging, bulk items',
+        'icon': '📦',
+        'enabled': True,
+    },
+    'obstacle': {
+        'id': 'obstacle',
+        'name': 'Furniture & General Obstacles',
+        'description': 'Chair legs, toys, barriers',
+        'icon': '🛑',
+        'enabled': True,
+    },
+    'unknown': {
+        'id': 'unknown',
+        'name': 'Unknown Obstructions',
+        'description': 'Unclassified floor obstacles',
+        'icon': '⚠️',
+        'enabled': True,
+    },
+}
+
+
+def identify_avoid_category(label):
+    lbl = str(label or '').strip().lower().replace(' ', '_')
+    if any(k in lbl for k in ('cable', 'wire', 'cord')):
+        return 'cable'
+    if any(k in lbl for k in ('shoe', 'footwear', 'slipper', 'sock', 'boot', 'sneaker')):
+        return 'shoe'
+    if any(k in lbl for k in ('liquid', 'spill', 'puddle', 'water')):
+        return 'liquid_spill'
+    if any(k in lbl for k in ('large_debris', 'large', 'box', 'package', 'bulk')):
+        return 'large_debris'
+    if any(k in lbl for k in ('obstacle', 'furniture', 'chair', 'table', 'toy', 'barrier', 'wall')):
+        return 'obstacle'
+    return 'unknown'
+
+
 def classify_vision_action(label, suggested_action=''):
     """Normalize a detector class or suggested_action into 'clean' or 'avoid'."""
     sa = str(suggested_action or '').strip().lower()
@@ -217,6 +278,76 @@ class VisionMarkerStore:
         self._latest_detections = []
         self._updated_at = 0.0
         self._frame_valid = False
+        self._avoid_identifiers = {
+            k: dict(v) for k, v in DEFAULT_AVOID_IDENTIFIERS.items()
+        }
+        self._dismissed_markers = []
+
+    def is_avoid_enabled(self, label):
+        cat = identify_avoid_category(label)
+        with self._lock:
+            info = self._avoid_identifiers.get(cat)
+            if info is None:
+                info = self._avoid_identifiers.get('unknown', {'enabled': True})
+            return bool(info.get('enabled', True))
+
+    def set_avoid_identifier(self, key, enabled):
+        with self._lock:
+            if key in self._avoid_identifiers:
+                self._avoid_identifiers[key]['enabled'] = bool(enabled)
+                if not enabled:
+                    self._markers = [
+                        m for m in self._markers
+                        if not (m['action'] == 'avoid' and identify_avoid_category(m['label']) == key)
+                    ]
+            return {k: dict(v) for k, v in self._avoid_identifiers.items()}
+
+    def get_avoid_identifiers(self):
+        with self._lock:
+            return {k: dict(v) for k, v in self._avoid_identifiers.items()}
+
+    def dismiss_marker(self, marker_id):
+        now = time.time()
+        with self._lock:
+            target = None
+            for m in self._markers:
+                if m['id'] == marker_id:
+                    target = m
+                    break
+            if target:
+                self._markers = [m for m in self._markers if m['id'] != marker_id]
+                self._dismissed_markers.append({
+                    'id': target['id'],
+                    'label': target['label'],
+                    'action': target['action'],
+                    'x': target['x'],
+                    'y': target['y'],
+                    'timestamp': now,
+                })
+                if len(self._dismissed_markers) > 50:
+                    del self._dismissed_markers[:-50]
+                return True
+            return False
+
+    def dismiss_marker_at(self, x, y, radius_m=0.35):
+        rad_sq = float(radius_m) ** 2
+        mid = None
+        with self._lock:
+            best_d2 = 999.0
+            for m in self._markers:
+                d2 = (m['x'] - x) ** 2 + (m['y'] - y) ** 2
+                if d2 <= rad_sq and d2 < best_d2:
+                    mid = m['id']
+                    best_d2 = d2
+        if mid:
+            return self.dismiss_marker(mid)
+        return False
+
+    def clear_dismissed(self):
+        with self._lock:
+            count = len(self._dismissed_markers)
+            self._dismissed_markers.clear()
+            return count
 
     def add_or_update_marker(self, label, action=None, x=0.0, y=0.0, confidence=1.0, suggested_action=''):
         norm_action = classify_vision_action(label, action or suggested_action)
@@ -224,7 +355,21 @@ class VisionMarkerStore:
         fx, fy = round(float(x), 3), round(float(y), 3)
         conf = round(max(0.0, min(1.0, float(confidence))), 3)
         now = time.time()
+
         with self._lock:
+            # If location was dismissed as a false positive, suppress it
+            for d in self._dismissed_markers:
+                if d['label'] == clean_label or d.get('action') == norm_action:
+                    if (d['x'] - fx) ** 2 + (d['y'] - fy) ** 2 <= self.MERGE_RADIUS_M ** 2:
+                        return None
+
+            # If action is avoid, check if this identifier category is enabled
+            if norm_action == 'avoid':
+                cat = identify_avoid_category(clean_label)
+                info = self._avoid_identifiers.get(cat, self._avoid_identifiers.get('unknown', {'enabled': True}))
+                if not info.get('enabled', True):
+                    return None
+
             for m in self._markers:
                 if m['action'] == norm_action and m['label'] == clean_label:
                     if (m['x'] - fx) ** 2 + (m['y'] - fy) ** 2 <= self.MERGE_RADIUS_M ** 2:
@@ -234,10 +379,12 @@ class VisionMarkerStore:
                         m['count'] = m.get('count', 1) + 1
                         m['updated_at'] = now
                         return dict(m)
+
             marker = {
                 'id': uuid.uuid4().hex[:8],
                 'label': clean_label,
                 'action': norm_action,
+                'category': identify_avoid_category(clean_label),
                 'identifier': 'CLEAN' if norm_action == 'clean' else 'AVOID',
                 'x': fx,
                 'y': fy,
@@ -324,6 +471,9 @@ class VisionMarkerStore:
                 'frame_valid': self._frame_valid,
                 'latest_detections': list(self._latest_detections) if online else [],
                 'markers': [dict(m) for m in self._markers],
+                'avoid_identifiers': {k: dict(v) for k, v in self._avoid_identifiers.items()},
+                'dismissed_count': len(self._dismissed_markers),
+                'dismissed_markers': list(self._dismissed_markers[-10:]),
             }
 
 
@@ -1073,7 +1223,7 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
     @app.get('/vision/markers')
     def get_vision_markers():
         store = getattr(lidar_bridge, 'vision_store', None)
-        snap = store.snapshot() if store else {'online': False, 'frame_valid': False, 'latest_detections': [], 'markers': []}
+        snap = store.snapshot() if store else {'online': False, 'frame_valid': False, 'latest_detections': [], 'markers': [], 'avoid_identifiers': {}, 'dismissed_count': 0}
         return jsonify(snap)
 
     @app.post('/vision/markers')
@@ -1090,15 +1240,48 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         marker = store.add_or_update_marker(label, action=action, x=x, y=y, confidence=confidence)
         return jsonify(created=marker, **store.snapshot()), 201
 
+    @app.post('/vision/markers/<marker_id>/dismiss')
+    def dismiss_vision_marker(marker_id):
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        dismissed = store.dismiss_marker(marker_id)
+        if not dismissed:
+            return jsonify(error='Marker not found'), 404
+        return jsonify(dismissed=True, id=marker_id, **store.snapshot())
+
+    @app.post('/vision/markers/dismiss-at')
+    def dismiss_vision_marker_at():
+        payload = request.get_json(silent=True) or {}
+        x = float(payload.get('x', 0.0))
+        y = float(payload.get('y', 0.0))
+        radius = float(payload.get('radius', 0.35))
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        dismissed = store.dismiss_marker_at(x, y, radius_m=radius)
+        return jsonify(dismissed=dismissed, **store.snapshot())
+
     @app.delete('/vision/markers/<marker_id>')
     def delete_vision_marker(marker_id):
         store = getattr(lidar_bridge, 'vision_store', None)
         if store is None:
             return jsonify(error='Vision store unavailable'), 503
-        removed = store.remove_marker(marker_id)
+        if request.args.get('false') in ('1', 'true', 'yes') or request.args.get('dismiss') in ('1', 'true', 'yes'):
+            removed = store.dismiss_marker(marker_id)
+        else:
+            removed = store.remove_marker(marker_id)
         if not removed:
             return jsonify(error='Marker not found'), 404
         return jsonify(removed=True, **store.snapshot())
+
+    @app.delete('/vision/markers/dismissed')
+    def clear_dismissed_vision_markers():
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        cleared = store.clear_dismissed()
+        return jsonify(cleared_count=cleared, **store.snapshot())
 
     @app.delete('/vision/markers')
     def clear_vision_markers():
@@ -1106,6 +1289,30 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         if store is not None:
             store.clear_markers()
         return jsonify(cleared=True)
+
+    @app.get('/vision/avoid-identifiers')
+    def get_vision_avoid_identifiers():
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        identifiers = store.get_avoid_identifiers()
+        active = sum(1 for v in identifiers.values() if v.get('enabled'))
+        return jsonify(identifiers=identifiers, active_count=active, total_count=len(identifiers))
+
+    @app.post('/vision/avoid-identifiers')
+    def update_vision_avoid_identifiers():
+        payload = request.get_json(silent=True) or {}
+        store = getattr(lidar_bridge, 'vision_store', None)
+        if store is None:
+            return jsonify(error='Vision store unavailable'), 503
+        if 'key' in payload and 'enabled' in payload:
+            store.set_avoid_identifier(str(payload['key']), bool(payload['enabled']))
+        elif 'identifiers' in payload and isinstance(payload['identifiers'], dict):
+            for k, val in payload['identifiers'].items():
+                store.set_avoid_identifier(str(k), bool(val))
+        identifiers = store.get_avoid_identifiers()
+        active = sum(1 for v in identifiers.values() if v.get('enabled'))
+        return jsonify(identifiers=identifiers, active_count=active, total_count=len(identifiers), **store.snapshot())
 
     @app.post('/autonomy/motion')
     def autonomy_motion():
