@@ -968,6 +968,9 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         target_pt = [float(target[0]), float(target[1])]
         if hasattr(lidar_bridge, 'set_motion_enabled'):
             lidar_bridge.set_motion_enabled(True)
+        # Ensure vacuum and cleaning motors are forced off when returning home or running non-cleaning tasks
+        if t_type == 'return_home' or not params.get('cleaning'):
+            _set_all_cleaning(False)
         cmd = 'goto' if t_type in ('goto', 'return_home', 'clean_polygon') else 'start'
         if hasattr(lidar_bridge, 'send_autonomy_request'):
             lidar_bridge.send_autonomy_request({'command': cmd, 'return_goal': target_pt})
@@ -977,6 +980,7 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
             lidar_bridge.send_autonomy_request({'command': 'stop'})
 
     def _seek_dock():
+        _set_all_cleaning(False)
         # Send Roomba Open Interface Opcode 143 (Seek Dock / Force-Seeking-Dock)
         serial_bridge.send_message(SerialData(data=[143]))
 
@@ -990,8 +994,19 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
     @app.post('/roomba/dock')
     def roomba_seek_dock():
         _set_all_cleaning(False)
-        _seek_dock()
-        return jsonify(sent=True, opcode=143, message='Sent Opcode 143 (Seek Dock) to Roomba.')
+        payload = request.get_json(silent=True) or {}
+        use_opcode_143 = bool(payload.get('opcode143') or payload.get('seek_dock'))
+        if use_opcode_143:
+            _seek_dock()
+            return jsonify(sent=True, opcode=143, message='Sent Opcode 143 (Seek Dock) to Roomba.')
+        # By default, return to dock at (0, 0) via Nav2 with vacuum strictly disabled
+        task = task_queue.add_task(
+            'return_home',
+            title='Return to Dock',
+            params={'target': [0.0, 0.0], 'seek_dock': False, 'cleaning': False},
+            position='top',
+        )
+        return jsonify(sent=True, opcode=None, task=task, message='Returning to dock at (0, 0) with vacuum off.')
 
     @app.get('/roomba/cleaning')
     def get_roomba_cleaning():

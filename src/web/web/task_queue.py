@@ -14,9 +14,9 @@ TASK_PRESETS = [
     },
     {
         'type': 'return_home',
-        'title': 'Return to Dock (Opcode 143)',
-        'description': 'Navigate back to (0, 0) and send Roomba OI Opcode 143 (Seek Dock) to dock on Home Base',
-        'default_params': {'cleaning': False, 'target': [0.0, 0.0], 'seek_dock': True},
+        'title': 'Return to Dock',
+        'description': 'Navigate back to (0, 0) and park at dock with vacuum disabled',
+        'default_params': {'cleaning': False, 'target': [0.0, 0.0], 'seek_dock': False},
     },
 ]
 
@@ -307,6 +307,13 @@ class TaskQueueManager:
                 if not title:
                     title = f'Clean {region_name} ({len(waypoints)} pts)'
 
+            if task_type == 'return_home':
+                params['cleaning'] = False
+                # Roomba OI Opcode 143 (Seek Dock) hardware-forces vacuum and brushes on in firmware.
+                # Default seek_dock to False so return_home navigates to dock silently with zero vacuum.
+                if 'seek_dock' not in params:
+                    params['seek_dock'] = False
+
             if not title:
                 if task_type == 'goto' and isinstance(params.get('target'), (list, tuple)) and len(params['target']) == 2:
                     tx, ty = float(params['target'][0]), float(params['target'][1])
@@ -317,8 +324,8 @@ class TaskQueueManager:
                         'goto': 'Go to Point',
                         'clean_polygon': 'Clean Polygon Region',
                         'scan_area': 'Scan Area',
-                        'return_home': 'Return to Dock (Opcode 143)',
-                        'seek_dock': 'Seek Dock (Opcode 143)',
+                        'return_home': 'Return to Dock',
+                        'seek_dock': 'Seek Dock (IR Beams)',
                     }
                     title = titles.get(task_type, task_type)
 
@@ -512,12 +519,15 @@ class TaskQueueManager:
                 top['note'] = 'Cleaning polygon region…'
         elif top['type'] == 'return_home':
             top['_dock_stage'] = 'nav_to_dock'
-            top['note'] = 'Navigating to dock area (0, 0) before sending Opcode 143 (Seek Dock)…'
+            top['note'] = 'Navigating to dock area (0, 0) with vacuum off…'
+            self._cleaning_fn(False)
         else:
             top['note'] = 'Executing…'
 
         if top.get('params', {}).get('cleaning'):
             self._cleaning_fn(True)
+        else:
+            self._cleaning_fn(False)
         self._dispatch_fn(top)
 
     def _advance_or_finish_polygon_locked(self, top, reason=''):
@@ -600,12 +610,21 @@ class TaskQueueManager:
             if top['type'] == 'clean_polygon':
                 self._advance_or_finish_polygon_locked(top, reason=reason)
                 return
-            if top['type'] == 'return_home' and top.get('params', {}).get('seek_dock', True):
-                top['_dock_stage'] = 'seeking_ir'
-                top['_dispatched_at'] = now
-                top['note'] = 'Reached dock area — sent Opcode 143 (Seek Dock) for IR docking!'
+            if top['type'] == 'return_home':
+                if top.get('params', {}).get('seek_dock', False):
+                    top['_dock_stage'] = 'seeking_ir'
+                    top['_dispatched_at'] = now
+                    top['note'] = 'Reached dock area — sent Opcode 143 (Seek Dock) for IR docking!'
+                    self._cleaning_fn(False)
+                    self._seek_dock_fn()
+                    return
+                top['status'] = 'completed'
+                top['note'] = reason or 'Returned to dock at (0.00, 0.00) m'
                 self._cleaning_fn(False)
-                self._seek_dock_fn()
+                finished = self._queue.pop(0)
+                self._history.insert(0, finished)
+                del self._history[10:]
+                self._maybe_start_top_locked()
                 return
             top['status'] = 'completed'
             top['note'] = reason or 'Completed'
@@ -622,13 +641,22 @@ class TaskQueueManager:
                 # Skip blocked waypoint and continue cleaning the rest of the polygon
                 self._advance_or_finish_polygon_locked(top, reason=reason)
                 return
-            if top['type'] == 'return_home' and top.get('params', {}).get('seek_dock', True):
-                # Even if Nav2 stopped near the dock, trigger Roomba Opcode 143 Seek Dock
-                top['_dock_stage'] = 'seeking_ir'
-                top['_dispatched_at'] = now
-                top['note'] = 'Triggered Opcode 143 (Seek Dock) to find Home Base beams…'
+            if top['type'] == 'return_home':
+                if top.get('params', {}).get('seek_dock', False):
+                    # Even if Nav2 stopped near the dock, trigger Roomba Opcode 143 Seek Dock if requested
+                    top['_dock_stage'] = 'seeking_ir'
+                    top['_dispatched_at'] = now
+                    top['note'] = 'Triggered Opcode 143 (Seek Dock) to find Home Base beams…'
+                    self._cleaning_fn(False)
+                    self._seek_dock_fn()
+                    return
+                top['status'] = 'completed'
+                top['note'] = reason or 'Returned to dock area'
                 self._cleaning_fn(False)
-                self._seek_dock_fn()
+                finished = self._queue.pop(0)
+                self._history.insert(0, finished)
+                del self._history[10:]
+                self._maybe_start_top_locked()
                 return
             if top.get('params', {}).get('cleaning'):
                 self._cleaning_fn(False)

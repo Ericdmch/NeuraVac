@@ -105,23 +105,56 @@ class TaskQueueTests(unittest.TestCase):
         self.assertIn([138, 7], serial.commands)
         self.assertEqual(bridge.requests[-1]['command'], 'goto')
 
-    def test_return_home_and_dock_endpoint_send_seek_dock_opcode_143(self):
+    def test_return_home_disables_vacuum_and_avoids_opcode_143_by_default(self):
         serial = SerialSink()
         bridge = FakeAutonomyBridge()
         client = create_app(serial, bridge, '/tmp').test_client()
 
-        # Direct dock endpoint sends opcode 143
+        # 1. Turn on cleaning motors first
+        client.post('/roomba/cleaning', json={'vacuum': True, 'main_brush': True, 'side_brush': True})
+        self.assertIn([138, 7], serial.commands)
+        serial.commands.clear()
+
+        # 2. Direct /roomba/dock endpoint defaults to quiet return_home without Opcode 143
         r_dock = client.post('/roomba/dock')
         self.assertEqual(r_dock.status_code, 200)
-        self.assertIn([143], serial.commands)
+        # Guarantees motors are commanded OFF with [138, 0]
+        self.assertIn([138, 0], serial.commands)
+        # Opcode 143 must NOT be sent
+        self.assertNotIn([143], serial.commands)
 
-        # Queued return_home navigates to (0, 0) then triggers opcode 143 on completion
+        # 3. Queued return_home navigates to (0, 0) with cleaning disabled
         serial.commands.clear()
         r_task = client.post('/tasks', json={'type': 'return_home', 'title': 'Return to Dock'})
         self.assertEqual(r_task.status_code, 201)
         self.assertEqual(bridge.requests[-1], {'command': 'goto', 'return_goal': [0.0, 0.0]})
+        self.assertIn([138, 0], serial.commands)
 
-        # Snapshot while armed so _busy_seen is recorded, then complete Nav2 leg -> triggers Opcode 143
+        # 4. Snapshot while armed so _busy_seen is recorded, then complete Nav2 leg -> completes quietly
+        client.get('/tasks')
+        bridge.state = {'state': 'complete', 'armed': False, 'reason': 'Arrived at (0.00, 0.00) m'}
+        snap = client.get('/tasks').json
+        # Opcode 143 must NOT be sent on completion
+        self.assertNotIn([143], serial.commands)
+        # Task completed and moved to history
+        self.assertEqual(len(snap['queue']), 0)
+        self.assertEqual(snap['history'][0]['type'], 'return_home')
+        self.assertEqual(snap['history'][0]['status'], 'completed')
+        self.assertIn('Arrived at', snap['history'][0]['note'])
+
+    def test_return_home_with_explicit_seek_dock_sends_opcode_143(self):
+        serial = SerialSink()
+        bridge = FakeAutonomyBridge()
+        client = create_app(serial, bridge, '/tmp').test_client()
+
+        # Direct dock with opcode143: true sends [143]
+        r_dock = client.post('/roomba/dock', json={'opcode143': True})
+        self.assertEqual(r_dock.status_code, 200)
+        self.assertIn([143], serial.commands)
+
+        # Queued task with explicit seek_dock: True triggers [143] on completion
+        serial.commands.clear()
+        client.post('/tasks', json={'type': 'return_home', 'params': {'seek_dock': True}})
         client.get('/tasks')
         bridge.state = {'state': 'complete', 'armed': False, 'reason': 'Arrived at (0.00, 0.00) m'}
         snap = client.get('/tasks').json

@@ -1589,18 +1589,18 @@ function SlamMapView() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'return_home',
-            title: 'Return to Dock (Opcode 143)',
-            params: { target: [0.0, 0.0], seek_dock: true, cleaning: false },
+            title: 'Return to Dock',
+            params: { target: [0.0, 0.0], seek_dock: false, cleaning: false },
             position: 'top',
           }),
         })
           .then(r => (r.ok ? r.json() : null))
           .then(d => {
             if (d) window.dispatchEvent(new CustomEvent('neuravac:tasks', { detail: d }));
-            setMissionNote('Returning to (0, 0) and triggering Roomba OI Opcode 143 (Seek Dock)…');
+            setMissionNote('Returning to dock (0, 0) with vacuum off…');
           });
       }}>
-        RETURN TO DOCK (143)
+        RETURN TO DOCK
       </button>
       <button className="autonomy-btn stop-btn" type="button" onClick={() => sendMission('stop')}>
         STOP
@@ -2027,22 +2027,22 @@ function TaskQueuePanel() {
             className="task-preset-btn"
             onClick={() => apiCall('/tasks', 'POST', {
               type: 'return_home',
-              title: 'Return to Dock (Opcode 143)',
-              params: { target: [0.0, 0.0], seek_dock: true, cleaning: false },
+              title: 'Return to Dock',
+              params: { target: [0.0, 0.0], seek_dock: false, cleaning: false },
             })}
           >
-            + Return to Dock (143)
+            + Return to Dock
           </button>
           <button
             type="button"
             className="task-preset-btn"
             onClick={() => apiCall('/tasks', 'POST', {
               type: 'seek_dock',
-              title: 'Seek Dock Beams Now (Opcode 143)',
+              title: 'Seek Dock Beams (IR)',
               params: { seek_dock: true, cleaning: false },
             })}
           >
-            + Seek Dock Now (143)
+            + Seek Dock Beams (IR)
           </button>
         </div>
 
