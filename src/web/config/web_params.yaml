@@ -5,3 +5,9 @@ web_node:
     min_drive_speed_mm_s: 50
     max_drive_speed_mm_s: 500
     drive_speed_step_mm_s: 50
+    # Obstacle buffer zone (red high-cost area) and inflation display parameters.
+    # Keep buffer_zone_radius_m aligned with robot_radius in autonomy_nav2.yaml.
+    buffer_zone_radius_m: 0.10
+    inflation_radius_m: 0.18
+    high_cost_threshold: 99
+    show_costmap_by_default: true

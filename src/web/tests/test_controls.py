@@ -47,6 +47,21 @@ class ControlTests(unittest.TestCase):
         self.key('A', False)
         self.assertEqual(self.serial.commands[-1], [137, 0, 0, 128, 0])
 
+    def test_cleaning_motor_controls_update_state_and_send_opcode_138(self):
+        initial = self.client.get('/roomba/cleaning')
+        self.assertEqual(initial.status_code, 200)
+        self.assertEqual(initial.json['cleaning'], {'vacuum': False, 'side_brush': False, 'main_brush': False})
+
+        resp = self.client.post('/roomba/cleaning', json={'vacuum': True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json['cleaning'], {'vacuum': True, 'side_brush': False, 'main_brush': False})
+        self.assertEqual(self.serial.commands[-1], [138, 2])
+
+        resp2 = self.client.post('/roomba/cleaning', json={'main_brush': True, 'side_brush': True})
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.json['cleaning'], {'vacuum': True, 'side_brush': True, 'main_brush': True})
+        self.assertEqual(self.serial.commands[-1], [138, 7])
+
 
 if __name__ == '__main__':
     unittest.main()

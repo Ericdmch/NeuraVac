@@ -1,47 +1,76 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NeuraVac autonomous mapping</title>
+<title>NeuraVac autonomous mapping &amp; navigation</title>
 <style>
 :root {color-scheme: dark; font-family: system-ui, sans-serif; background:#101821;color:#eaf2f5}
 body {max-width:1050px;margin:2rem auto;padding:0 1rem} h1 {margin-bottom:.3rem} p {color:#b9cbd5}
 .panel {background:#1b2934;border:1px solid #344953;border-radius:12px;padding:1rem;margin:1rem 0}
 canvas {display:block;width:100%;max-width:720px;height:auto;image-rendering:pixelated;background:#46515a;cursor:crosshair}
 button {padding:.7rem 1rem;border:0;border-radius:7px;margin:.2rem;background:#91e0ce;color:#10251f;font-weight:700;cursor:pointer}
+button.goto {background:#6ec6ff;color:#0b2236}
 button.stop {background:#ff9393;color:#361616} button:disabled {opacity:.45;cursor:not-allowed}
+label.toggle {display:inline-flex;align-items:center;gap:.4rem;margin-left:.6rem;font-size:.95rem;color:#cfe2ec;cursor:pointer}
 #state {font-weight:700} #reason {color:#ffc68e}
-</style></head><body><h1>Autonomous mapping</h1>
-<p>Select a reachable point on the map for the robot to return to. Start only when the robot and its surroundings are ready for supervised operation.</p>
-<div class="panel"><span id="state">Waiting for coordinator</span><p id="reason"></p><p id="selection">No return point selected.</p>
-<button id="start" disabled>Start mapping</button><button id="return">End mapping and return</button><button id="stop" class="stop">Stop and wait</button></div>
-<div class="panel"><canvas id="map" aria-label="Room map; click to select the return point"></canvas><p>Dark = unknown, light = free, black = obstacle, blue = robot, orange = return point. Coordinates are in the map frame.</p></div>
+</style></head><body><h1>Autonomous mapping &amp; navigation</h1>
+<p>Click any known-free cell on the map/costmap to select a target point. Use <b>Go to selected point</b> to drive directly there with Nav2, or <b>Start mapping</b> to explore frontiers first and return there when finished.</p>
+<div class="panel"><span id="state">Waiting for coordinator</span><p id="reason"></p><p id="selection">No target point selected.</p>
+<button id="goto" class="goto" disabled>Go to selected point</button>
+<button id="start" disabled>Start mapping</button>
+<button id="return">End mapping and return</button>
+<button id="stop" class="stop">Stop and wait</button>
+<label class="toggle"><input type="checkbox" id="show_costmap" checked> Show Nav2 Costmap overlay</label></div>
+<div class="panel"><canvas id="map" aria-label="Room map; click to select target point"></canvas>
+<p>Light = free, black = obstacle, red/amber tint = Nav2 obstacle clearance/inflation costmap, green line/dot = active Nav2 path &amp; goal, blue = robot, orange = selected target point.</p></div>
 <script>
 const canvas = document.getElementById('map'), ctx = canvas.getContext('2d');
-let grid = null, pose = null, selected = null, state = null;
-function cellWorld(col,row) { const a=grid.origin_yaw,c=Math.cos(a),s=Math.sin(a),x=(col+.5)*grid.resolution,y=(row+.5)*grid.resolution;
-  return [grid.origin_x+c*x-s*y,grid.origin_y+s*x+c*y]; }
-function worldCell(x,y) { const a=grid.origin_yaw,c=Math.cos(a),s=Math.sin(a),dx=x-grid.origin_x,dy=y-grid.origin_y;
-  return [(c*dx+s*dy)/grid.resolution,(-s*dx+c*dy)/grid.resolution]; }
+let grid = null, costmap = null, path = null, pose = null, selected = null, state = null;
+function cellWorld(g,col,row) { const a=g.origin_yaw,c=Math.cos(a),s=Math.sin(a),x=(col+.5)*g.resolution,y=(row+.5)*g.resolution;
+  return [g.origin_x+c*x-s*y,g.origin_y+s*x+c*y]; }
+function worldCell(g,x,y) { const a=g.origin_yaw,c=Math.cos(a),s=Math.sin(a),dx=x-g.origin_x,dy=y-g.origin_y;
+  return [(c*dx+s*dy)/g.resolution,(-s*dx+c*dy)/g.resolution]; }
 function draw() { if (!grid) return; canvas.width=grid.width; canvas.height=grid.height;
+  const showCost=document.getElementById('show_costmap').checked && costmap;
   const img=ctx.createImageData(grid.width,grid.height);
   for(let row=0;row<grid.height;row++) for(let col=0;col<grid.width;col++) {
     const v=grid.data[row*grid.width+col], shade=v<0?70:Math.round(235*(100-v)/100), i=((grid.height-1-row)*grid.width+col)*4;
-    img.data[i]=img.data[i+1]=img.data[i+2]=shade;img.data[i+3]=255;
+    let r=shade,g=shade,b=shade;
+    if(showCost && v===0) {
+      const [wx,wy]=cellWorld(grid,col,row), [cc,cr]=worldCell(costmap,wx,wy), ci=Math.floor(cc), ri=Math.floor(cr);
+      if(ci>=0&&ri>=0&&ci<costmap.width&&ri<costmap.height) {
+        const cv=costmap.data[ri*costmap.width+ci];
+        if(cv>=99){r=220;g=75;b=75;}
+        else if(cv>0){const t=cv/98;r=Math.round(shade*(1-.35*t)+255*.35*t);g=Math.round(shade*(1-.2*t)+170*.2*t);b=Math.round(shade*(1-.5*t)+60*.5*t);}
+      }
+    }
+    img.data[i]=r;img.data[i+1]=g;img.data[i+2]=b;img.data[i+3]=255;
   } ctx.putImageData(img,0,0);
-  function dot(point,color) { if(!point)return;const [x,y]=worldCell(...point);ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,grid.height-y,Math.max(2,grid.width/100),0,Math.PI*2);ctx.fill(); }
+  if(path && path.length>1) {
+    ctx.strokeStyle='#39e58c';ctx.lineWidth=1.5;ctx.beginPath();
+    path.forEach((pt,idx)=>{const [x,y]=worldCell(grid,...pt);if(idx===0)ctx.moveTo(x,grid.height-y);else ctx.lineTo(x,grid.height-y);});
+    ctx.stroke();
+  }
+  function dot(point,color) { if(!point)return;const [x,y]=worldCell(grid,...point);ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,grid.height-y,Math.max(2.2,grid.width/90),0,Math.PI*2);ctx.fill(); }
+  if(state?.current_goal) dot(state.current_goal,'#39e58c');
   dot(pose,'#40aaff'); dot(selected,'#ff9b32'); }
+document.getElementById('show_costmap').onchange=draw;
 canvas.addEventListener('click', e=>{if(!grid)return; const rect=canvas.getBoundingClientRect();
  const col=Math.floor((e.clientX-rect.left)*grid.width/rect.width), row=grid.height-1-Math.floor((e.clientY-rect.top)*grid.height/rect.height);
  if(col<0||row<0||col>=grid.width||row>=grid.height)return;
- if(grid.data[row*grid.width+col]!==0){document.getElementById('selection').textContent='Choose a known free cell.';return;}
- selected=cellWorld(col,row);document.getElementById('selection').textContent=`Return point: ${selected[0].toFixed(2)}, ${selected[1].toFixed(2)} m`;
- document.getElementById('start').disabled=false;draw(); });
-async function command(command) {const body={command};if(command==='start')body.return_goal=selected;
+ if(grid.data[row*grid.width+col]!==0){document.getElementById('selection').textContent='Choose a known free cell (light area).';return;}
+ selected=cellWorld(grid,col,row);document.getElementById('selection').textContent=`Selected target: ${selected[0].toFixed(2)}, ${selected[1].toFixed(2)} m`;
+ refreshButtons();draw(); });
+function refreshButtons() {
+  const ready = Boolean(selected && grid && pose && state && !['exploring','returning'].includes(state.state));
+  document.getElementById('start').disabled = !ready;
+  document.getElementById('goto').disabled = !ready;
+}
+async function command(command) {const body={command};if(command==='start'||command==='goto')body.return_goal=selected;
  try {const r=await fetch('/api/mission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await r.json();document.getElementById('reason').textContent=data.error||data.message;}
  catch(e){document.getElementById('reason').textContent='Request failed; check the connection.';} }
-document.getElementById('start').onclick=()=>command('start');document.getElementById('return').onclick=()=>command('return');document.getElementById('stop').onclick=()=>command('stop');
-async function refresh(){try{const r=await fetch('/api/state',{cache:'no-store'}),d=await r.json();grid=d.map;pose=d.pose;state=d.state;
+document.getElementById('goto').onclick=()=>command('goto');document.getElementById('start').onclick=()=>command('start');document.getElementById('return').onclick=()=>command('return');document.getElementById('stop').onclick=()=>command('stop');
+async function refresh(){try{const r=await fetch('/api/state',{cache:'no-store'}),d=await r.json();grid=d.map;costmap=d.costmap;path=d.path;pose=d.pose;state=d.state;
  document.getElementById('state').textContent=state ? state.state.toUpperCase() : 'Waiting for coordinator';
- document.getElementById('start').disabled=!(selected && grid && pose && state && !['exploring','returning'].includes(state.state));
+ refreshButtons();
  if(state?.reason)document.getElementById('reason').textContent=state.reason;draw();}catch(e){document.getElementById('state').textContent='Dashboard disconnected';} }
 setInterval(refresh,1000);refresh();
 </script></body></html>

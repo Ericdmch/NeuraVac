@@ -30,10 +30,16 @@ class AutonomyNode(Node):
     def __init__(self):
         super().__init__('autonomous_mapping')
         self.declare_parameter('enable_motion', False)
-        self.declare_parameter('clearance_m', .30)
+        self.declare_parameter('clearance_m', .10)
         self.declare_parameter('goal_timeout_s', 120.)
         self.declare_parameter('behavior_tree', '')
+        self.declare_parameter('click_to_move_speed_multiplier', 1.0)
+        self.declare_parameter('max_autonomous_linear_vel_m_s', .35)
+        self.declare_parameter('max_autonomous_angular_vel_rad_s', 1.5)
+        self.declare_parameter('max_goto_retries', 5)
         self.mission = MissionSupervisor()
+        self.goto_only_active = False
+        self.goto_retries = 0
         self.mapping = self.position = self.mapping_at = self.position_at = None
         self.nav_velocity = self.nav_velocity_at = None
         self.driver_status = self.driver_status_at = None
@@ -117,6 +123,8 @@ class AutonomyNode(Node):
             command = request.get('command')
             if command == 'start':
                 self.start(request.get('return_goal'))
+            elif command == 'goto':
+                self.start(request.get('return_goal'), goto_only=True)
             elif command == 'return':
                 if self.mission.state == 'exploring':
                     if not self.armed:
@@ -133,9 +141,54 @@ class AutonomyNode(Node):
             self.mission.reason = str(error)
         self.publish_state()
 
-    def start(self, target):
+    def _goto_reachable(self, planner, position, target):
+        goal = planner.geometry.world_cell(*target)
+        if goal is None:
+            return False
+        gx, gy = goal
+        r = max(1, planner.clearance - 1)
+        def cell_clear(cx, cy):
+            if not (0 <= cx < planner.geometry.width and 0 <= cy < planner.geometry.height):
+                return False
+            if planner.rows[cy][cx] >= 75:
+                return False
+            for dy in range(-r, r + 1):
+                for dx in range(-r, r + 1):
+                    if dx * dx + dy * dy > r * r:
+                        continue
+                    xx, yy = cx + dx, cy + dy
+                    if 0 <= xx < planner.geometry.width and 0 <= yy < planner.geometry.height:
+                        if planner.rows[yy][xx] >= 75:
+                            return False
+            return True
+        if cell_clear(gx, gy):
+            return True
+        # Snap clicked point to the nearest cell outside the wall buffer within 1.0 m (20 cells)
+        best = None
+        best_d2 = 1e9
+        for rad in range(1, 21):
+            for dy in range(-rad, rad + 1):
+                for dx in range(-rad, rad + 1):
+                    d2 = dx * dx + dy * dy
+                    if d2 >= best_d2:
+                        continue
+                    if cell_clear(gx + dx, gy + dy):
+                        best = (gx + dx, gy + dy)
+                        best_d2 = d2
+            if best is not None:
+                break
+        if best is not None:
+            wx, wy = planner.geometry.cell_world(*best)
+            self.mission.return_goal = (round(wx, 3), round(wy, 3))
+            return True
+        return False
+
+    def start(self, target, goto_only=False):
         if not self.get_parameter('enable_motion').value:
             raise ValueError('Autonomous motion is disabled')
+        if goto_only and (self.mission.state in ('exploring', 'returning') or self.armed):
+            self.halt('redirecting to new point')
+            self.mission = MissionSupervisor()
         if self.mission.state in ('exploring', 'returning') or self.armed:
             raise ValueError('Mission already active')
         if not self.arm_client.service_is_ready() or not self.disarm_client.service_is_ready():
@@ -150,10 +203,19 @@ class AutonomyNode(Node):
             raise ValueError('Invalid return point')
         planner = self.planner()
         self.mission.start(target, True)
+        self.goto_only_active = bool(goto_only)
+        self.goto_retries = 0
+        if goto_only:
+            self.mission.request_return()
         self.rejected.clear()
         self.failures = 0
         self.generation += 1
-        self.plan_future = self.plan_executor.submit(planner.return_reachable, self.position, tuple(target))
+        check_fn = (
+            (lambda: self._goto_reachable(planner, self.position, tuple(target)))
+            if goto_only
+            else (lambda: planner.return_reachable(self.position, tuple(target)))
+        )
+        self.plan_future = self.plan_executor.submit(check_fn)
         self.plan_generation = self.generation
         self.plan_started = time.monotonic()
         self.plan_kind = 'preflight'
@@ -177,7 +239,10 @@ class AutonomyNode(Node):
         self.driver_status_at = time.monotonic()
         self.driver_status = 'ARMED'
         self.drive_pub.publish(Twist())
-        self.plan_next()
+        if self.mission.state == 'returning':
+            self.send_goal(self.mission.return_goal)
+        else:
+            self.plan_next()
 
     def plan_next(self):
         try:
@@ -287,6 +352,12 @@ class AutonomyNode(Node):
         self.nav_velocity = self.nav_velocity_at = None
         self.goal_started = None
         if self.mission.state == 'returning':
+            max_retries = int(self.get_parameter('max_goto_retries').value)
+            if not succeeded and self.goto_only_active and self.armed and self.goto_retries < max_retries:
+                self.goto_retries += 1
+                self.mission.reason = f'Retrying path to target ({self.goto_retries}/{max_retries})…'
+                self.send_goal(self.mission.return_goal)
+                return
             self.mission.return_finished(succeeded)
             self.halt(self.mission.reason, preserve_state=True)
         elif self.mission.state == 'exploring':
@@ -340,8 +411,20 @@ class AutonomyNode(Node):
             elif self.goal_started is not None and now - self.goal_started > float(self.get_parameter('goal_timeout_s').value):
                 self.halt('Navigation timed out; waiting for operator')
             else:
-                command = (self.nav_velocity if self.nav_velocity_at is not None and
-                           now - self.nav_velocity_at <= .25 else Twist())
+                if self.nav_velocity_at is not None and now - self.nav_velocity_at <= .25:
+                    mult = float(self.get_parameter('click_to_move_speed_multiplier').value) if self.goto_only_active else 1.0
+                    if not math.isfinite(mult) or mult <= 0:
+                        mult = 1.0
+                    max_lin = max(.05, float(self.get_parameter('max_autonomous_linear_vel_m_s').value))
+                    max_ang = max(.1, float(self.get_parameter('max_autonomous_angular_vel_rad_s').value))
+                    if mult == 1.0:
+                        command = self.nav_velocity
+                    else:
+                        command = Twist()
+                        command.linear.x = max(-max_lin, min(max_lin, self.nav_velocity.linear.x * mult))
+                        command.angular.z = max(-max_ang, min(max_ang, self.nav_velocity.angular.z * mult))
+                else:
+                    command = Twist()
                 self.drive_pub.publish(command)
                 self.poll_plan()
         self.publish_state()
@@ -349,7 +432,8 @@ class AutonomyNode(Node):
     def publish_state(self):
         self.state_pub.publish(String(data=json.dumps({'state': self.mission.state,
             'reason': self.mission.reason, 'return_goal': self.mission.return_goal,
-            'current_goal': self.current_goal, 'armed': self.armed})))
+            'current_goal': self.current_goal, 'armed': self.armed,
+            'motion_enabled': bool(self.get_parameter('enable_motion').value)})))
 
 
 def main():

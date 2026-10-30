@@ -11,9 +11,12 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from flask import Flask, Response, jsonify, render_template, request
 from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Path
 import rclpy
+from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
+from rcl_interfaces.srv import GetParameters, SetParameters
 from rclpy.executors import MultiThreadedExecutor, ExternalShutdownException
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 from roomba_interfaces.msg import LidarPoint, SerialData
@@ -22,6 +25,7 @@ from std_srvs.srv import Trigger
 from std_msgs.msg import String
 
 from .override import roomba_drive
+from .cleaning import cleaning_command
 from .camera import CameraCapture, LatestJpeg
 from .telemetry import SensorState
 from .travel_heading import TravelHeading
@@ -38,6 +42,10 @@ DEFAULT_DRIVE_CONFIG = {
     'min_drive_speed_mm_s': 50,
     'max_drive_speed_mm_s': 500,
     'drive_speed_step_mm_s': 50,
+    'buffer_zone_radius_m': 0.10,
+    'inflation_radius_m': 0.18,
+    'high_cost_threshold': 99,
+    'show_costmap_by_default': True,
 }
 
 OVERRIDE_MOTIONS = {
@@ -194,12 +202,126 @@ class LidarBridge:
         self._pose_lock = threading.Lock()
         self._slam_pose = None
         self._travel_heading = TravelHeading()
+        self._autonomy_lock = threading.Lock()
+        self._costmap = None
+        self._costmap_at = None
+        self._nav_path = None
+        self._nav_path_at = None
+        self._autonomy_state = None
+        self._autonomy_state_at = None
+        self._driver_status = None
+        self._motion_enabled = False
+        durable = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
         self.bridge.add_subscriber(SerialData, 'serial_tx', self.drive_callback, 10)
-        self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, 1)
+        self.bridge.add_subscriber(OccupancyGrid, 'slam/map', self.map_callback, durable)
+        self.bridge.add_subscriber(OccupancyGrid, '/global_costmap/costmap', self.costmap_callback, durable)
+        self.bridge.add_subscriber(Path, '/plan', self.path_callback, 10)
         self.bridge.add_subscriber(PoseStamped, 'slam/pose', self.pose_callback, 10)
         self.bridge.add_subscriber(String, 'slam/status', self.status_callback, 1)
+        self.bridge.add_subscriber(String, 'autonomy/state', self.autonomy_state_callback, 10)
+        self.bridge.add_subscriber(String, 'autonomy/driver_status', self.driver_status_callback, 10)
+        self._autonomy_pub = self.bridge.add_publisher(String, 'autonomy/request', 10)
         self._slam_reset_client = self.bridge.create_client(Trigger, 'slam/reset')
         self._slam_save_client = self.bridge.create_client(Trigger, 'slam/save')
+        self._disarm_client = self.bridge.create_client(Trigger, 'autonomy/disarm')
+        self._set_param_client = self.bridge.create_client(
+            SetParameters, '/autonomous_mapping/set_parameters'
+        )
+        self._get_param_client = self.bridge.create_client(
+            GetParameters, '/autonomous_mapping/get_parameters'
+        )
+
+    def costmap_callback(self, message):
+        encoded = base64.b64encode(bytes(value & 0xff for value in message.data)).decode('ascii')
+        payload = {
+            'width': int(message.info.width),
+            'height': int(message.info.height),
+            'resolution': float(message.info.resolution),
+            'origin_x': float(message.info.origin.position.x),
+            'origin_y': float(message.info.origin.position.y),
+            'data': encoded,
+        }
+        with self._autonomy_lock:
+            self._costmap = payload
+            self._costmap_at = time.monotonic()
+
+    def path_callback(self, message):
+        pts = [
+            [float(p.pose.position.x), float(p.pose.position.y)]
+            for p in message.poses
+            if math.isfinite(p.pose.position.x) and math.isfinite(p.pose.position.y)
+        ]
+        with self._autonomy_lock:
+            self._nav_path = pts
+            self._nav_path_at = time.monotonic()
+
+    def autonomy_state_callback(self, message):
+        try:
+            data = json.loads(message.data)
+            if not isinstance(data, dict):
+                return
+        except (TypeError, ValueError):
+            return
+        with self._autonomy_lock:
+            self._autonomy_state = data
+            self._autonomy_state_at = time.monotonic()
+            if isinstance(data.get('motion_enabled'), bool):
+                self._motion_enabled = data['motion_enabled']
+
+    def driver_status_callback(self, message):
+        with self._autonomy_lock:
+            self._driver_status = message.data
+
+    def set_motion_enabled(self, enabled):
+        if not self._set_param_client.wait_for_service(timeout_sec=0.5):
+            return False, 'Autonomous mapping node is unavailable.'
+        req = SetParameters.Request()
+        param = Parameter()
+        param.name = 'enable_motion'
+        param.value = ParameterValue(
+            type=ParameterType.PARAMETER_BOOL, bool_value=bool(enabled)
+        )
+        req.parameters = [param]
+        completed = threading.Event()
+        future = self._set_param_client.call_async(req)
+        future.add_done_callback(lambda _f: completed.set())
+        if not completed.wait(timeout=1.5):
+            return False, 'Setting enable_motion timed out.'
+        try:
+            res = future.result()
+            ok = bool(res.results and res.results[0].successful)
+        except Exception as error:
+            return False, f'Failed to set enable_motion: {error}'
+        if ok:
+            with self._autonomy_lock:
+                self._motion_enabled = bool(enabled)
+            if not enabled and self._disarm_client.service_is_ready():
+                self._disarm_client.call_async(Trigger.Request())
+        return ok, ('Autonomous motion enabled.' if enabled else 'Autonomous motion locked.')
+
+    def send_autonomy_request(self, payload):
+        self._autonomy_pub.publish(String(data=json.dumps(payload)))
+
+    def autonomy_snapshot(self):
+        now = time.monotonic()
+        with self._pose_lock:
+            pose = self._slam_pose
+        with self._autonomy_lock:
+            costmap = self._costmap
+            path = self._nav_path if self._nav_path_at and now - self._nav_path_at <= 3.0 else None
+            state = self._autonomy_state if self._autonomy_state_at and now - self._autonomy_state_at <= 2.0 else None
+            return {
+                'state': state,
+                'driver_status': self._driver_status,
+                'motion_enabled': self._motion_enabled,
+                'pose': [pose['x'], pose['y']] if pose else None,
+                'costmap': costmap,
+                'path': path,
+            }
 
     def reset_slam(self):
         if not self._slam_reset_client.wait_for_service(timeout_sec=0.5):
@@ -404,6 +526,13 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
     )
     speed = default_speed
 
+    @app.after_request
+    def disable_browser_cache(response):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+
     @app.get('/')
     def index():
         return render_template('index.html')
@@ -509,6 +638,32 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         serial_bridge.send_message(roomba_drive(0, STRAIGHT))
         return jsonify(stopped=True, speed=speed)
 
+    cleaning_state = {'vacuum': False, 'side_brush': False, 'main_brush': False}
+
+    @app.get('/roomba/cleaning')
+    def get_roomba_cleaning():
+        return jsonify(cleaning=dict(cleaning_state), **cleaning_state)
+
+    @app.post('/roomba/cleaning')
+    def set_roomba_cleaning():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or not any(
+            key in payload for key in ('vacuum', 'side_brush', 'main_brush')
+        ):
+            return jsonify(error='Provide boolean vacuum, side_brush, and/or main_brush fields.'), 400
+        next_vac = payload.get('vacuum', cleaning_state['vacuum'])
+        next_side = payload.get('side_brush', cleaning_state['side_brush'])
+        next_main = payload.get('main_brush', cleaning_state['main_brush'])
+        try:
+            command = cleaning_command(next_vac, next_side, next_main)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        cleaning_state['vacuum'] = next_vac
+        cleaning_state['side_brush'] = next_side
+        cleaning_state['main_brush'] = next_main
+        serial_bridge.send_message(SerialData(data=command))
+        return jsonify(sent=True, cleaning=dict(cleaning_state), **cleaning_state)
+
     @app.post('/roomba/led')
     def roomba_led():
         payload = request.get_json(silent=True) or {}
@@ -597,6 +752,58 @@ def create_app(serial_bridge, lidar_bridge, template_dir, static_dir=None, camer
         if not success:
             return jsonify(error=message), 503
         return jsonify(reset=True, message=message)
+
+    costmap_config = {
+        'buffer_zone_radius_m': float(settings.get('buffer_zone_radius_m', 0.10)),
+        'inflation_radius_m': float(settings.get('inflation_radius_m', 0.18)),
+        'high_cost_threshold': int(settings.get('high_cost_threshold', 99)),
+        'show_costmap_by_default': bool(settings.get('show_costmap_by_default', True)),
+    }
+
+    @app.get('/autonomy/state')
+    def autonomy_state():
+        snap = (
+            lidar_bridge.autonomy_snapshot()
+            if hasattr(lidar_bridge, 'autonomy_snapshot')
+            else {'state': None, 'costmap': None, 'path': None, 'pose': None, 'motion_enabled': False}
+        )
+        snap['config'] = costmap_config
+        response = jsonify(snap)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.post('/autonomy/motion')
+    def autonomy_motion():
+        payload = request.get_json(silent=True) or {}
+        enabled = payload.get('enabled')
+        if not isinstance(enabled, bool):
+            return jsonify(error='enabled boolean is required'), 400
+        if not hasattr(lidar_bridge, 'set_motion_enabled'):
+            return jsonify(error='Autonomy bridge unavailable'), 503
+        ok, message = lidar_bridge.set_motion_enabled(enabled)
+        if not ok:
+            return jsonify(error=message), 503
+        return jsonify(enabled=enabled, message=message)
+
+    @app.post('/autonomy/mission')
+    def autonomy_mission():
+        payload = request.get_json(silent=True) or {}
+        command = payload.get('command')
+        if command not in ('start', 'goto', 'return', 'stop'):
+            return jsonify(error='Invalid mission command'), 400
+        body = {'command': command}
+        if command in ('start', 'goto'):
+            target = payload.get('return_goal')
+            if (not isinstance(target, list) or len(target) != 2 or any(
+                    isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+                    for v in target)):
+                return jsonify(error='Click a valid free cell on the map first.'), 400
+            body['return_goal'] = [float(target[0]), float(target[1])]
+            if hasattr(lidar_bridge, 'set_motion_enabled'):
+                lidar_bridge.set_motion_enabled(True)
+        if hasattr(lidar_bridge, 'send_autonomy_request'):
+            lidar_bridge.send_autonomy_request(body)
+        return jsonify(accepted=True, command=command, message=f'Sent {command} command.'), 202
 
     return app
 

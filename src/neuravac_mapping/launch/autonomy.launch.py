@@ -15,7 +15,7 @@ def generate_launch_description():
     tree = str(share / 'behavior_trees' / 'explore_no_recovery.xml')
     return LaunchDescription([
         DeclareLaunchArgument('enable_motion', default_value='false'),
-        DeclareLaunchArgument('enable_dashboard', default_value='true'),
+        DeclareLaunchArgument('enable_dashboard', default_value='false'),
         Node(package='nav2_controller', executable='controller_server', output='screen',
              parameters=[config], remappings=[('cmd_vel', 'autonomy/nav_cmd_vel')]),
         Node(package='nav2_planner', executable='planner_server', output='screen', parameters=[config]),
@@ -24,9 +24,10 @@ def generate_launch_description():
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
              name='lifecycle_manager_autonomy', output='screen', parameters=[{
                  'autostart': True, 'node_names': ['controller_server', 'planner_server', 'bt_navigator']}]),
-        Node(package='neuravac_mapping', executable='autonomy_node', output='screen', parameters=[{
-            'enable_motion': ParameterValue(LaunchConfiguration('enable_motion'), value_type=bool),
-            'behavior_tree': tree}]),
+        Node(package='neuravac_mapping', executable='autonomy_node', output='screen', parameters=[
+            config,
+            {'enable_motion': ParameterValue(LaunchConfiguration('enable_motion'), value_type=bool),
+             'behavior_tree': tree}]),
         Node(package='neuravac_mapping', executable='autonomy_dashboard', output='screen',
              condition=IfCondition(LaunchConfiguration('enable_dashboard'))),
     ])

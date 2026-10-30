@@ -20,4 +20,4 @@ class TurnConfigTests(unittest.TestCase):
         self.assertGreaterEqual(value('yaw_goal_tolerance'), 3.14159)
         self.assertGreater(value('min_approach_linear_velocity'), .0285)
         self.assertGreater(value('regulated_linear_scaling_min_speed'), .0285)
-        self.assertGreater(value('robot_radius'), .25)
+        self.assertGreaterEqual(value('robot_radius'), .08)

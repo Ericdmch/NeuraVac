@@ -22,7 +22,7 @@ def safety_from_group_zero(packet):
     return None
 
 
-def drive_command(linear_m_s, angular_rad_s, track_m=.235, max_wheel_m_s=.15):
+def drive_command(linear_m_s, angular_rad_s, track_m=.235, max_wheel_m_s=.45):
     if not all(math.isfinite(v) for v in (linear_m_s, angular_rad_s, track_m, max_wheel_m_s)) or track_m <= 0 or max_wheel_m_s <= 0:
         raise ValueError('Invalid drive values')
     right = linear_m_s + angular_rad_s * track_m / 2

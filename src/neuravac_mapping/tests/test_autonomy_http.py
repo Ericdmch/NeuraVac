@@ -25,6 +25,8 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/mission', json={'command': 'start', 'return_goal': [float('nan'), 0]}).status_code, 400)
         self.assertEqual(self.client.post('/api/mission', json={'command': 'start', 'return_goal': [1, 2]}).status_code, 202)
         self.assertEqual(self.bridge.requests[-1]['return_goal'], [1, 2])
+        self.assertEqual(self.client.post('/api/mission', json={'command': 'goto', 'return_goal': [3, 4]}).status_code, 202)
+        self.assertEqual(self.bridge.requests[-1], {'command': 'goto', 'return_goal': [3, 4]})
 
     def test_stop_and_return_are_accepted(self):
         for command in ('stop', 'return'):

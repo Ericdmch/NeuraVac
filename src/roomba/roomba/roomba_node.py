@@ -29,7 +29,8 @@ class Roomba(Node):
             'encoder_counts_per_rev': 508.8, 'wheel_track_m': 0.235,
             'left_wheel_scale': 1.0, 'right_wheel_scale': 1.0,
             'max_wheel_speed_m_s': 0.6, 'query_timeout_sec': 0.35,
-            'startup_delay_sec': 2.0,
+            'startup_delay_sec': 2.0, 'min_obstacle_distance_m': 0.10,
+            'autonomous_max_wheel_speed_m_s': 0.45,
         }
         for name, default in defaults.items():
             self.declare_parameter(name, default)
@@ -62,6 +63,10 @@ class Roomba(Node):
         self._resync_until = 0.0
         self._last_warning = -float('inf')
         self.query_timeout = max(0.1, float(value('query_timeout_sec')))
+        self.min_obstacle_distance_m = max(0.05, float(value('min_obstacle_distance_m')))
+        self.autonomous_max_wheel_speed_m_s = max(0.10, min(0.50, float(value('autonomous_max_wheel_speed_m_s'))))
+        self.watchdog_input_max_age_sec = 2.5
+        self.watchdog_cmd_timeout_sec = 0.8
         self.serial = serial.Serial(
             port=value('serial_port'), baudrate=value('baudrate'), timeout=0,
             exclusive=True,
@@ -159,21 +164,27 @@ class Roomba(Node):
             self._warn('Use request_telemetry; raw sensor queries are owned by the driver.')
             return
         with self._serial_lock:
-            if payload:
+            if payload and payload[0] not in (138, 139, 140, 141):
                 self.autonomous_watchdog.manual_preempt()
             if not self.serial.is_open:
                 return
-            if len(payload) == 5 and payload[0] == 137 and int.from_bytes(payload[1:3], 'big', signed=True) != 0:
+            is_active_drive = (
+                len(payload) == 5 and payload[0] == 137
+                and int.from_bytes(payload[1:3], 'big', signed=True) != 0
+            )
+            is_active_clean = len(payload) == 2 and payload[0] == 138 and payload[1] != 0
+            if is_active_drive or is_active_clean:
                 with self._sensor_condition:
                     sensor, updated = self._latest_group_zero, self._latest_group_zero_at
                 if (sensor is None or updated is None or time.monotonic() - updated > 1.0
                         or sensor[0] & 0x1c or any(sensor[2:6])
                         or sensor[16] in (1, 2, 3)):
-                    self._warn('Drive blocked: wheel drop, cliff, charging, or stale sensor feedback.')
+                    self._warn('Command blocked: wheel drop, cliff, charging, or stale sensor feedback.')
                     return
                 # A lift puts the OI in Passive mode. Re-arm Safe on a NEW
-                # drive request only, retaining the Roomba safety interlocks.
-                self.serial.write(bytes((131,)))
+                # drive or cleaning request, retaining the Roomba safety interlocks.
+                if is_active_drive or not self.autonomous_watchdog.guard.armed:
+                    self.serial.write(bytes((131,)))
             self.serial.write(payload)
 
     def request_telemetry(self, _request, response):

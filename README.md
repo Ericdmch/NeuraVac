@@ -19,9 +19,9 @@ topics instead of depending on each other directly:
   `/odom`, runs SLAM Toolbox (`async_slam_toolbox_node`), bridges `/slam/map` and
   `/slam/pose` for the dashboard, and coordinates Nav2 autonomous frontier mapping.
 - The vision node publishes camera frames and object detections.
-- The web node bridges ROS topics to a Flask dashboard for monitoring and
-  manual control (`:5000`), while `autonomy_dashboard` serves the autonomous
-  mapping operator page (`:5050`).
+- The web node bridges ROS topics to a unified Flask dashboard (`:5000`) for
+  monitoring, manual drive & vacuum/brush motor control (`WASD` + `V` / opcode `138`),
+  Nav2 costmap buffer visualization, click-to-move navigation, and autonomous room mapping.
 - The bringup package starts the complete robot with one launch command and
   provides stable USB device names.
 - The interfaces package contains the messages shared by those nodes.
@@ -43,11 +43,10 @@ flowchart LR
     DB -->|slam/map + slam/pose| W
     DB -->|slam/map + slam/pose| AN[autonomy_node + Nav2]
     AN -->|autonomy/cmd_vel| R
-    AN <-->|autonomy/state + request| AD[autonomy_dashboard :5050]
+    AN <-->|/global_costmap/costmap + /plan<br/>autonomy/state + autonomy/request| W
     L -->|lidar_points<br/>20 ms incremental batches| W
     V -->|camera frames<br/>detections| W
-    W --> Browser[Web browser<br/>:5000]
-    AD --> Operator[Autonomy UI<br/>:5050]
+    W --> Browser[Unified Web Dashboard<br/>:5000]
 ```
 
 The hardware nodes can run independently. ROS 2 provides the transport and
@@ -144,16 +143,74 @@ ros2 service call /slam/reset std_srvs/srv/Trigger "{}"
 The LiDAR node expects the D6 packet format described in the source and uses
 230400 baud by default.
 
-#### Autonomous mapping (`neuravac_mapping`)
+#### Autonomous mapping and click-to-move (`neuravac_mapping` + `web`)
 
 | Topic, action, or service | Type | Purpose |
 | --- | --- | --- |
-| `autonomy/request` | `std_msgs/msg/String` | JSON mission commands (`start` with `return_goal`, `return`, `stop`). |
-| `autonomy/state` | `std_msgs/msg/String` | JSON mission state (`idle`, `exploring`, `returning`, `complete`, `stopped`). |
+| `autonomy/request` | `std_msgs/msg/String` | JSON mission commands (`goto` to drive to `return_goal`, `start` to explore frontiers and return to `return_goal`, `return`, `stop`). |
+| `autonomy/state` | `std_msgs/msg/String` | JSON mission state (`idle`, `exploring`, `returning`, `complete`, `stopped`, `motion_enabled`). |
 | `autonomy/cmd_vel` | `geometry_msgs/msg/Twist` | Coordinator velocity commands forwarded to `driver_watchdog`. |
 | `autonomy/driver_status` | `std_msgs/msg/String` | Watchdog state (`ARMED`, `DISARMED`, or latched stop reason). |
 | `autonomy/arm` / `autonomy/disarm` | `std_srvs/srv/Trigger` | Arms or disarms autonomous motor output in `roomba_node`. |
-| `navigate_to_pose` | `nav2_msgs/action/NavigateToPose` | Nav2 action server used for frontier and return navigation. |
+| `navigate_to_pose` | `nav2_msgs/action/NavigateToPose` | Nav2 action server used for click-to-move, frontier, and return navigation. |
+| `/global_costmap/costmap` | `nav_msgs/msg/OccupancyGrid` | Nav2 global costmap overlaid on the `:5000` Room map. |
+| `/plan` | `nav_msgs/msg/Path` | Active Nav2 global path rendered in green on the `:5000` Room map. |
+
+The red high-cost obstacle buffer zone and drive speeds on the `:5000` dashboard
+are configured in [`src/web/config/web_params.yaml`](src/web/config/web_params.yaml):
+
+```yaml
+web_node:
+  ros__parameters:
+    default_drive_speed_mm_s: 200
+    min_drive_speed_mm_s: 50
+    max_drive_speed_mm_s: 500
+    drive_speed_step_mm_s: 50
+    buffer_zone_radius_m: 0.10    # Red lethal/inscribed buffer zone around walls (meters)
+    inflation_radius_m: 0.18      # Soft cost falloff zone around obstacles (meters)
+    high_cost_threshold: 99       # Costmap threshold (0-100) rendered as red buffer zone
+    show_costmap_by_default: true
+```
+
+To adjust the obstacle buffer across both the web dashboard and the Nav2/Roomba
+safety controllers, edit these three YAML files:
+
+1. **Dashboard map buffer & click-to-move clearance** — [`src/web/config/web_params.yaml`](src/web/config/web_params.yaml):
+   - `buffer_zone_radius_m` (default `0.10`): radius in meters of the solid red high-cost buffer zone around walls.
+   - `inflation_radius_m` (default `0.18`): radius in meters of the soft orange cost falloff halo around walls.
+   - `high_cost_threshold` (default `99`): Nav2 costmap threshold (`0–100`) drawn in red.
+2. **Nav2 planner/controller & coordinator clearance** — [`src/neuravac_mapping/config/autonomy_nav2.yaml`](src/neuravac_mapping/config/autonomy_nav2.yaml):
+   - `local_costmap.local_costmap.ros__parameters.robot_radius` (default `0.10`)
+   - `local_costmap.local_costmap.ros__parameters.inflation_layer.inflation_radius` (default `0.18`)
+   - `global_costmap.global_costmap.ros__parameters.robot_radius` (default `0.10`)
+   - `global_costmap.global_costmap.ros__parameters.inflation_layer.inflation_radius` (default `0.18`)
+   - `autonomous_mapping.ros__parameters.clearance_m` (default `0.10`)
+3. **Roomba LiDAR watchdog stop distance** — [`src/roomba/config/roomba_params.yaml`](src/roomba/config/roomba_params.yaml):
+   - `min_obstacle_distance_m` (default `0.10`): minimum forward LiDAR distance before `driver_watchdog` stops autonomous motion.
+
+#### Click-to-move & autonomous navigation speed
+
+Click-to-move and autonomous travel speeds are configured in
+[`src/neuravac_mapping/config/autonomy_nav2.yaml`](src/neuravac_mapping/config/autonomy_nav2.yaml)
+and [`src/roomba/config/roomba_params.yaml`](src/roomba/config/roomba_params.yaml):
+
+- **`desired_linear_vel`** (`controller_server.ros__parameters.FollowPath` in `src/neuravac_mapping/config/autonomy_nav2.yaml`, default `0.22`): base Nav2 linear travel speed in `m/s` (`0.22 m/s` = `220 mm/s`).
+- **`rotate_to_heading_angular_vel`** (`controller_server.ros__parameters.FollowPath` in `src/neuravac_mapping/config/autonomy_nav2.yaml`, default `1.0`): in-place turning speed toward the clicked point in `rad/s`.
+- **`click_to_move_speed_multiplier`** (`autonomous_mapping.ros__parameters` in `src/neuravac_mapping/config/autonomy_nav2.yaml`, default `1.25`): multiplier applied on top of Nav2's velocity specifically when moving to a clicked point on the SLAM map (`0.22 * 1.25 = 0.275 m/s` / `275 mm/s`).
+- **`max_autonomous_linear_vel_m_s`** & **`max_autonomous_angular_vel_rad_s`** (`autonomous_mapping.ros__parameters` in `src/neuravac_mapping/config/autonomy_nav2.yaml`, defaults `0.35` m/s and `1.5` rad/s): upper bounds for scaled click-to-move velocities.
+- **`max_goto_retries`** (`autonomous_mapping.ros__parameters` in `src/neuravac_mapping/config/autonomy_nav2.yaml`, default `5`): automatic retry count when driving toward a clicked point if Nav2 replans around a newly discovered obstacle.
+- **`allow_unknown: true` & `tolerance: 0.50`** (`planner_server.ros__parameters.GridBased` in `src/neuravac_mapping/config/autonomy_nav2.yaml`): allows clicking on grey (unexplored) areas on the SLAM map to drive directly into/toward them, and automatically snaps clicks near walls to the nearest clear cell outside the red buffer zone.
+- **`autonomous_max_wheel_speed_m_s`** (`roomba_node.ros__parameters` in `src/roomba/config/roomba_params.yaml`, default `0.45`): safety ceiling on individual wheel speed in `driver_watchdog` (`0.45 m/s` = `450 mm/s`).
+
+#### Vacuum and cleaning motor controls
+
+Inside the **Drive & vacuum controls** panel on `:5000`, you can toggle the
+Roomba's cleaning motors (Open Interface opcode `138` via `GET`/`POST /roomba/cleaning`):
+
+- **VACUUM (`V`)**: toggles the vacuum fan motor (bit 1, mask `2`; keyboard shortcut `V` while manual controls are enabled).
+- **MAIN BRUSH**: toggles the under-chassis main brush roller (bit 2, mask `4`).
+- **SIDE BRUSH**: toggles the spinning side brush (bit 0, mask `1`).
+- **ALL MOTORS ON / STOP ALL MOTORS**: toggles all three cleaning motors together (mask `7` / `0`).
 
 #### Vision
 
@@ -255,16 +312,16 @@ do not compete for the USB serial ports.
 ### Option A: Start all nodes via `systemd --user` services (recommended on the Pi)
 
 On the Raspberry Pi, five user services manage the hardware drivers, SLAM
-Toolbox mapping, web dashboard (`:5000`), and Nav2 autonomous mapping stack
-(`:5050`):
+Toolbox mapping, Nav2 autonomous navigation stack, and the unified `:5000` web
+dashboard:
 
 | Service | Nodes started | Purpose |
 | --- | --- | --- |
 | `neuravac-roomba.service` | `roomba_node` | Roomba serial owner, `/odom` encoder odometry, `/roomba/sensors`, and `driver_watchdog`. |
 | `neuravac-lidar.service` | `lidar_node` | D6 USB LiDAR driver publishing `/lidar_points`. |
 | `neuravac-toolbox.service` | `scan_bridge`, `slam_toolbox`, `dashboard_bridge` | Deskews `/lidar_points` into `/scan`, runs SLAM Toolbox, and publishes `/slam/map`, `/slam/pose`, and TF (`map -> odom -> base_link -> lidar_link`). |
-| `neuravac-dashboard.service` | `web_node` | Main Flask dashboard on `http://<pi-ip>:5000`. |
-| `neuravac-autonomy.service` | `controller_server`, `planner_server`, `bt_navigator`, `lifecycle_manager_autonomy`, `autonomy_node`, `autonomy_dashboard` | Nav2 stack, autonomous frontier explorer (starts with `enable_motion:=false`), and operator UI on `http://<tailscale-ip>:5050`. |
+| `neuravac-dashboard.service` | `web_node` | Unified Flask dashboard on `http://<pi-ip>:5000` (telemetry, manual drive override, SLAM map, Nav2 costmap buffer, click-to-move, and autonomous mapping). |
+| `neuravac-autonomy.service` | `controller_server`, `planner_server`, `bt_navigator`, `lifecycle_manager_autonomy`, `autonomy_node` | Nav2 planner/controller/BT stack and autonomous coordinator (`enable_dashboard:=false` so everything runs on `:5000`). |
 
 Start all five services together:
 
@@ -280,10 +337,16 @@ systemctl --user start \
 Check that all services are `active (running)`:
 
 ```bash
-systemctl --user status 'neuravac-*' --no-pager
+systemctl --user status \
+  neuravac-roomba.service \
+  neuravac-lidar.service \
+  neuravac-toolbox.service \
+  neuravac-dashboard.service \
+  neuravac-autonomy.service \
+  --no-pager
 ```
 
-Stop all services cleanly:
+Stop all services cleanly and restart the Roomba:
 
 ```bash
 systemctl --user stop \
@@ -292,34 +355,29 @@ systemctl --user stop \
   neuravac-dashboard.service \
   neuravac-lidar.service \
   neuravac-roomba.service
+
+systemctl --user start \
+  neuravac-roomba.service \
+  neuravac-lidar.service \
+  neuravac-toolbox.service \
+  neuravac-dashboard.service \
+  neuravac-autonomy.service
 ```
 
-#### Running a supervised autonomous mapping mission
+#### Using Click-to-Move, Autonomous Mapping, and Manual Override on `:5000`
 
-By default, `neuravac-autonomy.service` launches with `enable_motion:=false` so
-the robot cannot move autonomously until explicitly enabled.
-
-1. Open the main dashboard at `http://<pi-ip>:5000` and the autonomy operator
-   page at `http://<tailscale-ip>:5050` (e.g., `http://100.106.145.39:5050`).
-2. Confirm `/slam/status` is `TRACKING` and the initial room scan is visible.
-3. Enable autonomous motion for your supervised session:
-   ```bash
-   source /opt/ros/jazzy/setup.bash
-   source ~/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh
-   source ~/Neuravac/install/setup.bash
-   ros2 param set /autonomous_mapping enable_motion true
-   ```
-4. In the `:5050` operator UI:
-   - Click a green known-free cell on the map to set the **return point**.
-   - Click **Start mapping** to arm the watchdog and explore reachable frontiers.
-   - Click **End & return** at any time to cancel frontier exploration and
-     navigate back to the selected return point, or click **Stop & wait** for an
-     immediate halt and disarm.
-5. When finished, lock autonomous motion and disarm the watchdog:
-   ```bash
-   ros2 param set /autonomous_mapping enable_motion false
-   ros2 service call /autonomy/disarm std_srvs/srv/Trigger "{}"
-   ```
+1. Open the unified dashboard at `http://<pi-ip>:5000` (e.g., `http://100.106.145.39:5000`).
+2. **Manual Drive Controls (`WASD` / Arrow keys):**
+   - Manual drive controls are enabled by default in the **Drive controls** panel.
+   - Hold or click **W / A / S / D** (or the arrow keys) to drive forward, turn left, reverse, or turn right; use **Q / E** to decrease or increase speed (`50–500 mm/s`).
+   - Any manual drive command immediately preempts autonomous navigation.
+3. **Click-to-Move & Costmap Buffer Zone (`Room map & autonomous navigation`):**
+   - Walls are rendered in orange, the forbidden high-cost buffer zone (`buffer_zone_radius_m`, default `0.255 m`) is rendered in **red**, and safe known-free floor space is rendered in **blue-slate**.
+   - With **CLICK-TO-MOVE: ON** (default), clicking any blue-slate free cell outside the red buffer zone places an orange target marker and immediately commands Nav2 to drive the Roomba to that point (drawing the planned Nav2 path in green).
+   - You can also toggle **CLICK-TO-MOVE: OFF** to preview target coordinates first and then click **GO TO POINT** to drive there.
+   - Click **AUTO-MAP ROOM** to autonomously explore all reachable frontiers in the room and return to the selected target point when mapping completes.
+   - Click **END & RETURN** to finish exploration early and return to the selected point, or click **STOP** for an immediate halt and watchdog disarm.
+   - Use **BUFFER ON / BUFFER OFF** to toggle the red costmap buffer overlay, and **MOTION ENABLED / MOTION LOCKED** to enable or lock autonomous motion.
 
 ### Option B: Start all nodes manually via `ros2 launch`
 
@@ -365,13 +423,13 @@ ros2 launch bringup robot.launch.py slam_backend:=toolbox use_diagnostics:=true
 ros2 launch bringup robot.launch.py slam_backend:=legacy
 ```
 
-**Terminal 2 (optional) — Nav2 autonomous mapping coordinator and operator UI (`:5050`):**
+**Terminal 2 — Nav2 autonomous navigation stack and mapping coordinator (controlled from `:5000`):**
 
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/Neuravac/src/neuravac_mapping/deployment/runtime-env.sh
 source ~/Neuravac/install/setup.bash
-NEURAVAC_AUTONOMY_HOST=0.0.0.0 ros2 launch neuravac_mapping autonomy.launch.py enable_motion:=false
+ros2 launch neuravac_mapping autonomy.launch.py enable_motion:=true enable_dashboard:=false
 ```
 
 ### Start vision standalone

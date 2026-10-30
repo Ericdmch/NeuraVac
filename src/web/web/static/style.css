@@ -44,7 +44,20 @@ h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
 .telemetry-refresh { border: 1px solid #344351; border-radius: 6px; background: #1a2531; color: var(--gray-300); font: 9px 'JetBrains Mono', monospace; padding: 7px 9px; }
 .telemetry-refresh:hover:not(:disabled) { border-color: var(--bright-blue); color: var(--soft-white); }
 .telemetry-refresh:disabled { opacity: .55; cursor: wait; }
-.slam-map-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.slam-map-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.telemetry-refresh.is-active-toggle { border-color: #d9534f; color: #ffb3b3; background: #311a1d; }
+.telemetry-refresh.is-armed-toggle { border-color: var(--green); color: var(--green); background: #132a23; }
+.autonomy-ActionBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #0d1520; }
+.autonomy-btn { border: 1px solid #344351; border-radius: 6px; padding: 7px 11px; font: 700 10px 'JetBrains Mono', monospace; color: var(--soft-white); background: #1a2531; }
+.autonomy-btn:disabled { opacity: .4; cursor: not-allowed; }
+.autonomy-btn.goto-btn { background: #1b364d; border-color: var(--bright-blue); color: #b8dcff; }
+.autonomy-btn.goto-btn:hover:not(:disabled) { background: #254b6b; }
+.autonomy-btn.start-btn { background: #16382c; border-color: var(--green); color: #a8f0cf; }
+.autonomy-btn.start-btn:hover:not(:disabled) { background: #1e4d3c; }
+.autonomy-btn.return-btn { background: #35281b; border-color: var(--orange); color: var(--warm-orange); }
+.autonomy-btn.stop-btn { background: #3b1c1f; border-color: #ff7a7a; color: #ffb4b4; }
+.autonomy-btn.stop-btn:hover:not(:disabled) { background: #522428; }
+.autonomy-target-readout { font: 10px 'JetBrains Mono', monospace; color: var(--gray-300); margin-left: auto; }
 .connection-status { display: inline-flex; align-items: center; flex-shrink: 0; gap: 7px; color: var(--gray-500); font-size: 9px; letter-spacing: 1px; }
 .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--gray-500); }
 .connection-status.is-online { color: var(--green); }
@@ -104,6 +117,21 @@ h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
 .override-key small { font-size: 8px; color: var(--gray-300); }
 .override-key:disabled { opacity: .36; }
 .override-key:not(:disabled):hover, .override-key.is-active { border-color: var(--orange); background: #493021; color: var(--warm-orange); }
+.vacuum-controls { border-top: 1px solid var(--line); padding: 14px 20px 16px; display: grid; gap: 10px; }
+.vacuum-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vacuum-header .section-label { margin: 0; }
+.vacuum-master-btn { border: 1px solid #344351; border-radius: 5px; background: #1a2531; color: var(--gray-300); font: 700 9px 'JetBrains Mono', monospace; padding: 5px 9px; }
+.vacuum-master-btn:hover:not(:disabled) { border-color: var(--green); color: var(--soft-white); }
+.vacuum-master-btn.is-active { border-color: var(--green); background: #16382c; color: #a8f0cf; }
+.vacuum-master-btn:disabled { opacity: .4; }
+.vacuum-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.vacuum-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 48px; gap: 4px; border: 1px solid #354455; background: #15202c; color: var(--soft-white); border-radius: 7px; padding: 8px 6px; }
+.vacuum-btn span { font-size: 11px; font-weight: 700; letter-spacing: .2px; }
+.vacuum-btn small { font: 8px 'JetBrains Mono', monospace; color: var(--gray-500); }
+.vacuum-btn:disabled { opacity: .36; }
+.vacuum-btn:not(:disabled):hover { border-color: var(--bright-blue); }
+.vacuum-btn.is-active { border-color: var(--green); background: #16382c; color: #a8f0cf; }
+.vacuum-btn.is-active small { color: var(--green); }
 .serial-console { margin-top: 20px; }
 .serial-console > summary { cursor: pointer; list-style: none; }
 .serial-console > summary::-webkit-details-marker { display: none; }

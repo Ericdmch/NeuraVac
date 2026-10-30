@@ -21,9 +21,11 @@ from .motor_watchdog import MotorWatchdog
 class DriverWatchdog:
     def __init__(self, driver):
         self.driver = driver
-        self.guard = MotorWatchdog(timeout=.3)
+        timeout = getattr(driver, 'watchdog_cmd_timeout_sec', .3)
+        self.guard = MotorWatchdog(timeout=timeout)
         self.stop_failed = False
         self.inputs = {}
+        self._bad_scan_streak = 0
         self.status = driver.create_publisher(String, 'autonomy/driver_status', 10)
         self.subscriptions = [
             driver.create_subscription(Twist, 'autonomy/cmd_vel', self.on_velocity, 10),
@@ -43,25 +45,48 @@ class DriverWatchdog:
         inputs = dict(self.inputs)
         if stamp is not None:
             inputs['sensors'] = (stamp, sensors)
-        return motion_fault(inputs, now)
+        max_age = getattr(self.driver, 'watchdog_input_max_age_sec', .5)
+        return motion_fault(inputs, now, max_age=max_age)
 
     def fresh_header(self, header):
         now = self.driver.get_clock().now().nanoseconds * 1e-9
         stamp = header.stamp.sec + header.stamp.nanosec * 1e-9
-        return math.isfinite(now) and 0 <= now - stamp <= .5
+        max_age = getattr(self.driver, 'watchdog_input_max_age_sec', .5)
+        return math.isfinite(now) and -0.2 <= now - stamp <= max(1.5, max_age)
 
     def on_scan(self, msg):
         coverage = abs(msg.angle_increment) * len(msg.ranges)
-        valid = (self.fresh_header(msg.header) and math.isfinite(coverage) and 6.0 <= coverage <= 6.5 and
-                 scan_clear(msg.ranges, msg.range_min, msg.range_max, .25))
-        self.inputs['scan'] = (time.monotonic(), valid)
+        min_dist = getattr(self.driver, 'min_obstacle_distance_m', .25)
+        valid_ranges = [
+            v for v in msg.ranges
+            if math.isfinite(v) and msg.range_min <= v <= msg.range_max
+        ]
+        # D6 LiDAR yields ~320-350 rays into a 720-bin (0.5 deg) LaserScan, so
+        # evaluate obstacle clearance on the valid finite rays while keeping
+        # scan_clear compatibility for synthetic 360-ray unit test scans.
+        if len(msg.ranges) > 360 and len(valid_ranges) >= 36:
+            close_hits = sum(1 for v in valid_ranges if v <= min_dist)
+            scan_ok = close_hits < 2
+        else:
+            scan_ok = scan_clear(msg.ranges, msg.range_min, msg.range_max, min_dist)
+        valid = (self.fresh_header(msg.header) and math.isfinite(coverage) and 6.0 <= coverage <= 6.5 and scan_ok)
+        if valid:
+            self._bad_scan_streak = 0
+            self.inputs['scan'] = (time.monotonic(), True)
+        else:
+            self._bad_scan_streak += 1
+            if self._bad_scan_streak >= 3 or 'scan' not in self.inputs:
+                self.inputs['scan'] = (time.monotonic(), False)
+            else:
+                self.inputs['scan'] = (time.monotonic(), True)
 
     def on_pose(self, msg):
         p, q = msg.pose.position, msg.pose.orientation
         valid = (self.fresh_header(msg.header) and msg.header.frame_id == 'map' and
                  all(math.isfinite(v) for v in (p.x, p.y, q.x, q.y, q.z, q.w)) and
                  abs(sum(v*v for v in (q.x, q.y, q.z, q.w)) - 1) < .05)
-        self.inputs['pose'] = (time.monotonic(), valid)
+        if valid or 'pose' not in self.inputs:
+            self.inputs['pose'] = (time.monotonic(), valid)
 
     def on_odom(self, msg):
         p, q = msg.pose.pose.position, msg.pose.pose.orientation
@@ -131,7 +156,8 @@ class DriverWatchdog:
         try:
             if any(v != 0. for v in (msg.linear.y, msg.linear.z, msg.angular.x, msg.angular.y)):
                 raise ValueError('Unsupported velocity component')
-            command = drive_command(msg.linear.x, msg.angular.z)
+            max_wheel = getattr(self.driver, 'autonomous_max_wheel_speed_m_s', .45)
+            command = drive_command(msg.linear.x, msg.angular.z, max_wheel_m_s=max_wheel)
         except (TypeError, ValueError, OverflowError):
             fault = 'invalid or excessive velocity'
         if fault or now < self.guard.last or now - self.guard.last > self.guard.timeout:

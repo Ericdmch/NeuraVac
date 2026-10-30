@@ -19,15 +19,15 @@ def create_app(bridge):
     @app.post('/api/mission')
     def mission():
         payload = request.get_json(silent=True)
-        if not isinstance(payload, dict) or payload.get('command') not in ('start', 'return', 'stop'):
+        if not isinstance(payload, dict) or payload.get('command') not in ('start', 'goto', 'return', 'stop'):
             return jsonify(error='Invalid mission command'), 400
         command = payload['command']
         body = {'command': command}
-        if command == 'start':
+        if command in ('start', 'goto'):
             target = payload.get('return_goal')
             if (not isinstance(target, list) or len(target) != 2 or any(
                     isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in target)):
-                return jsonify(error='Select a valid return point on the map'), 400
+                return jsonify(error='Select a valid target point on the map'), 400
             body['return_goal'] = target
         bridge.send(body)
         return jsonify(message='Request sent; check the mission status for acceptance'), 202
