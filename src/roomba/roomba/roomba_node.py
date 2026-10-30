@@ -58,6 +58,7 @@ class Roomba(Node):
         self._latest_group_zero = None
         self._latest_group_zero_at = None
         self._sensor_buffer = bytearray()
+        self._in_safe_mode = False
         self._query_pending = False
         self._query_started = 0.0
         self._resync_until = 0.0
@@ -103,6 +104,7 @@ class Roomba(Node):
         self._query_pending = False
         self._sensor_buffer.clear()
         self.serial.reset_input_buffer()
+        self._in_safe_mode = False
         # Unframed replies cannot be distinguished from a late response. Drain
         # the input during a quiet interval before requesting another packet.
         self._resync_until = now + 0.2
@@ -179,12 +181,14 @@ class Roomba(Node):
                 if (sensor is None or updated is None or time.monotonic() - updated > 1.0
                         or sensor[0] & 0x1c or any(sensor[2:6])
                         or sensor[16] in (1, 2, 3)):
+                    self._in_safe_mode = False
                     self._warn('Command blocked: wheel drop, cliff, charging, or stale sensor feedback.')
                     return
                 # A lift puts the OI in Passive mode. Re-arm Safe on a NEW
                 # drive or cleaning request, retaining the Roomba safety interlocks.
-                if is_active_drive or not self.autonomous_watchdog.guard.armed:
+                if not self._in_safe_mode:
                     self.serial.write(bytes((131,)))
+                    self._in_safe_mode = True
             self.serial.write(payload)
 
     def request_telemetry(self, _request, response):
