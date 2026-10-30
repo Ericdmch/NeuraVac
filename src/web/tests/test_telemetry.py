@@ -72,7 +72,7 @@ class SensorTests(unittest.TestCase):
         state.request(10)
         state.receive(PACKET, 10.1)
         self.assertTrue(state.snapshot(11)['online'])
-        stale = state.snapshot(13)
+        stale = state.snapshot(10.1 + state.MAX_AGE + 1.0)
         self.assertFalse(stale['online'])
         self.assertIsNone(stale['values'])
 

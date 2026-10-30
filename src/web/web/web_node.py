@@ -622,7 +622,9 @@ class LidarBridge:
             # Room-map marker represents body orientation in the SLAM frame.
             # Travel direction and noisy short displacements cannot calibrate it.
             self._slam_pose = pose
-        self.vision_store.sweep_robot_pose(pose['x'], pose['y'], cleaning_active=True)
+        vision_store = getattr(self, 'vision_store', None)
+        if vision_store is not None:
+            vision_store.sweep_robot_pose(pose['x'], pose['y'], cleaning_active=True)
         with self._map_condition:
             if self._map is not None:
                 self._map = {**self._map, 'robot_x': pose['x'],
